@@ -8,6 +8,7 @@ struct
        issym: string -> bool,
        opers: string -> string list,
        arity: string -> string -> (string list * string) list,
+       binds: string -> string -> bool,
        mutual: string -> string list,
        mutualwith: string -> string -> bool
    }
@@ -32,6 +33,7 @@ struct
                  | "Arr" => []
                  | _ => raise Fail "")
                | _ => raise Fail ""),
+       binds = (fn s => fn t => s = t),
        mutual = (fn s => [s]),
        mutualwith = (fn s => fn t => s = t)
    }
@@ -57,6 +59,13 @@ struct
                  | "Dcl" => [([], "exp"), (["assign"], "cmd")]
                  | "Get" => [([], "assign")])
                | _ => raise Fail ""),
+       binds = (fn "cmd" => 
+                 (fn "exp" => true
+                 | _ => false)
+               | "exp" => 
+                 (fn "exp" => true
+                 | _ => false)
+               | _ => (fn _ => false)), 
        mutual = (fn "exp" => ["exp", "cmd"]
                  | "cmd" => ["exp", "cmd"]
                  | s => [s]),
