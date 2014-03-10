@@ -3,4 +3,7 @@ Group is
    ../fpl/s14/admin/210lib/210lib.cm
    util.sml
    analysis.sml
-   datatypes.sml
+   
+   abbotcore.sml
+   abbotimpl.sml
+   abbotuser.sml

@@ -9,6 +9,8 @@ struct
        opers: string -> string list,
        arity: string -> string -> (string list * string) list,
        binds: string -> string -> bool,
+       varin: string -> string list,
+       symin: string -> string list,
        mutual: string -> string list,
        mutualwith: string -> string -> bool
    }
@@ -33,6 +35,8 @@ struct
                  | "Arr" => []
                  | _ => raise Fail "")
                | _ => raise Fail ""),
+       varin = (fn "exp" => ["exp"] | _ => []),
+       symin = (fn _ => []),
        binds = (fn s => fn t => s = t),
        mutual = (fn s => [s]),
        mutualwith = (fn s => fn t => s = t)
@@ -66,6 +70,8 @@ struct
                  (fn "exp" => true
                  | _ => false)
                | _ => (fn _ => false)), 
+       varin = (fn "exp" => ["exp"] | "cmd" => ["exp"] | _ => []),
+       symin = (fn "exp" => ["assign"] | "cmd" => ["assign"] | _ => []),
        mutual = (fn "exp" => ["exp", "cmd"]
                  | "cmd" => ["exp", "cmd"]
                  | s => [s]),
