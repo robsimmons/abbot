@@ -36,7 +36,7 @@ let
                      (fn srt => #binds ana srt srt)
                      (List.concat (#sorts ana))
 in
-    if null (#symbs ana) then ()
+    if null mkvars then ()
     else 
         (emit ["(* Signatures for variables *)",""];
          app (fn srt => 
@@ -57,6 +57,36 @@ let in
                         " = AbbotImpl."^Big srt,""]))
              (#symbs ana);
          emit [""])
+end
+
+(* Sorts and variable sorts to strings *)
+fun ss (ana: ana) srt s' = 
+    if (#mutualwith ana srt s') 
+    then (s')
+    else (Big s'^"."^s')
+fun ssv (ana: ana) srt varsrt = 
+    if (#mutualwith ana srt varsrt) 
+    then (varsrt^"Var")
+    else (Big varsrt^".Var."^varsrt^"Var")
+
+(* The convienece constructors *)
+fun emitconvienenceconstructor (ana: ana) srt oper =
+let 
+    fun typeofBound boundsrt = 
+        if #issrt ana boundsrt
+        then ssv ana srt boundsrt (* Variable *)
+        else ss ana srt boundsrt (* Symbol *)
+
+    fun typeofValence (boundsrts, res) = 
+        if null boundsrts then ss ana srt res
+        else "("^String.concatWith 
+                     " * " 
+                     (map typeofBound boundsrts @ [ss ana srt res])^")"
+    val args = map typeofValence (#arity ana srt oper)
+in
+    if null args
+    then emit ["val "^oper^"': "^srt]
+    else emit ["val "^oper^"': "^String.concatWith " * " args^" -> "^srt]
 end
 
 (* The sealing for the user struct is the most interesting part... *)
@@ -88,20 +118,32 @@ in
           " = datatype AbbotImpl."^Big srt^"."^shortview srt];
     emitview ana true srt;
     emit [""];
+    (if (#binds ana srt srt)
+     then emit ["val Var' : "^srt^"Var -> "^srt] else ());
+    app (emitconvienenceconstructor ana srt)
+        (#opers ana srt);
+    emit [""];
 
     emit ["val into: "^concretesofView ana srt^" "^shortview srt^" -> "
           ^srt];
     emit ["val out: "^srt^" ->"^
           concretesofView ana srt^" "^shortview srt];
     emit ["val aequiv: "^srt^" * "^srt^" -> bool"];
+    emit ["val toString: "^srt^" -> string"];
     (if #binds ana srt srt
-     then emit ["val subst: "^srt^" -> "^srt^"Var -> "^srt^" -> "^srt]
+     then emit ["val subst: "^srt^" -> "^srt^"Var -> "^srt^" -> "^srt,
+                "val freevars: "^srt^" -> "^srt^"Var list"]
      else ());
     app (fn s' => 
             if s' = srt then ()
-            else emit ["val subst"^Big s'^": "^s'^" -> "^s'^"Var -> "^
-                       srt^" -> "^srt])
+            else emit ["val subst"^Big s'^": "^ss ana srt s'^" -> "^
+                       ssv ana srt s'^" -> "^
+                       srt^" -> "^srt,
+                       "val free"^Big s'^"Vars: "^srt^" -> "^
+                       ssv ana srt s'^" list"])
         (#varin ana srt);
+    app (fn s' => emit ["val free"^Big s'^": "^srt^" -> "^Big s'^"."^s'^" list"])
+        (#symin ana srt);
     (* Removing fmap to think about map for ABTs. 
     appFirst 
         (fn () => raise Fail "Can't fmap")

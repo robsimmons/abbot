@@ -99,12 +99,12 @@ in
           String.concatWith ", " srts ^" *)", ""];
     app (emitimplview ana) srts;
     emit ["(* Naive and minimal implementation *)"];
-    emit ["local"];
+    (* emit ["local"]; *)
     incr ();
     appFirst (fn _ => raise Fail "Invariant") (emitdatatypeimpl_naive ana) 
         ("datatype", "and") srts;
     decr ();
-    emit ["in"];
+    (* emit ["in"]; *)
     incr ();
     app (fn srt => emit ["type "^srt^" = "^srt]) srts;
     app (fn srt => emit ["val out_"^srt^dummy]) srts;
@@ -118,7 +118,7 @@ in
             app (fn srt => emit ["val free_"^symsrt^"_"^srt^dummy]) srts)
         (#symin ana (hd srts));
     decr ();
-    emit ["end","","(* Derived functions *)"];
+    (* emit ["end","","(* Derived functions *)"]; *)
     (* Takes advantage of the fact that 'varin' has to be the same across
      * a block of mutually-defined sorts *)
     app (fn varsrt =>
@@ -140,13 +140,28 @@ let in
                   then emit ["type "^s'^"Var = "^internalvart s']
                   else ()) (#mutual ana srt);
     emit ["open "^Big srt];
-    (if #binds ana srt srt 
-     then emit ["structure Var = "^internalvar srt]
-     else ());
     emit ["val into = into_"^srt];
     emit ["val out = out_"^srt];
+    (if #binds ana srt srt 
+     then emit ["structure Var = "^internalvar srt,
+                "val Var' = fn x => into (Var x)"]
+     else ());
     emit ["val aequiv = aequiv_"^srt];
     emit ["val toString = toString_"^srt];
+    app (fn s' => emit ["val subst"^(if srt <> s' then Big s' else "")^
+                        " = subst_"^s'^"_"^srt])
+        (#varin ana srt);
+    app (fn s' => emit ["val free"^(if srt <> s' then (Big s'^"V") else "v")^
+                        "ars = subst_"^s'^"_"^srt])
+        (#varin ana srt);
+    app (fn s' => emit ["val free"^(Big s')^" = free_"^s'^"_"^srt])
+        (#symin ana srt);
+    app (fn oper => 
+            if null (#arity ana srt oper)
+            then emit ["val "^oper^"' = "^implconstructor srt oper]
+            (* XXX  fix to re-localize blocks *)
+            else emit ["val "^oper^"' = fn x => into ("^oper^" x)"])
+        (#opers ana srt);
     decr();
     emit ["end",""];
     ()
