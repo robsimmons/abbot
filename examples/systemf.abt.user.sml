@@ -64,16 +64,16 @@ sig
    datatype expView = datatype AbbotImpl.Exp.expView
    (* datatype 'exp expView
     *  = Var of Exp.Var.t
-    *  | TLam of (Tp.Var.t * 'exp)
     *  | Lam of Tp.t * (Exp.Var.t * 'exp)
-    *  | TApp of 'exp * Tp.t
-    *  | App of 'exp * 'exp   *)
+    *  | App of 'exp * 'exp
+    *  | TLam of (Tp.Var.t * 'exp)
+    *  | TApp of 'exp * Tp.t   *)
    
    val Var' : expVar -> exp
-   val TLam': (Tp.Var.tpVar * exp) -> exp
    val Lam': Tp.tp * (expVar * exp) -> exp
-   val TApp': exp * Tp.tp -> exp
    val App': exp * exp -> exp
+   val TLam': (Tp.Var.tpVar * exp) -> exp
+   val TApp': exp * Tp.tp -> exp
    
    val into:  exp expView -> exp
    val out: exp -> exp expView

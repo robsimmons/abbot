@@ -148,14 +148,14 @@ sig
    
    datatype cmdView = datatype AbbotImpl.Cmd.cmdView
    (* datatype ('exp, 'cmd) cmdView
-    *  = Bnd of 'exp * (Exp.Var.t * 'cmd)
-    *  | Ret of 'exp
+    *  = Ret of 'exp
+    *  | Bnd of 'exp * (Exp.Var.t * 'cmd)
     *  | Dcl of 'exp * (Assign.t * 'cmd)
     *  | Get of Assign.t
     *  | Set of Assign.t * 'exp   *)
    
-   val Bnd': exp * (expVar * cmd) -> cmd
    val Ret': exp -> cmd
+   val Bnd': exp * (expVar * cmd) -> cmd
    val Dcl': exp * (Assign.assign * cmd) -> cmd
    val Get': Assign.assign -> cmd
    val Set': Assign.assign * exp -> cmd

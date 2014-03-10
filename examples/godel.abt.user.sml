@@ -22,10 +22,10 @@ sig
    datatype tpView = datatype AbbotImpl.Tp.tpView
    (* datatype 'tp tpView
     *  = Nat
-    *  | Arr   *)
+    *  | Arr of 'tp * 'tp   *)
    
    val Nat': tp
-   val Arr': tp
+   val Arr': tp * tp -> tp
    
    val into:  tp tpView -> tp
    val out: tp -> tp tpView
@@ -50,14 +50,14 @@ sig
     *  | S of 'exp
     *  | Rec of 'exp * 'exp * (Exp.Var.t * Exp.Var.t * 'exp)
     *  | Lam of Tp.t * (Exp.Var.t * 'exp)
-    *  | App of 'exp * 'exp   *)
+    *  | Ap of 'exp * 'exp   *)
    
    val Var' : expVar -> exp
    val Z': exp
    val S': exp -> exp
    val Rec': exp * exp * (expVar * expVar * exp) -> exp
    val Lam': Tp.tp * (expVar * exp) -> exp
-   val App': exp * exp -> exp
+   val Ap': exp * exp -> exp
    
    val into:  exp expView -> exp
    val out: exp -> exp expView

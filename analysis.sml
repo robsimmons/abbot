@@ -20,7 +20,7 @@ struct
        issrt = (fn "exp" => true | "tp" => true | _ => false),
        symbs = [],
        issym = (fn _ => false),
-       opers = (fn "exp" => ["TLam", "Lam", "TApp", "App"]
+       opers = (fn "exp" => ["Lam","App", "TLam",  "TApp"]
                | "tp" => ["All", "Arr"]
                | _ => raise Fail ""),
        arity = (fn "exp" =>
@@ -46,7 +46,7 @@ struct
        issrt = (fn "exp" => true | "tp" => true | _ => false),
        symbs = [],
        issym = (fn _ => false),
-       opers = (fn "exp" => ["Z", "S", "Rec", "Lam", "App"]
+       opers = (fn "exp" => ["Z", "S", "Rec", "Lam", "Ap"]
                | "tp" =>  ["Nat", "Arr"]
                | _ => raise Fail ""),
        arity = (fn "exp" => 
@@ -54,11 +54,11 @@ struct
                  | "S" => [([], "exp")]
                  | "Rec" => [([], "exp"), ([], "exp"), (["exp", "exp"], "exp")]
                  | "Lam" => [([], "tp"), (["exp"], "exp")]
-                 | "App" => [([], "exp"), ([], "exp")]
+                 | "Ap" => [([], "exp"), ([], "exp")]
                  | _ => raise Fail "")
                | "tp" =>
                  (fn "Nat" => []
-                 | "Arr" => []
+                 | "Arr" => [([], "tp"), ([], "tp")]
                  | _ => raise Fail "")
                | _ => raise Fail ""),
        varin = (fn "exp" => ["exp"] | _ => []),
@@ -78,7 +78,7 @@ struct
                | "tp" => ["Nat", "Parr", "Unit", "Prod", "Void", "Sum", "Cmd"]
                | "exp" => ["Z", "S", "Ifz", "Lam", "Ap", "Let", "Fix",
                            "Triv", "Pair", "Pr", "Abort", "In", "Case", "Cmd"]
-               | "cmd" => ["Bnd", "Ret", "Dcl", "Get", "Set"]
+               | "cmd" => ["Ret", "Bnd", "Dcl", "Get", "Set"]
                | _ => raise Fail ""),
        arity = (fn "side" =>
                  (fn "L" => []
