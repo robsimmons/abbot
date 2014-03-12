@@ -115,9 +115,11 @@ struct
                | _ => raise Fail ""),
        binds = (fn "cmd" => 
                  (fn "exp" => true
+                 | "assign" => true
                  | _ => false)
                | "exp" => 
                  (fn "exp" => true
+                 | "assign" => true
                  | _ => false)
                | _ => (fn _ => false)), 
        varin = (fn "exp" => ["exp"] | "cmd" => ["exp"] | _ => []),

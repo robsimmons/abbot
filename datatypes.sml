@@ -17,6 +17,6 @@ in
     ()
 end;
     
-doitall Analysis.minalgol "minalgol";
 doitall Analysis.godel "godel";
+doitall Analysis.minalgol "minalgol";
 doitall Analysis.systemf "systemf";
