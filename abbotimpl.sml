@@ -230,29 +230,7 @@ in
     if !needslet then (decr (); emit ["end"]) else ()
 end
 
-(*
-fun emitunbind_sym_case (ana: ana) boundsrt (oper, arity, srt) = 
-let 
-    val needslet = ref false
-    fun forcelet () = 
-        if !needslet then () else (emit ["let"]; incr (); needslet := true)
-
-    fun process_arity (boundsrts, (srtvar, srt)) = 
-        if #binds ana srt boundsrt
-        then (forcelet ();
-              emit ["val "^srtvar^" = unbind_"^boundsrt^"_"^srt^" "^
-                    add "n" (length boundsrts)^" newsym "^srtvar])
-        else ()
-in
-    app process_arity arity;
-    if !needslet then (decr (); emit ["in"]; incr ()) else ();
-    emit [implconstructor srt oper^operargs arity];
-    if !needslet then (decr (); emit ["end"]) else ()
-end
-*)
-
-(*
-fun emitbind_var_case (ana: ana) boundsrt (oper, arity, srt) = 
+fun emitbind_case (ana: ana) boundsrt (oper, arity, srt) = 
 let
     val needslet = ref false
     fun forcelet () = 
@@ -262,7 +240,7 @@ let
         if #binds ana srt boundsrt
         then (forcelet ();
               emit ["val "^srtvar^" = bind_"^boundsrt^"_"^srt^" "^
-                    add "n" (length boundstrs)^" oldvar "^srtvar])
+                    add "n" (length boundsrts)^" oldfree "^srtvar])
         else ()
 in
     app process_arity arity;
@@ -270,30 +248,6 @@ in
     emit [implconstructor srt oper^operargs arity];
     if !needslet then (decr (); emit ["end"]) else ()
 end
-
-fun emitbind_sym_case (ana: ana) boundsrt (oper, arity, srt) = 
-let 
-    val needslet = ref false
-    fun forcelet () = 
-        if !needslet then () else (emit ["let"]; incr (); needslet := true)
-
-    fun process_arity (boundsrts, (srtvar, srt)) = 
-        if #binds ana srt boundsrt
-        then (forcelet ();
-              emit ["val "^srtvar^" = bind_"^boundsrt^"_"^srt^" "^
-                    add "n" (length boundsrts)^" newsym "^srtvar])
-        else if boundsrt = srt
-        then (forcelet ();
-              emit ["val "^srtvar^" = bind_"^srt^" "^
-                    Int.toString (length boundsrts)^" newsym "^srtvar])
-        else ()
-in
-    app process_arity arity;
-    if !needslet then (decr (); emit ["in"]; incr ()) else ();
-    emit [implconstructor srt oper^operargs arity];
-    if !needslet then (decr (); emit ["end"]) else ()
-end
-*)
 
 (* Emit a mutually-interdependent block of implementations *)
 fun emitblockimpl (ana: ana) srts = 
