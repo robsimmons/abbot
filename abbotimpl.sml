@@ -198,7 +198,7 @@ let
 
     fun process_arity_sym (_, (srtvar, srt)) = 
         if #issym ana srt
-        then (forcelet (); emit ["val "^srtvar^" = unwrap_"^srt^" "^srtvar])
+        then (forcelet (); emit ["val "^srtvar^" = out_"^srt^" "^srtvar])
         else ()
 in
     app process_arity_bound arity;
@@ -211,7 +211,7 @@ end
 fun add x 0 = x
   | add x n = "("^x^"+"^Int.toString n^")" 
 
-fun emitunbind_var_case (ana: ana) boundsrt (oper, arity, srt) = 
+fun emitunbind_case (ana: ana) boundsrt (oper, arity, srt) = 
 let
     val needslet = ref false
     fun forcelet () = 
@@ -221,10 +221,7 @@ let
         if #binds ana srt boundsrt
         then (forcelet ();
               emit ["val "^srtvar^" = unbind_"^boundsrt^"_"^srt^" "^
-                    add "n" (length boundsrts)^" newvar "^srtvar])
-        else if #issym ana srt
-        then (forcelet ();
-              emit ["val "^srtvar^" = unbind_"^srt^" 0 NONE "^srtvar])
+                    add "n" (length boundsrts)^" newfree "^srtvar])
         else ()
 in
     app process_arity arity;
@@ -233,23 +230,39 @@ in
     if !needslet then (decr (); emit ["end"]) else ()
 end
 
+(*
 fun emitunbind_sym_case (ana: ana) boundsrt (oper, arity, srt) = 
 let 
     val needslet = ref false
     fun forcelet () = 
         if !needslet then () else (emit ["let"]; incr (); needslet := true)
 
-    fun process_arity (boundsrts, (srtvar, srt')) = 
-        if #binds ana srt' boundsrt
+    fun process_arity (boundsrts, (srtvar, srt)) = 
+        if #binds ana srt boundsrt
         then (forcelet ();
-              emit ["val "^srtvar^" = unbind_"^boundsrt^"_"^srt'^" "^
+              emit ["val "^srtvar^" = unbind_"^boundsrt^"_"^srt^" "^
                     add "n" (length boundsrts)^" newsym "^srtvar])
-        else if boundsrt = srt'
+        else ()
+in
+    app process_arity arity;
+    if !needslet then (decr (); emit ["in"]; incr ()) else ();
+    emit [implconstructor srt oper^operargs arity];
+    if !needslet then (decr (); emit ["end"]) else ()
+end
+*)
+
+(*
+fun emitbind_var_case (ana: ana) boundsrt (oper, arity, srt) = 
+let
+    val needslet = ref false
+    fun forcelet () = 
+        if !needslet then () else (emit ["let"]; incr (); needslet := true)
+
+    fun process_arity (boundsrts, (srtvar, srt)) = 
+        if #binds ana srt boundsrt
         then (forcelet ();
-              emit ["val "^srtvar^" = unbind_"^srt'^" 0 (SOME newsym) "^srtvar])
-        else if #issym ana srt'
-        then (forcelet ();
-              emit ["val "^srtvar^" = unbind_"^srt'^" 0 NONE "^srtvar])
+              emit ["val "^srtvar^" = bind_"^boundsrt^"_"^srt^" "^
+                    add "n" (length boundstrs)^" oldvar "^srtvar])
         else ()
 in
     app process_arity arity;
@@ -258,6 +271,29 @@ in
     if !needslet then (decr (); emit ["end"]) else ()
 end
 
+fun emitbind_sym_case (ana: ana) boundsrt (oper, arity, srt) = 
+let 
+    val needslet = ref false
+    fun forcelet () = 
+        if !needslet then () else (emit ["let"]; incr (); needslet := true)
+
+    fun process_arity (boundsrts, (srtvar, srt)) = 
+        if #binds ana srt boundsrt
+        then (forcelet ();
+              emit ["val "^srtvar^" = bind_"^boundsrt^"_"^srt^" "^
+                    add "n" (length boundsrts)^" newsym "^srtvar])
+        else if boundsrt = srt
+        then (forcelet ();
+              emit ["val "^srtvar^" = bind_"^srt^" "^
+                    Int.toString (length boundsrts)^" newsym "^srtvar])
+        else ()
+in
+    app process_arity arity;
+    if !needslet then (decr (); emit ["in"]; incr ()) else ();
+    emit [implconstructor srt oper^operargs arity];
+    if !needslet then (decr (); emit ["end"]) else ()
+end
+*)
 
 (* Emit a mutually-interdependent block of implementations *)
 fun emitblockimpl (ana: ana) srts = 
@@ -286,24 +322,15 @@ in
     app (fn boundsrt => 
             emitcasefunctions
                 ana srts (fn srt => "unbind_"^boundsrt^"_"^srt) 
-                ("n newvar x") (fn _ => "x") 
+                ("n newfree x") (fn _ => "x") 
                 (SOME (fn (n', srt) => 
-                          if boundsrt <> srt then emit ["x"]
+                          if #issym ana srt orelse boundsrt <> srt 
+                          then emit ["x"]
                           else emit ["if "^n'^" < n then x",
-                                     "else "^implfvar srt^" newvar"]))
+                                     "else "^implfvar srt^" newfree"]))
                 (fn _ => emit ["x"])
-                (emitunbind_var_case ana boundsrt))
-        varsinthese;
-
-    (* Learn to unbind all the assignables that are bound in these sorts *)
-    app (fn boundsrt =>
-            emitcasefunctions
-                ana srts (fn srt => "unbind_"^boundsrt^"_"^srt)
-                ("n newsym x") (fn _ => "x")
-                (SOME (fn _ => emit ["x"]))
-                (fn _ => emit ["x"])
-                (emitunbind_sym_case ana boundsrt))
-        symsinthese;
+                (emitunbind_case ana boundsrt))
+        (varsinthese @ symsinthese);
 
     (* Use unbind to implement projection type -> view *)
     emitcasefunctions
@@ -311,6 +338,29 @@ in
         (SOME (fn _ => emit ["raise Fail \"Invariant: exposed bvar\""]))
         (fn (v, srt) => emit [viewvar srt^" "^v])
         (emitoutcase ana);
+
+    (* Learn to bind all the variables that are bound in these sorts *)
+    app (fn boundsrt => 
+            emitcasefunctions
+                ana srts (fn srt => "bind_"^boundsrt^"_"^srt)
+                ("n oldvar x") (fn _ => "x")
+                (SOME (fn _ => emit ["x"]))
+                (fn (x, srt) => 
+                    if srt <> boundsrt then emit ["x"]
+                    else emit ["if "^internalvar boundsrt^".equal (oldvar, "^
+                               x^") then "^implbvar boundsrt^" n else x"])
+                (fn _ => emit ["raise Match"]))
+        varsinthese;
+
+    (* Learn to bind all the symbols that are bound in these sorts *)
+    app (fn boundsrt => 
+            emitcasefunctions
+                ana srts (fn srt => "bind_"^boundsrt^"_"^srt)
+                ("n oldsym x") (fn _ => "x")
+                (SOME (fn _ => emit ["x"]))
+                (fn _ => emit ["x"])
+                (fn _ => emit ["raise Match"]))
+        symsinthese;
 
     emitcasefunctions
         ana srts (fn srt => "into_"^srt) "x" (fn _ => "x") NONE
@@ -385,15 +435,22 @@ let in
           " = bound_symbol of IntInf.int ",
           " | free_symbol of 'a",""];
     app (fn srt => 
-            (emit ["fun unbind_"^srt^" n optnewsym x ="];
+            (emit ["fun unbind_"^srt^"_"^srt^" n newfree x ="];
              emit ["    case x of"];
              emit ["       free_symbol _ => x"];
              emit ["     | bound_symbol m => "];
-             emit ["       if m < n then x else free_symbol (valOf optnewsym)"];
+             emit ["       if m < n then x else free_symbol newfree"];
              emit [""];
-             emit ["fun unwrap_"^srt^" (bound_symbol _) = "];
+             emit ["fun bind_"^srt^"_"^srt^" n oldfree x = "];
+             emit ["    case x of"];
+             emit ["       free_symbol freesym =>"];
+             emit ["       if "^Big srt^".equal (oldfree, freesym)"];
+             emit ["       then bound_symbol n else x"];
+             emit ["     | bound_symbol _ => x"];
+             emit [""];
+             emit ["fun out_"^srt^" (bound_symbol _) = "];
              emit ["    raise Fail \"Invariant: exposed bvar\""];
-             emit ["  | unwrap_"^srt^" (free_symbol x) = x",""])) 
+             emit ["  | out_"^srt^" (free_symbol x) = x",""])) 
         (#symbs ana);
     emit ["(* All variables *)"];
     app emitvariablestruct 

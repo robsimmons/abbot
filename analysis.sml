@@ -121,6 +121,9 @@ struct
                  (fn "exp" => true
                  | "assign" => true
                  | _ => false)
+               | "assign" => 
+                 (fn "assign" => true
+                 | _ => false)
                | _ => (fn _ => false)), 
        varin = (fn "exp" => ["exp"] | "cmd" => ["exp"] | _ => []),
        symin = (fn "exp" => ["assign"] | "cmd" => ["assign"] | _ => []),
