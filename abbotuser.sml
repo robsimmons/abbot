@@ -158,7 +158,7 @@ in
     emit ["end","structure "^Big srt^": "^BIG srt];
     incr (); incr ();
     app emitwhereclauses (#mutual ana srt); 
-    emit ["= AbbotImpl."^Big srt^"Impl",""];
+    emit ["= AbbotImpl."^Big srt,""];
     decr (); decr (); 
     ()
 end

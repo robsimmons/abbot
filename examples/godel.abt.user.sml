@@ -34,7 +34,7 @@ sig
 end
 structure Tp: TP
       where type tp = AbbotImpl.tp
-      = AbbotImpl.TpImpl
+      = AbbotImpl.Tp
       
 signature EXP = 
 sig
@@ -69,7 +69,7 @@ end
 structure Exp: EXP
       where type exp = AbbotImpl.exp
       where type expVar = AbbotImpl.ExpVar.expVar
-      = AbbotImpl.ExpImpl
+      = AbbotImpl.Exp
       
 (* Intentionally shadow internals *)
 structure AbbotImpl = struct end

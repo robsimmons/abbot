@@ -49,7 +49,7 @@ sig
 end
 structure Side: SIDE
       where type side = AbbotImpl.side
-      = AbbotImpl.SideImpl
+      = AbbotImpl.Side
       
 signature TP = 
 sig
@@ -81,7 +81,7 @@ sig
 end
 structure Tp: TP
       where type tp = AbbotImpl.tp
-      = AbbotImpl.TpImpl
+      = AbbotImpl.Tp
       
 signature EXP = 
 sig
@@ -137,7 +137,7 @@ structure Exp: EXP
       where type exp = AbbotImpl.exp
       where type expVar = AbbotImpl.ExpVar.expVar
       where type cmd = AbbotImpl.cmd
-      = AbbotImpl.ExpImpl
+      = AbbotImpl.Exp
       
 signature CMD = 
 sig
@@ -172,7 +172,7 @@ structure Cmd: CMD
       where type exp = AbbotImpl.exp
       where type expVar = AbbotImpl.ExpVar.expVar
       where type cmd = AbbotImpl.cmd
-      = AbbotImpl.CmdImpl
+      = AbbotImpl.Cmd
       
 (* Intentionally shadow internals *)
 structure AbbotImpl = struct end
