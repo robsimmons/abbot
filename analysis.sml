@@ -94,7 +94,7 @@ struct
                | "exp" =>
                  (fn "Z" => []
                  | "S" => [([], "exp")]
-                 | "Ifz" => [([], "tp"), (["exp"], "exp")]
+                 | "Ifz" => [([], "exp"), ([], "exp"), (["exp"], "exp")]
                  | "Lam" => [([], "tp"), (["exp"], "exp")]
                  | "Ap" => [([], "exp"), ([], "exp")]
                  | "Let" => [([], "exp"), (["exp"], "exp")]

@@ -96,7 +96,7 @@ sig
     *  = Var of Exp.Var.t
     *  | Z
     *  | S of 'exp
-    *  | Ifz of Tp.t * (Exp.Var.t * 'exp)
+    *  | Ifz of 'exp * 'exp * (Exp.Var.t * 'exp)
     *  | Lam of Tp.t * (Exp.Var.t * 'exp)
     *  | Ap of 'exp * 'exp
     *  | Let of 'exp * (Exp.Var.t * 'exp)
@@ -112,7 +112,7 @@ sig
    val Var' : expVar -> exp
    val Z': exp
    val S': exp -> exp
-   val Ifz': Tp.tp * (expVar * exp) -> exp
+   val Ifz': exp * exp * (expVar * exp) -> exp
    val Lam': Tp.tp * (expVar * exp) -> exp
    val Ap': exp * exp -> exp
    val Let': exp * (expVar * exp) -> exp

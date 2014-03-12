@@ -1,0 +1,3 @@
+(* This isn't actually being used yet, but should be processible to a
+ * frontend to produce the internal minalgol spec given in
+ * analysis.sml *)
