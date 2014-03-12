@@ -1,3 +1,39 @@
 (* This isn't actually being used yet, but should be processible to a
  * frontend to produce the internal minalgol spec given in
  * analysis.sml *)
+
+symbol assign
+
+abt side = L | R
+
+abt tp 
+ = Nat 
+ | Parr (tp, tp)
+ | Unit
+ | Prod (tp, tp)
+ | Void
+ | Sum (tp, tp)
+ | Cmd (tp)
+
+abt exp
+ = Z
+ | S (exp)
+ | Ifz (exp, exp, exp.exp)
+ | Lam (tp, exp.exp)
+ | Ap (exp, exp)
+ | Let (exp, exp.exp)
+ | Fix (tp, exp.exp)
+ | Triv
+ | Pair (exp, exp)
+ | Pr (side, exp)
+ | Abort (tp, exp)
+ | In (tp, tp, side, exp)
+ | Case (exp, exp.exp, exp.exp)
+ | Cmd (cmd)
+
+abt cmd
+ = Bnd (exp, exp.cmd)
+ | Ret (exp)
+ | Dcl (exp, assign.cmd)
+ | Get (assign)
+ | Set (assign, exp)
