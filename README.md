@@ -98,7 +98,9 @@ end
 structure Exp: EXP
 ```
 
-Code using Abbot-generated signatures looks about the same, but makes better use of Standard ML's type system to ensure correctness. One significant difference is that binding sites are now automatically exposed along with the constructor they are attached to, which makes the reduction step in our example a little more concise.
+Code using Abbot-generated signatures looks about the same, but makes better use of Standard ML's type system to ensure correctness; instead of using operators and the infixed `$` constructor, our views are normal-looking SML datatypes. 
+
+One significant difference from using Abbot is that binding sites are now automatically exposed along with the constructor they are attached to. This makes the reduction step in our example a little more concise.
 
 ```
 fun trystep exp = 
