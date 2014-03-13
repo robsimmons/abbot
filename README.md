@@ -5,7 +5,7 @@ Abbot is a tool for the automatic generation of implementations for abstract bin
 
 A reasonable implementation strategy for abstract binding trees keeps ABTs as an abstract type; whenever a bound variable is exposed, it is given a globally fresh name that ensures its uniqueness. Such an implementation avoids many potential errors that can happen because of shadowing. However, implementing this interface for each language that we might be interested in would be tedious and error-prone in the extreme.
 
-One solution, which has been used successfully for large projects like Tom Murphy's ML5/pgh compiler, is to implement a library for ABTs, a functor parameterized by a set of _operators_. An ABT is either a variable (constructor `x, destructor ``x). 
+One solution, which has been used successfully for large projects like Tom Murphy's ML5/pgh compiler, is to implement a library for ABTs, a functor parameterized by a set of _operators_. An ABT is either a variable (constructor ``x`, destructor ``x). 
 
 ```
 fun trystep exp = 
