@@ -29,18 +29,20 @@ Each operator has an arity, which determines both the number of subexpressions a
 ```
 fun trystep exp = 
    (case out exp of 
-       Lam $ [exp'] => VAL
+       ` x => raise Malformed
+     | \ (x, exp) => raise Malformed
+     | Lam $ [exp'] => VAL
      | Ap $ [exp1, exp2] =>
        (case trystep exp1 of 
-           STEPS exp1' => STEPS (Ap' $$ [exp1', exp2])
+           STEPS exp1' => STEPS (Ap $$ [exp1', exp2])
          | VAL =>
            (case trystep exp2 of 
-               STEPS exp2' => STEPS (Ap' $$ [exp1', exp2])
+               STEPS exp2' => STEPS (Ap $$ [exp1, exp2'])
              | VAL => 
                (case out exp1 of 
                    Lam $ [exp1'] => 
                    (case out exp1' of
-                       \ (x, exp0) => 
+                       \ (x, exp0) => subst exp2 x exp0
                      | _ => raise Malformed) 
                  | _ => raise Malformed))))
 ```
@@ -48,13 +50,13 @@ fun trystep exp =
 ABTs with Abbot
 ---------------
 
-Abbot takes an ABT specification 
+Abbot takes a code generation approach to ABT specification. Instead of the operators and the corresponding information about their airities being passed to a functor, we can specify 
 
 ```
 abt exp = Lam (exp.exp) | Ap (exp, exp)
 ```
 
-and compiles it into Standard ML signatures:
+Abbot takes this specification and compiles it into Standard ML signature specific to that abstract binding tree spec:
 
 ```
 signature EXP_VAR = 
@@ -95,3 +97,24 @@ sig
 end
 structure Exp: EXP
 ```
+
+Code using Abbot-generated signatures looks about the same, but makes better use of Standard ML's type system to ensure correctness. One significant difference is that binding sites are now automatically exposed along with the constructor they are attached to, which makes the reduction step in our example a little more concise.
+
+```
+fun trystep exp = 
+   (case out exp of 
+       Var _ => raise Malformed
+     | Lam (x, exp') => VAL
+     | Ap (exp1, exp2) =>
+       (case trystep exp1 of 
+           STEPS exp1' => STEPS (Ap' (exp1', exp2))
+         | VAL =>
+           (case trystep exp2 of 
+               STEPS exp2' => STEPS (Ap' (exp1, exp2'))
+             | VAL => 
+               (case out exp1 of 
+                   Lam (x, exp0) => subst exp2 x exp0
+                 | _ => raise Malformed))))
+```
+
+The pretty concrete syntax for Abbot isn't connected to a frontend yet; the SML representation of a few datatypes is in analysis.sml, and the output of Abbot can be seen in the examples directory.
