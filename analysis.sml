@@ -15,6 +15,24 @@ struct
        mutualwith: string -> string -> bool
    }
 
+   val church: ana = {
+       sorts = [["exp"]],
+       issrt = (fn "exp" => true | _ => false),
+       symbs = [],
+       issym = (fn _ => false),
+       opers = (fn "exp" => ["Lam", "Ap"]
+               | _ => raise Fail ""),
+       arity = (fn "exp" =>
+                 (fn "Lam" => []
+                 | "Ap" => [([], "exp"), ([], "exp")])),
+       binds = (fn s => fn t => s = t),
+       varin = (fn "exp" => ["exp"]),
+       symin = (fn _ => []),
+       mutual = (fn s => [s]),
+       mutualwith = (fn s => fn t => s = t)
+   }
+
+
    val systemf: ana = {
        sorts = [["tp"], ["exp"]],
        issrt = (fn "exp" => true | "tp" => true | _ => false),

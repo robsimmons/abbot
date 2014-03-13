@@ -20,3 +20,4 @@ end;
 doitall Analysis.godel "godel";
 doitall Analysis.minalgol "minalgol";
 doitall Analysis.systemf "systemf";
+doitall Analysis.church "church";
