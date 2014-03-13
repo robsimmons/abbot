@@ -64,7 +64,6 @@ sig
    val aequiv: exp * exp -> bool
    val toString: exp -> string
    val subst: exp -> expVar -> exp -> exp
-   val freevars: exp -> expVar list
 end
 structure Exp: EXP
       where type exp = AbbotImpl.exp

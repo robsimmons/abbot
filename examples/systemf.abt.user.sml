@@ -47,7 +47,6 @@ sig
    val aequiv: tp * tp -> bool
    val toString: tp -> string
    val subst: tp -> tpVar -> tp -> tp
-   val freevars: tp -> tpVar list
 end
 structure Tp: TP
       where type tp = AbbotImpl.tp
@@ -80,9 +79,7 @@ sig
    val aequiv: exp * exp -> bool
    val toString: exp -> string
    val subst: exp -> expVar -> exp -> exp
-   val freevars: exp -> expVar list
    val substTp: Tp.tp -> Tp.Var.tpVar -> exp -> exp
-   val freeTpVars: exp -> Tp.Var.tpVar list
 end
 structure Exp: EXP
       where type exp = AbbotImpl.exp

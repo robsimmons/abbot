@@ -131,18 +131,18 @@ in
     emit ["val aequiv: "^srt^" * "^srt^" -> bool"];
     emit ["val toString: "^srt^" -> string"];
     (if #binds ana srt srt
-     then emit ["val subst: "^srt^" -> "^srt^"Var -> "^srt^" -> "^srt,
-                "val freevars: "^srt^" -> "^srt^"Var list"]
+     then emit ["val subst: "^srt^" -> "^srt^"Var -> "^srt^" -> "^srt (*,
+                "val freevars: "^srt^" -> "^srt^"Var list" *)]
      else ());
     app (fn s' => 
             if s' = srt then ()
             else emit ["val subst"^Big s'^": "^ss ana srt s'^" -> "^
                        ssv ana srt s'^" -> "^
-                       srt^" -> "^srt,
+                       srt^" -> "^srt (*,
                        "val free"^Big s'^"Vars: "^srt^" -> "^
-                       ssv ana srt s'^" list"])
+                       ssv ana srt s'^" list" *)])
         (#varin ana srt);
-    app (fn s' => emit ["val free"^Big s'^": "^srt^" -> "^Big s'^"."^s'^" list"])
+    (* app (fn s' => emit ["val free"^Big s'^": "^srt^" -> "^Big s'^"."^s'^" list"]) *)
         (#symin ana srt);
     (* Removing fmap to think about map for ABTs. 
     appFirst 

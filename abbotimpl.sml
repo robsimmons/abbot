@@ -241,6 +241,25 @@ in
     if !needslet then (decr (); emit ["end"]) else ()
 end
 
+fun emitsubst_case (ana: ana) boundsrt (oper, arity, srt) = 
+let
+    val needslet = ref false
+    fun forcelet () = 
+        if !needslet then () else (emit ["let"]; incr (); needslet := true)
+
+    fun process_valence (_, (srtvar, srt)) = 
+        if #binds ana srt boundsrt
+        then (forcelet ();
+              emit ["val "^srtvar^" = subst_"^boundsrt^"_"^srt^
+                    " t x "^srtvar])
+        else ()
+in
+    app process_valence arity;
+    if !needslet then (decr (); emit ["in"]; incr ()) else ();
+    emit ["into_"^srt^" ("^viewdestructor srt oper^operargs arity^")"];
+    if !needslet then (decr (); emit ["end"]) else ()
+end
+
 fun add x 0 = x
   | add x n = "("^x^"+"^Int.toString n^")" 
 
@@ -280,6 +299,21 @@ in
     if !needslet then (decr (); emit ["in"]; incr ()) else ();
     emit [implconstructor srt oper^operargs arity];
     if !needslet then (decr (); emit ["end"]) else ()
+end
+
+fun emittoString_case (ana: ana) (oper, arity, srt) = 
+let
+    fun process_valence ([], (srtvar, srt)) = 
+        (if #issym ana srt then Big srt^".toString" else "toString_"^srt)^
+        " "^srtvar
+      | process_valence ((boundsrtvar, boundsrt) :: valence, srt) =
+        (if #issym ana boundsrt then Big boundsrt else internalvar boundsrt)^
+        ".toString "^boundsrtvar^"^\".\"^"^process_valence (valence, srt)
+in
+    if null arity then emit ["\""^oper^"\""]
+    else emit ["\""^oper^"(\"^"^
+               String.concatWith "^\", \"^" (map process_valence arity)^
+               "^\")\""]
 end
 
 fun emitaequiv (ana: ana) (pre, srt) = 
@@ -401,7 +435,6 @@ in
     appFirst (fn _ => raise Fail "Invariant") 
              (emitaequiv ana) ("fun", "and") srts;
     
-    app (fn srt => emit ["val toString_"^srt^dummy]) srts;
     app (fn varsrt =>
             app (fn srt => emit ["val free_"^varsrt^"_"^srt^dummy]) srts)
         (#varin ana (hd srts));
@@ -410,9 +443,23 @@ in
         (#symin ana (hd srts));
     decr ();
     emit ["end","","(* Derived functions *)"];
-    app (fn varsrt =>
-            app (fn srt => emit ["val subst_"^varsrt^"_"^srt^dummy]) srts)
+    app (fn boundsrt =>
+            emitcasefunctions 
+                ana srts (fn srt => "subst_"^boundsrt^"_"^srt) "t x s"
+                (fn srt => "out_"^srt^" s") NONE
+                (fn (x, srt) => 
+                    if srt <> boundsrt then emit ["s"]
+                    else emit ["if "^internalvar srt^".equal (x, "^x^")",
+                               "then t else s"])
+                (emitsubst_case ana boundsrt))
         varsinthese;
+    
+    emitcasefunctions
+        ana srts (fn srt => "toString_"^srt) "x" 
+        (fn srt => "out_"^srt^" x") NONE
+        (fn (x, srt) => emit [internalvar srt^".toString "^x])
+        (emittoString_case ana);
+
     emit [""];
     ()
 end
@@ -441,7 +488,7 @@ let in
                         " = subst_"^s'^"_"^srt])
         (#varin ana srt);
     app (fn s' => emit ["val free"^(if srt <> s' then (Big s'^"V") else "v")^
-                        "ars = subst_"^s'^"_"^srt])
+                        "ars = free_"^s'^"_"^srt])
         (#varin ana srt);
     app (fn s' => emit ["val free"^(Big s')^" = free_"^s'^"_"^srt])
         (#symin ana srt);
@@ -488,7 +535,8 @@ let in
              emit ["   case (x, y) of"];
              emit ["      (free_symbol x, free_symbol y) => "^Big srt^
                    ".equal (x, y)"];
-             emit ["    | (bound_symbol x, bound_symbol y) => x = y",""]))
+             emit ["    | (bound_symbol x, bound_symbol y) => x = y"];
+             emit ["    | _ => false",""]))
         (#symbs ana);
     emit ["(* All variables *)"];
     app emitvariablestruct 

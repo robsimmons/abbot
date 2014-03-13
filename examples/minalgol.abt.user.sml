@@ -130,8 +130,6 @@ sig
    val aequiv: exp * exp -> bool
    val toString: exp -> string
    val subst: exp -> expVar -> exp -> exp
-   val freevars: exp -> expVar list
-   val freeAssign: exp -> Assign.assign list
 end
 structure Exp: EXP
       where type exp = AbbotImpl.exp
@@ -165,8 +163,6 @@ sig
    val aequiv: cmd * cmd -> bool
    val toString: cmd -> string
    val substExp: exp -> expVar -> cmd -> cmd
-   val freeExpVars: cmd -> expVar list
-   val freeAssign: cmd -> Assign.assign list
 end
 structure Cmd: CMD
       where type exp = AbbotImpl.exp
