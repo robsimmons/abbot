@@ -47,6 +47,8 @@ sig
    val aequiv: tp * tp -> bool
    val toString: tp -> string
    val subst: tp -> tpVar -> tp -> tp
+   val fmap: ('tp1 -> 'tp2)
+          -> 'tp1 tpView -> 'tp2 tpView
 end
 structure Tp: TP
       where type tp = AbbotImpl.tp
@@ -80,6 +82,8 @@ sig
    val toString: exp -> string
    val subst: exp -> expVar -> exp -> exp
    val substTp: Tp.tp -> Tp.Var.tpVar -> exp -> exp
+   val fmap: ('exp1 -> 'exp2)
+          -> 'exp1 expView -> 'exp2 expView
 end
 structure Exp: EXP
       where type exp = AbbotImpl.exp

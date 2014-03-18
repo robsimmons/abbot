@@ -144,16 +144,15 @@ in
         (#varin ana srt);
     (* app (fn s' => emit ["val free"^Big s'^": "^srt^" -> "^Big s'^"."^s'^" list"]) *)
         (#symin ana srt);
-    (* Removing fmap to think about map for ABTs. 
     appFirst 
         (fn () => raise Fail "Can't fmap")
         (fn (prelude, srt) => 
             emit [prelude ^"("^tyvar srt^"1 -> "^tyvar srt^"2)"])
-        ("val fmap:   ","         -> ")
+        ("val fmap: ","       -> ")
         (#mutual ana srt); 
-    emit ["         ->"^
-                     tyvarsofView ana srt "1"^" "^shortview srt^" ->"^
-                     tyvarsofView ana srt "2"^" "^shortview srt]; *)
+    emit ["       ->"^
+          tyvarsofView ana srt "1"^" "^shortview srt^" ->"^
+          tyvarsofView ana srt "2"^" "^shortview srt];
     decr ();
     emit ["end","structure "^Big srt^": "^BIG srt];
     incr (); incr ();

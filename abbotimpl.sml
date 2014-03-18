@@ -7,17 +7,6 @@ open Util
 open Analysis
 open AbbotCore
 
-fun emitimplview (ana: ana) srt = 
-let in
-    emit ["structure "^Big srt^" =","struct"];
-    incr ();
-    emitview ana false srt;
-    emit ["","val fmap = fn _ => raise Fail \"Unimpl\""];
-    decr ();
-    emit ["end",""];
-    ()
-end
-
 (* Symbols and variables: effectively the same implementation *)
 fun emitgenstruct issym srt =
 let val maybevar = if issym then "" else "Var"
@@ -47,6 +36,16 @@ end
 
 val emitsymbolstruct = emitgenstruct true
 val emitvariablestruct = emitgenstruct false
+
+fun emitimplview (ana: ana) srt = 
+let in
+    emit ["structure "^Big srt^" =","struct"];
+    incr ();
+    emitview ana false srt;
+    decr ();
+    emit ["end",""];
+    ()
+end
 
 (* Actual implementation of sorts *)
 (* Naive implementation of locally nameless *)
@@ -137,7 +136,7 @@ let
 in
     emit [pre^" "^name^" "^args^" = "];
     incr ();
-    emit ["case "^(incase srt)^" of"];
+    emit ["case "^incase^" of"];
     appFirst (fn _ => raise Fail "Invariant")
         (fn (pre, (oper, arity)) => 
             (emit [pre^(if knowsRep 
@@ -168,7 +167,7 @@ let in
         (fn _ => raise Fail "Zero things to emit")
         (fn (pre, srt) => 
             emitcasefunction
-                ana srt pre (namefn srt) args incase
+                ana srt pre (namefn srt) args (incase srt)
                 bvarfn varfn operfn)
         ("fun", "and")
         srts
@@ -279,6 +278,24 @@ in
     app process_arity arity;
     if !needslet then (decr (); emit ["in"]; incr ()) else ();
     emit [implconstructor srt oper^operargs arity];
+    if !needslet then (decr (); emit ["end"]) else ()
+end
+
+fun emitfmap_case (ana: ana) (oper, arity, srt) = 
+let
+    val needslet = ref false
+    fun forcelet () = 
+        if !needslet then () else (emit ["let"]; incr (); needslet := true)
+                                      
+    fun process_valence (_, (srtvar, srt')) = 
+        if #mutualwith ana srt srt'
+        then (forcelet ();
+              emit ["val "^srtvar^" = f_"^srt'^" "^srtvar])
+        else ()
+in
+    app process_valence arity;
+    if !needslet then (decr (); emit ["in"]; incr ()) else ();
+    emit [viewdestructor srt oper^operargs arity];
     if !needslet then (decr (); emit ["end"]) else ()
 end
 
@@ -476,6 +493,13 @@ let in
                   then emit ["type "^s'^"Var = "^internalvart s']
                   else ()) (#mutual ana srt);
     emit ["open "^Big srt];
+    emit [""];
+    emitcasefunction 
+        ana srt "fun" "fmap"
+        (String.concatWith " " (map (fn s => "f_"^s) (#mutual ana srt))^
+         " x") 
+        "x" NONE (fn (x, _) => emit [viewvar srt^" "^x]) 
+        (emitfmap_case ana);
     emit ["val into = into_"^srt];
     emit ["val out = out_"^srt];
     (if #binds ana srt srt 

@@ -36,6 +36,8 @@ sig
    val aequiv: exp * exp -> bool
    val toString: exp -> string
    val subst: exp -> expVar -> exp -> exp
+   val fmap: ('exp1 -> 'exp2)
+          -> 'exp1 expView -> 'exp2 expView
 end
 structure Exp: EXP
       where type exp = AbbotImpl.exp

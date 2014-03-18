@@ -67,8 +67,6 @@ struct
       datatype 'side sideView
        = L
        | R
-      
-      val fmap = fn _ => raise Fail "Unimpl"
    end
    
    (* Naive and minimal implementation *)
@@ -123,8 +121,6 @@ struct
        | Void
        | Sum of 'tp * 'tp
        | Cmd of 'tp
-      
-      val fmap = fn _ => raise Fail "Unimpl"
    end
    
    (* Naive and minimal implementation *)
@@ -233,8 +229,6 @@ struct
        | In of tp * tp * side * 'exp
        | Case of 'exp * (ExpVar.t * 'exp) * (ExpVar.t * 'exp)
        | Cmd of 'cmd
-      
-      val fmap = fn _ => raise Fail "Unimpl"
    end
    
    structure Cmd =
@@ -245,8 +239,6 @@ struct
        | Dcl of 'exp * (assign * 'cmd)
        | Get of assign
        | Set of assign * 'exp
-      
-      val fmap = fn _ => raise Fail "Unimpl"
    end
    
    (* Naive and minimal implementation *)
@@ -1198,6 +1190,14 @@ struct
       type t = side
       type side = side
       open Side
+      
+      fun fmap f_side x = 
+         case x of
+            Side.L =>
+            Side.L
+          | Side.R =>
+            Side.R
+      
       val into = into_side
       val out = out_side
       val aequiv = aequiv_side
@@ -1211,6 +1211,43 @@ struct
       type t = tp
       type tp = tp
       open Tp
+      
+      fun fmap f_tp x = 
+         case x of
+            Tp.Nat =>
+            Tp.Nat
+          | Tp.Parr (tp1, tp2) =>
+            let
+               val tp1 = f_tp tp1
+               val tp2 = f_tp tp2
+            in
+               Tp.Parr (tp1, tp2)
+            end
+          | Tp.Unit =>
+            Tp.Unit
+          | Tp.Prod (tp1, tp2) =>
+            let
+               val tp1 = f_tp tp1
+               val tp2 = f_tp tp2
+            in
+               Tp.Prod (tp1, tp2)
+            end
+          | Tp.Void =>
+            Tp.Void
+          | Tp.Sum (tp1, tp2) =>
+            let
+               val tp1 = f_tp tp1
+               val tp2 = f_tp tp2
+            in
+               Tp.Sum (tp1, tp2)
+            end
+          | Tp.Cmd tp1 =>
+            let
+               val tp1 = f_tp tp1
+            in
+               Tp.Cmd tp1
+            end
+      
       val into = into_tp
       val out = out_tp
       val aequiv = aequiv_tp
@@ -1231,6 +1268,95 @@ struct
       type cmd = cmd
       type expVar = ExpVar.t
       open Exp
+      
+      fun fmap f_exp f_cmd x = 
+         case x of
+            Exp.Z =>
+            Exp.Z
+          | Exp.S exp1 =>
+            let
+               val exp1 = f_exp exp1
+            in
+               Exp.S exp1
+            end
+          | Exp.Ifz (exp1, exp2, (exp3, exp4)) =>
+            let
+               val exp1 = f_exp exp1
+               val exp2 = f_exp exp2
+               val exp4 = f_exp exp4
+            in
+               Exp.Ifz (exp1, exp2, (exp3, exp4))
+            end
+          | Exp.Lam (tp1, (exp2, exp3)) =>
+            let
+               val exp3 = f_exp exp3
+            in
+               Exp.Lam (tp1, (exp2, exp3))
+            end
+          | Exp.Ap (exp1, exp2) =>
+            let
+               val exp1 = f_exp exp1
+               val exp2 = f_exp exp2
+            in
+               Exp.Ap (exp1, exp2)
+            end
+          | Exp.Let (exp1, (exp2, exp3)) =>
+            let
+               val exp1 = f_exp exp1
+               val exp3 = f_exp exp3
+            in
+               Exp.Let (exp1, (exp2, exp3))
+            end
+          | Exp.Fix (tp1, (exp2, exp3)) =>
+            let
+               val exp3 = f_exp exp3
+            in
+               Exp.Fix (tp1, (exp2, exp3))
+            end
+          | Exp.Triv =>
+            Exp.Triv
+          | Exp.Pair (exp1, exp2) =>
+            let
+               val exp1 = f_exp exp1
+               val exp2 = f_exp exp2
+            in
+               Exp.Pair (exp1, exp2)
+            end
+          | Exp.Pr (side1, exp2) =>
+            let
+               val exp2 = f_exp exp2
+            in
+               Exp.Pr (side1, exp2)
+            end
+          | Exp.Abort (tp1, exp2) =>
+            let
+               val exp2 = f_exp exp2
+            in
+               Exp.Abort (tp1, exp2)
+            end
+          | Exp.In (tp1, tp2, side3, exp4) =>
+            let
+               val exp4 = f_exp exp4
+            in
+               Exp.In (tp1, tp2, side3, exp4)
+            end
+          | Exp.Case (exp1, (exp2, exp3), (exp4, exp5)) =>
+            let
+               val exp1 = f_exp exp1
+               val exp3 = f_exp exp3
+               val exp5 = f_exp exp5
+            in
+               Exp.Case (exp1, (exp2, exp3), (exp4, exp5))
+            end
+          | Exp.Cmd cmd1 =>
+            let
+               val cmd1 = f_cmd cmd1
+            in
+               Exp.Cmd cmd1
+            end
+          | Exp.Var x1 =>
+            Exp.Var x1
+      
       val into = into_exp
       val out = out_exp
       structure Var = ExpVar
@@ -1263,6 +1389,38 @@ struct
       type cmd = cmd
       type expVar = ExpVar.t
       open Cmd
+      
+      fun fmap f_exp f_cmd x = 
+         case x of
+            Cmd.Ret exp1 =>
+            let
+               val exp1 = f_exp exp1
+            in
+               Cmd.Ret exp1
+            end
+          | Cmd.Bnd (exp1, (exp2, cmd3)) =>
+            let
+               val exp1 = f_exp exp1
+               val cmd3 = f_cmd cmd3
+            in
+               Cmd.Bnd (exp1, (exp2, cmd3))
+            end
+          | Cmd.Dcl (exp1, (assign2, cmd3)) =>
+            let
+               val exp1 = f_exp exp1
+               val cmd3 = f_cmd cmd3
+            in
+               Cmd.Dcl (exp1, (assign2, cmd3))
+            end
+          | Cmd.Get assign1 =>
+            Cmd.Get assign1
+          | Cmd.Set (assign1, exp2) =>
+            let
+               val exp2 = f_exp exp2
+            in
+               Cmd.Set (assign1, exp2)
+            end
+      
       val into = into_cmd
       val out = out_cmd
       val aequiv = aequiv_cmd

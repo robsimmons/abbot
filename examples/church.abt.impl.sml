@@ -28,8 +28,6 @@ struct
        = Var of ExpVar.t
        | Lam
        | Ap of 'exp * 'exp
-      
-      val fmap = fn _ => raise Fail "Unimpl"
    end
    
    (* Naive and minimal implementation *)
@@ -142,6 +140,21 @@ struct
       type exp = exp
       type expVar = ExpVar.t
       open Exp
+      
+      fun fmap f_exp x = 
+         case x of
+            Exp.Lam =>
+            Exp.Lam
+          | Exp.Ap (exp1, exp2) =>
+            let
+               val exp1 = f_exp exp1
+               val exp2 = f_exp exp2
+            in
+               Exp.Ap (exp1, exp2)
+            end
+          | Exp.Var x1 =>
+            Exp.Var x1
+      
       val into = into_exp
       val out = out_exp
       structure Var = ExpVar

@@ -42,8 +42,6 @@ struct
        = Var of TpVar.t
        | All of (TpVar.t * 'tp)
        | Arr of 'tp * 'tp
-      
-      val fmap = fn _ => raise Fail "Unimpl"
    end
    
    (* Naive and minimal implementation *)
@@ -181,8 +179,6 @@ struct
        | App of 'exp * 'exp
        | TLam of (TpVar.t * 'exp)
        | TApp of 'exp * tp
-      
-      val fmap = fn _ => raise Fail "Unimpl"
    end
    
    (* Naive and minimal implementation *)
@@ -484,6 +480,25 @@ struct
       type tp = tp
       type tpVar = TpVar.t
       open Tp
+      
+      fun fmap f_tp x = 
+         case x of
+            Tp.All (tp1, tp2) =>
+            let
+               val tp2 = f_tp tp2
+            in
+               Tp.All (tp1, tp2)
+            end
+          | Tp.Arr (tp1, tp2) =>
+            let
+               val tp1 = f_tp tp1
+               val tp2 = f_tp tp2
+            in
+               Tp.Arr (tp1, tp2)
+            end
+          | Tp.Var x1 =>
+            Tp.Var x1
+      
       val into = into_tp
       val out = out_tp
       structure Var = TpVar
@@ -502,6 +517,37 @@ struct
       type exp = exp
       type expVar = ExpVar.t
       open Exp
+      
+      fun fmap f_exp x = 
+         case x of
+            Exp.Lam (tp1, (exp2, exp3)) =>
+            let
+               val exp3 = f_exp exp3
+            in
+               Exp.Lam (tp1, (exp2, exp3))
+            end
+          | Exp.App (exp1, exp2) =>
+            let
+               val exp1 = f_exp exp1
+               val exp2 = f_exp exp2
+            in
+               Exp.App (exp1, exp2)
+            end
+          | Exp.TLam (tp1, exp2) =>
+            let
+               val exp2 = f_exp exp2
+            in
+               Exp.TLam (tp1, exp2)
+            end
+          | Exp.TApp (exp1, tp2) =>
+            let
+               val exp1 = f_exp exp1
+            in
+               Exp.TApp (exp1, tp2)
+            end
+          | Exp.Var x1 =>
+            Exp.Var x1
+      
       val into = into_exp
       val out = out_exp
       structure Var = ExpVar

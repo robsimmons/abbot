@@ -27,8 +27,6 @@ struct
       datatype 'tp tpView
        = Nat
        | Arr of 'tp * 'tp
-      
-      val fmap = fn _ => raise Fail "Unimpl"
    end
    
    (* Naive and minimal implementation *)
@@ -84,8 +82,6 @@ struct
        | Rec of 'exp * 'exp * (ExpVar.t * ExpVar.t * 'exp)
        | Lam of tp * (ExpVar.t * 'exp)
        | Ap of 'exp * 'exp
-      
-      val fmap = fn _ => raise Fail "Unimpl"
    end
    
    (* Naive and minimal implementation *)
@@ -310,6 +306,19 @@ struct
       type t = tp
       type tp = tp
       open Tp
+      
+      fun fmap f_tp x = 
+         case x of
+            Tp.Nat =>
+            Tp.Nat
+          | Tp.Arr (tp1, tp2) =>
+            let
+               val tp1 = f_tp tp1
+               val tp2 = f_tp tp2
+            in
+               Tp.Arr (tp1, tp2)
+            end
+      
       val into = into_tp
       val out = out_tp
       val aequiv = aequiv_tp
@@ -324,6 +333,41 @@ struct
       type exp = exp
       type expVar = ExpVar.t
       open Exp
+      
+      fun fmap f_exp x = 
+         case x of
+            Exp.Z =>
+            Exp.Z
+          | Exp.S exp1 =>
+            let
+               val exp1 = f_exp exp1
+            in
+               Exp.S exp1
+            end
+          | Exp.Rec (exp1, exp2, (exp3, exp4, exp5)) =>
+            let
+               val exp1 = f_exp exp1
+               val exp2 = f_exp exp2
+               val exp5 = f_exp exp5
+            in
+               Exp.Rec (exp1, exp2, (exp3, exp4, exp5))
+            end
+          | Exp.Lam (tp1, (exp2, exp3)) =>
+            let
+               val exp3 = f_exp exp3
+            in
+               Exp.Lam (tp1, (exp2, exp3))
+            end
+          | Exp.Ap (exp1, exp2) =>
+            let
+               val exp1 = f_exp exp1
+               val exp2 = f_exp exp2
+            in
+               Exp.Ap (exp1, exp2)
+            end
+          | Exp.Var x1 =>
+            Exp.Var x1
+      
       val into = into_exp
       val out = out_exp
       structure Var = ExpVar
