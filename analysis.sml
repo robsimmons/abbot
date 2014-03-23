@@ -154,6 +154,102 @@ struct
                         | t => s = t))
    }
 
+   val algol: ana = {
+       sorts = [["side"], ["tp"], ["exp", "cmd"]],
+       issrt = (fn s => List.exists (List.exists (fn t => s = t)) 
+                                     [["side"], ["tp"], ["exp", "cmd"]]),
+       symbs = ["assign"],
+       issym = (fn "assign" => true | _ => false),
+       opers = (fn "side" => ["L", "R"] 
+               | "tp" => ["Nat", "Parr", "Unit", "Prod", "Void", "Sum", 
+                          "Rec", "Cmd", "Ref"]
+               | "exp" => ["Z", "S", "Ifz", "Lam", "Ap", "Let", "Fix",
+                           "Abort", "In", "Case",  
+                           "Triv", "Pair", "Pr", 
+                           "Fold", "Unfold",
+                           "Cmd", "Ref",
+                           "Proc"]
+               | "cmd" => ["Ret", "Bnd", "Dcl", "Get", "Set", 
+                           "Getref", "Setref", "Cast",
+                           "Call", "Seq", "Do", "Letm", "If", "While"]
+               | _ => raise Fail ""),
+       arity = (fn "side" =>
+                 (fn "L" => []
+                 | "R" => [])
+               | "tp" => 
+                 (fn "Nat" => []
+                 | "Parr" => [([], "tp"), ([], "tp")]
+                 | "Unit" => []
+                 | "Prod" => [([], "tp"), ([], "tp")]
+                 | "Void" => []
+                 | "Sum" => [([], "tp"), ([], "tp")]
+                 | "Rec" => [(["tp"], "tp")]
+                 | "Cmd" => [([], "tp")]
+                 | "Ref" => [([], "tp")])
+               | "exp" =>
+                 (fn "Z" => []
+                 | "S" => [([], "exp")]
+                 | "Ifz" => [([], "exp"), ([], "exp"), (["exp"], "exp")]
+                 | "Lam" => [([], "tp"), (["exp"], "exp")]
+                 | "Ap" => [([], "exp"), ([], "exp")]
+                 | "Let" => [([], "exp"), (["exp"], "exp")]
+                 | "Fix" => [([], "tp"), (["exp"], "exp")]
+                 | "Triv" => []
+                 | "Pair" => [([], "exp"), ([], "exp")]
+                 | "Pr" => [([], "side"), ([], "exp")]
+                 | "Abort" => [([], "tp"), ([], "exp")]
+                 | "In" => [([], "tp"), ([], "tp"), ([], "side"), ([], "exp")]
+                 | "Case" => [([], "exp"), (["exp"], "exp"), (["exp"], "exp")]  
+                 | "Fold" => [(["tp"], "tp"), ([], "exp")]
+                 | "Unfold" => [([], "exp")] 
+                 | "Cmd" => [([], "cmd")]
+                 | "Ref" => [([], "assign")]
+                 | "Proc" => [([], "tp"), (["exp"], "cmd")])
+               | "cmd" => 
+                 (fn "Bnd" => [([], "exp"), (["exp"], "cmd")]
+                 | "Ret" => [([], "exp")]
+                 | "Dcl" => [([], "exp"), (["assign"], "cmd")]
+                 | "Get" => [([], "assign")]
+                 | "Set" => [([], "assign"), ([], "exp")]
+                 | "Getref" => [([], "exp")]
+                 | "Setref" => [([], "exp"), ([], "exp")]
+                 | "Cast" => [([], "side"), ([], "exp"), (["exp"], "cmd")]
+                 | "Call" => [([], "exp"), ([], "exp")] 
+                 | "Seq" => [([], "cmd"), (["exp"], "cmd")]
+                 | "Do" => [([], "exp")]
+                 | "Letm" => [([], "exp"), (["exp"], "cmd")]
+                 | "If" => [([], "cmd"), ([], "cmd"), ([], "cmd")]
+                 | "While" => [([], "cmd"), ([], "cmd")]) 
+               | _ => raise Fail ""),
+       binds = (fn "cmd" => 
+                 (fn "exp" => true
+                 | "assign" => true
+                 | _ => false)
+               | "exp" => 
+                 (fn "exp" => true
+                 | "assign" => true
+                 | _ => false)
+               | "assign" => 
+                 (fn "assign" => true
+                 | _ => false)
+               | "tp" => 
+                 (fn "tp" => true
+                 | _ => false)
+               | _ => (fn _ => false)), 
+       varin = (fn "exp" => ["exp"] 
+               | "cmd" => ["exp"]
+               | "tp" => ["tp"] 
+               | _ => []),
+       symin = (fn "exp" => ["assign"] | "cmd" => ["assign"] | _ => []),
+       mutual = (fn "exp" => ["exp", "cmd"]
+                 | "cmd" => ["exp", "cmd"]
+                 | s => [s]),
+       mutualwith = (fn s =>
+                        (fn "exp" => s = "exp" orelse s = "cmd"
+                        | "cmd" => s = "exp" orelse s = "cmd"
+                        | t => s = t))
+   }
+
                     
 
        

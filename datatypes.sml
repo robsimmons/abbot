@@ -19,5 +19,6 @@ end;
     
 doitall Analysis.godel "godel";
 doitall Analysis.minalgol "minalgol";
+doitall Analysis.algol "algol";
 doitall Analysis.systemf "systemf";
 doitall Analysis.church "church";
