@@ -1,0 +1,15 @@
+Group
+  signature SEQUENCE
+  signature ST_SEQUENCE
+
+  structure ArraySequence
+  structure ListSequence
+  functor MkSTSequence
+is
+  ../210basis.cm
+  signatures.cm
+  primitives.cm
+
+  ../structures/ArraySequence.sml
+  ../structures/ListSequence.sml
+  ../structures/MkSTSequence.sml

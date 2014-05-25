@@ -1,0 +1,32 @@
+Group
+  signature ELEMENT
+
+  structure BoolElt
+  structure RealElt
+  structure IntElt
+  structure StringElt
+  structure UnitElt
+
+  functor MkListElt
+  functor MkOptionElt
+  functor MkPairElt
+  functor MkSeqElt
+  functor MkTripleElt
+is
+  ../210basis.cm
+  signatures.cm
+  primitives.cm
+  sequence.cm
+  table.cm
+
+  ../elements/BoolElt.sml
+  ../elements/RealElt.sml
+  ../elements/IntElt.sml
+  ../elements/StringElt.sml
+  ../elements/UnitElt.sml
+
+  ../elements/MkOptionElt.sml
+  ../elements/MkTripleElt.sml
+  ../elements/MkPairElt.sml
+  ../elements/MkSeqElt.sml
+  ../elements/MkListElt.sml

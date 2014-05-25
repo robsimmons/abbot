@@ -1,19 +1,20 @@
 (* Abbot: emitting user interface (___.abt.user.sml) *)
 
-structure AbbotUser = 
+functor AbbotUser (Analysis : ANALYSIS) =
 struct
 
 open Util
 open Analysis
-open AbbotCore
+structure AC = AbbotCore (Analysis)
+open AC
 
 (* Symbols and variables: basically the same thing *)
-fun emitgensig issym srt = 
+fun emitgensig issym srt =
 let val maybevar = if issym then "" else "Var"
     val typ = srt^maybevar
 in  emit ["signature "^BIG srt^(if issym then "" else "_VAR")^" = ", "sig"];
     incr();
-    emit ["type "^typ^(if issym 
+    emit ["type "^typ^(if issym
                        then (" = AbbotImpl."^Big srt^maybevar^"."^typ)
                        else "")];
     emit ["type t = "^typ];
@@ -30,71 +31,73 @@ end
 val emitsymbolsig = emitgensig true
 val emitvariablesig = emitgensig false
 
-fun emituservariables (ana: ana) = 
-let 
-    val mkvars = List.filter 
-                     (fn srt => #binds ana srt srt)
-                     (List.concat (#sorts ana))
+fun emituservariables () =
+let
+    val mkvars = List.filter
+                     (fn srt => binds srt srt)
+                     (StringTable.Seq.toList
+                        (StringTable.Set.toSeq
+                           (StringTable.domain sorts)))
 in
     if null mkvars then ()
-    else 
+    else
         (emit ["(* Signatures for variables *)",""];
-         app (fn srt => 
+         app (fn srt =>
                  (emitvariablesig srt;
                   emit [""]))
              mkvars;
          emit [""])
 end
 
-fun emitusersymbols (ana: ana) =
+fun emitusersymbols () =
 let in
-    if null (#symbs ana) then ()
-    else 
+    if null symbs then ()
+    else
         (emit ["(* Implementation of symbol sorts *)",""];
-         app (fn srt => 
+         app (fn srt =>
                  (emitsymbolsig srt;
                   emit ["structure "^Big srt^":> "^BIG srt^
                         " = AbbotImpl."^Big srt,""]))
-             (#symbs ana);
+             symbs;
          emit [""])
 end
 
 (* Sorts and variable sorts to strings *)
-fun ss (ana: ana) srt s' = 
-    if (#mutualwith ana srt s') 
+fun ss srt s' =
+    if (mutualwith srt s')
     then (s')
     else (Big s'^"."^s')
-fun ssv (ana: ana) srt varsrt = 
-    if (#mutualwith ana srt varsrt) 
+fun ssv srt varsrt =
+    if (mutualwith srt varsrt)
     then (varsrt^"Var")
     else (Big varsrt^".Var."^varsrt^"Var")
 
 (* The convienece constructors *)
-fun emitconvienenceconstructor (ana: ana) srt oper =
-let 
-    fun typeofBound boundsrt = 
-        if #issrt ana boundsrt
-        then ssv ana srt boundsrt (* Variable *)
-        else ss ana srt boundsrt (* Symbol *)
+fun emitconvienenceconstructor srt (oper : Syntax.oper) =
+let
+    fun typeofBound boundsrt =
+        if issrt boundsrt
+        then ssv srt boundsrt (* Variable *)
+        else ss srt boundsrt (* Symbol *)
 
-    fun typeofValence (boundsrts, res) = 
-        if null boundsrts then ss ana srt res
-        else "("^String.concatWith 
-                     " * " 
-                     (map typeofBound boundsrts @ [ss ana srt res])^")"
-    val args = map typeofValence (#arity ana srt oper)
+    fun typeofValence (boundsrts, res) =
+        if null boundsrts then ss srt res
+        else "("^String.concatWith
+                     " * "
+                     (map typeofBound boundsrts @ [ss srt res])^")"
+    val args = map typeofValence (#arity oper)
 in
     if null args
-    then emit ["val "^oper^"': "^srt]
-    else emit ["val "^oper^"': "^String.concatWith " * " args^" -> "^srt]
+    then emit ["val "^ #name oper^"': "^srt]
+    else emit ["val "^ #name oper^"': "^String.concatWith " * " args^" -> "^srt]
 end
 
 (* The sealing for the user struct is the most interesting part... *)
-fun emituserstruct (ana: ana) srt = 
-let 
+fun emituserstruct srt =
+let
     fun emitwhereclauses s' =
     let in
-        if (#binds ana srt s')
+        if (binds srt s')
         then (emit ["where type "^s'^" = AbbotImpl."^s'];
               emit ["where type "^s'^"Var "^
                     "= AbbotImpl."^Big s'^"Var."^s'^"Var"])
@@ -103,71 +106,74 @@ let
 in
     emit ["signature "^BIG srt^" = ","sig"];
     incr ();
-    app (fn s' => 
+    app (fn s' =>
             (emit ["type "^s'^" (* = "^fullty s'^" *)"];
-             (if (#binds ana srt s') 
+             (if (binds srt s')
               then emit ["type "^s'^"Var (* = "^externalvart s'^" *)"]
               else ())))
-        (#mutual ana srt);
+        (mutual srt);
     emit ["type t = "^srt,""];
 
-    (if (#binds ana srt srt) 
+    (if (binds srt srt)
      then emit ["structure Var: "^BIG srt^"_VAR where type "^
                 srt^"Var = "^srt^"Var"] else ());
     emit ["datatype "^shortview srt^
           " = datatype AbbotImpl."^Big srt^"."^shortview srt];
-    emitview ana true srt;
+    emitview true srt;
     emit [""];
-    (if (#binds ana srt srt)
+    (if (binds srt srt)
      then emit ["val Var' : "^srt^"Var -> "^srt] else ());
-    app (emitconvienenceconstructor ana srt)
-        (#opers ana srt);
+    app (emitconvienenceconstructor srt)
+        (valOf (StringTable.find sorts srt));
     emit [""];
 
-    emit ["val into: "^concretesofView ana srt^" "^shortview srt^" -> "
+    emit ["val into: "^concretesofView srt^" "^shortview srt^" -> "
           ^srt];
     emit ["val out: "^srt^" ->"^
-          concretesofView ana srt^" "^shortview srt];
+          concretesofView srt^" "^shortview srt];
     emit ["val aequiv: "^srt^" * "^srt^" -> bool"];
     emit ["val toString: "^srt^" -> string"];
-    (if #binds ana srt srt
+    (if binds srt srt
      then emit ["val subst: "^srt^" -> "^srt^"Var -> "^srt^" -> "^srt (*,
                 "val freevars: "^srt^" -> "^srt^"Var list" *)]
      else ());
-    app (fn s' => 
+    app (fn s' =>
             if s' = srt then ()
-            else emit ["val subst"^Big s'^": "^ss ana srt s'^" -> "^
-                       ssv ana srt s'^" -> "^
+            else emit ["val subst"^Big s'^": "^ss srt s'^" -> "^
+                       ssv srt s'^" -> "^
                        srt^" -> "^srt (*,
                        "val free"^Big s'^"Vars: "^srt^" -> "^
-                       ssv ana srt s'^" list" *)])
-        (#varin ana srt);
+                       ssv srt s'^" list" *)])
+        (varin srt);
     (* app (fn s' => emit ["val free"^Big s'^": "^srt^" -> "^Big s'^"."^s'^" list"]) *)
-        (#symin ana srt);
-    appFirst 
+        (symin srt);
+    appFirst
         (fn () => raise Fail "Can't fmap")
-        (fn (prelude, srt) => 
+        (fn (prelude, srt) =>
             emit [prelude ^"("^tyvar srt^"1 -> "^tyvar srt^"2)"])
         ("val fmap: ","       -> ")
-        (#mutual ana srt); 
+        (mutual srt);
     emit ["       ->"^
-          tyvarsofView ana srt "1"^" "^shortview srt^" ->"^
-          tyvarsofView ana srt "2"^" "^shortview srt];
+          tyvarsofView srt "1"^" "^shortview srt^" ->"^
+          tyvarsofView srt "2"^" "^shortview srt];
     decr ();
     emit ["end","structure "^Big srt^": "^BIG srt];
     incr (); incr ();
-    app emitwhereclauses (#mutual ana srt); 
+    app emitwhereclauses (mutual srt);
     emit ["= AbbotImpl."^Big srt,""];
-    decr (); decr (); 
+    decr (); decr ();
     ()
 end
 
-fun doit_user (ana: ana) = 
+fun doit_user () =
 let in
-    emitusersymbols ana;
-    emituservariables ana;
+    emitusersymbols ();
+    emituservariables ();
     emit ["(* Implementation of normal sorts *)", ""];
-    app (emituserstruct ana) (List.concat (#sorts ana));
+    app emituserstruct
+        (StringTable.Seq.toList
+           (StringTable.Set.toSeq
+              (StringTable.domain sorts)));
     emit ["(* Intentionally shadow internals *)"];
     emit ["structure AbbotImpl = struct end"];
     ()

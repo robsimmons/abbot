@@ -1,0 +1,13 @@
+Group
+  signature TABLE
+  functor MkBSTTable
+  functor MkTreapTable
+is
+  ../210basis.cm
+  signatures.cm
+  primitives.cm
+  bstree.cm
+  sequence.cm
+
+  ../structures/MkBSTTable.sml
+  ../structures/MkTreapTable.sml
