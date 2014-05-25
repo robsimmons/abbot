@@ -3,8 +3,10 @@ Group is
    210lib/210lib.cm
    util.sml
    syntax.sml
+   token.sml
    stringtable.sml
    $/ml-yacc-lib.cm
+   abt.lex
    abt.grm
    analysis.sig
    analysis.sml

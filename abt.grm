@@ -1,5 +1,5 @@
 open Syntax
-
+open Util
 %%
 
 %name abt_parser
@@ -30,17 +30,17 @@ decls: (* empty *) ((StringTable.empty (),[]))
                     val (sorts, symbs) = decls
                   in
                     case decl of
-                        Util.L sort =>
+                        L sort =>
                         (StringTable.insert
                            (fn _ => raise Fail "???")
                            sort sorts,
                          symbs)
-                      | Util.R symb =>
+                      | R symb =>
                         (sorts, symb::symbs)
                   end)
 
-decl: abt_decl (Util.L abt_decl)
-    | symbol_decl (Util.R symbol_decl)
+decl: abt_decl (L abt_decl)
+    | symbol_decl (R symbol_decl)
 
 abt_decl: ABT Name EQUAL cases ((Name, cases))
 
