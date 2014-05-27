@@ -2,11 +2,9 @@ open Syntax
 open Util
 %%
 
-%name abt_parser
-
 %term EOF | ABT | EQUAL | BAR | LPAREN | RPAREN | COMMA | SYMBOL | DOT | Name of string
 
-%nonterm abt_spec of (Syntax.oper list StringTable.table) * (string list)
+%nonterm start of (Syntax.oper list StringTable.table) * (string list)
        | decls of (Syntax.oper list StringTable.table) * (string list)
        | decl of (string * Syntax.oper list, string) Util.sum
        | abt_decl of string * Syntax.oper list
@@ -16,14 +14,16 @@ open Util
        | arity of string list * string
        | symbol_decl of string
 
-%pos (int * int) * (int * int)
 %verbose
-%start abt_spec
+%pos int
+%start start
 %eop EOF
+%noshift EOF
+%name Abt
 
 %%
 
-abt_spec: decls (decls)
+start: decls (decls)
 
 decls: (* empty *) ((StringTable.empty (),[]))
      | decl decls (let

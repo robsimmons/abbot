@@ -1,13 +1,13 @@
 Group is
    210lib/210basis.cm
    210lib/210lib.cm
+   $/ml-yacc-lib.cm
    util.sml
    syntax.sml
-   token.sml
    stringtable.sml
-   $/ml-yacc-lib.cm
    abt.lex
    abt.grm
+   parse.sml
    analysis.sig
    analysis.sml
 
