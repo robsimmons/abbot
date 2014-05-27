@@ -1,7 +1,7 @@
 structure Abbot = struct
   fun genfromfile (name : string) =
       let
-        val parse_data = Parse.parsefile (name ^ ".abt")
+        val parse_data = Parse.parsefile name
         val name' =
             if String.isSuffix ".abt" name
             then name

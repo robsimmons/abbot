@@ -16,7 +16,7 @@ struct
     mutualwith: string -> string -> bool
   }
 
-  fun analyze (parse_data : Syntax.oper list StringTable.table * string list) =
+  fun analyze (parse_data : Syntax.oper list StringTable.table * string list) : ana =
       let
         val (sorts, symbs) = parse_data
 
@@ -33,9 +33,10 @@ struct
 
         fun arity s oper =
             #arity
-              (List.find
-                 (fn {name, arity} => name = oper)
-                 (valOf (StringTable.find sorts s)))
+              (valOf
+                 (List.find
+                    (fn {name, arity} => name = oper)
+                    (valOf (StringTable.find sorts s))))
 
         val binding_table =
             StringTable.map
@@ -91,13 +92,15 @@ struct
         val mutual_table =
             StringTable.mapk
               (fn (s, varsin) =>
-                  StringTable.Set.filter
-                    (fn s' =>
-                        case StringTable.find var_table s' of
-                            NONE => false
-                          | SOME varsin' =>
-                            StringTable.Set.find varsin' s)
-                    varsin)
+                  StringTable.Set.insert
+                    s
+                    (StringTable.Set.filter
+                       (fn s' =>
+                           case StringTable.find var_table s' of
+                               NONE => false
+                             | SOME varsin' =>
+                               StringTable.Set.find varsin' s)
+                       varsin))
               var_table
 
         fun mutual' s =
@@ -109,6 +112,17 @@ struct
             case mutual' s1 of
                 NONE => false
               | SOME mutuals => StringTable.Set.find mutuals s2
+
+        val sorts =
+            (List.foldl
+               (fn (s, ls) =>
+                   if List.exists (List.exists (fn x => x = s)) ls
+                   then ls
+                   else mutual s::ls)
+               []
+               (StringTable.Seq.toList
+                  (StringTable.Set.toSeq
+                     (StringTable.domain sorts))))
       in
         {
           sorts=sorts,
