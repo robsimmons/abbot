@@ -51,7 +51,7 @@ oper: Name ({name=Name, arity=[]})
     | Name LPAREN aritys RPAREN ({name=Name, arity=aritys})
 
 aritys: arity ([arity])
-      | arity aritys (arity :: aritys)
+      | arity COMMA aritys (arity :: aritys)
 
 arity: Name (([], Name))
      | Name DOT arity (let

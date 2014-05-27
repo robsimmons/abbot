@@ -8,9 +8,9 @@ Group is
    abt.lex
    abt.grm
    parse.sml
-   analysis.sig
    analysis.sml
 
    abbotcore.sml
    abbotimpl.sml
    abbotuser.sml
+   abbot.sml
