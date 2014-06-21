@@ -43,6 +43,7 @@ decl: abt_decl (L abt_decl)
     | symbol_decl (R symbol_decl)
 
 abt_decl: ABT Name EQUAL cases ((Name, cases))
+        | ABT Name EQUAL BAR cases ((Name, cases))
 
 cases: oper ([oper])
      | oper BAR cases (oper :: cases)

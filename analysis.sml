@@ -3,25 +3,56 @@ struct
   open Syntax
 
   type ana = {
-    sorts: string list list,
-    issrt: string -> bool,
-    symbs: string list,
-    issym: string -> bool,
-    opers: string -> string list,
-    arity: string -> string -> (string list * string) list,
-    binds: string -> string -> bool,
-    varin: string -> string list,
-    symin: string -> string list,
-    mutual: string -> string list,
-    mutualwith: string -> string -> bool
+    (* All sorts in dependency order and with mutual dependencies grouped.
+     * ??? Dependency does not consider binding. *)
+    sorts : string list list,
+
+    (* Returns true iff the given string is a valid sort. *)
+    issrt : string -> bool,
+
+    (* All symbols. *)
+    symbs : string list,
+
+    (* Returns true iff the given string is a valid symbol. *)
+    issym : string -> bool,
+
+    (* Maps sorts to a list of their operators. *)
+    opers : string -> string list,
+
+    (* Maps a sort and operator to the operator's arity. *)
+    arity : string -> string -> (string list * string) list,
+
+    (* binds sry srt_or_sym:
+     * If srt_or_sym is a sort, returns true iff variables of sort srt_or_sym
+     *  can be bound by srt.
+     * If srt_or_sym is a symbol, returns true iff the symbol srt_or_sym can be
+     *  bound by srt. *)
+    binds : string -> string -> bool,
+
+    (* Returns a list of the sorts of variables that can be found in the given
+     * sort or any sort it contains. *)
+    varin : string -> string list,
+
+    (* Returns a list of the symbols that can be found in the given sort or any
+     * sort it contains. *)
+    symin : string -> string list,
+
+    (* Returns all the mutually dependent sorts of a given sort,
+     * including itself *)
+    mutual : string -> string list,
+
+    (* Returns true iff the given sorts are mutually dependent. *)
+    mutualwith : string -> string -> bool
   }
 
   fun analyze (parse_data : Syntax.oper list StringTable.table * string list) : ana =
       let
+        open StringTable
+
         val (sorts, symbs) = parse_data
 
         fun issrt s =
-            case StringTable.find sorts s of
+            case find sorts s of
                 NONE => false
               | SOME _ => true
 
@@ -29,100 +60,156 @@ struct
             List.exists (fn a => a = s) symbs
 
         fun opers s =
-            List.map #name (valOf (StringTable.find sorts s))
+            List.map #name (valOf (find sorts s))
 
         fun arity s oper =
             #arity
               (valOf
                  (List.find
                     (fn {name, arity} => name = oper)
-                    (valOf (StringTable.find sorts s))))
+                    (valOf (find sorts s))))
 
         val binding_table =
-            StringTable.map
+            map
               (fn opers =>
-                  List.foldl
-                    StringTable.Set.union
-                    (StringTable.Set.empty ())
+                  List.foldl Set.union (Set.empty ())
                     (List.map
                        (fn {name, arity} =>
-                           List.foldl
-                             StringTable.Set.union
-                             (StringTable.Set.empty ())
+                           List.foldl Set.union (Set.empty ())
                              (List.map
-                                (StringTable.Set.fromSeq
-                                 o StringTable.Seq.fromList
-                                 o #1)
+                                (Set.fromSeq o Seq.fromList o #1)
                                 arity))
                        opers))
               sorts
 
         fun binds s1 s2 =
-            case StringTable.find binding_table s1 of
+            case find binding_table s1 of
                 NONE => false
-              | SOME bound => StringTable.Set.find bound s2
+              | SOME bound => Set.find bound s2
 
-        val set_to_list = StringTable.Seq.toList o StringTable.Set.toSeq
+        val set_to_list = Seq.toList o Set.toSeq
 
-        val varsym_table =
-            StringTable.map
+        val depsym_table =
+            map
               (fn opers =>
                   List.foldl
-                    StringTable.Set.union
-                    (StringTable.Set.empty ())
+                    Set.union
+                    (Set.empty ())
                     (List.map
                        (fn {name, arity} =>
                            List.foldl
-                             StringTable.Set.union
-                             (StringTable.Set.empty ())
+                             Set.union
+                             (Set.empty ())
                              (List.map
-                                (StringTable.Set.singleton o #2)
+                                (Set.singleton o #2)
                                 arity))
                        opers))
               sorts
 
-        val var_table = StringTable.map (StringTable.Set.filter issrt) varsym_table
-        val varin = set_to_list o valOf o StringTable.find var_table
+        local
+          open StringTable
 
-        val sym_table = StringTable.map (StringTable.Set.filter issym) varsym_table
-        val symin = set_to_list o valOf o StringTable.find sym_table
+          fun neighbors G F =
+              Seq.reduce Set.union (Set.empty ()) (range (extract (G, F)))
 
-        (* Should this also consider bindings???
-         * Also, this is broken for cycles of mutual sorts with length > 2 *)
+          fun bfs G frontier visited =
+             if Set.size frontier = 0
+             then visited
+             else let
+               val visited' = Set.union (visited, frontier)
+               val frontier' = Set.difference (neighbors G frontier, visited')
+             in
+               bfs G frontier' visited'
+             end
+
+          (* Should this also consider bindings??? *)
+          val simple_dep_table =
+              map (Set.filter issrt) depsym_table
+        in
+        val dep_table =
+            mapk
+              (fn (srt, _) =>
+                  Set.insert
+                    srt
+                    (bfs simple_dep_table (Set.singleton srt) (Set.empty ())))
+              sorts
+        end
+
+        fun hasvar srt =
+            List.exists
+              (fn srt' => binds srt' srt)
+              (Seq.toList (Set.toSeq (domain sorts)))
+
+        val varin = List.filter hasvar o set_to_list o valOf o find dep_table
+
+        val simple_sym_table = map (Set.filter issym) depsym_table
+
+        val sym_table =
+            map
+              (fn srts =>
+                  Seq.reduce
+                    Set.union
+                    (Set.empty ())
+                    (Seq.map
+                       (valOf o find simple_sym_table)
+                       (Set.toSeq srts)))
+              dep_table
+
+        val symin = set_to_list o valOf o find sym_table
+
         val mutual_table =
-            StringTable.mapk
+            mapk
               (fn (s, varsin) =>
-                  StringTable.Set.insert
-                    s
-                    (StringTable.Set.filter
+                  Set.insert s
+                    (Set.filter
                        (fn s' =>
-                           case StringTable.find var_table s' of
+                           case find dep_table s' of
                                NONE => false
                              | SOME varsin' =>
-                               StringTable.Set.find varsin' s)
+                               Set.find varsin' s)
                        varsin))
-              var_table
+              dep_table
 
         fun mutual' s =
-            StringTable.find mutual_table s
+            find mutual_table s
 
         val mutual = set_to_list o valOf o mutual'
 
         fun mutualwith s1 s2 =
             case mutual' s1 of
                 NONE => false
-              | SOME mutuals => StringTable.Set.find mutuals s2
+              | SOME mutuals => Set.find mutuals s2
 
         val sorts =
-            (List.foldl
-               (fn (s, ls) =>
-                   if List.exists (List.exists (fn x => x = s)) ls
-                   then ls
-                   else mutual s::ls)
-               []
-               (StringTable.Seq.toList
-                  (StringTable.Set.toSeq
-                     (StringTable.domain sorts))))
+            Seq.iter
+              (fn (ls, s) =>
+                  if List.exists (List.exists (fn x => x = s)) ls
+                  then ls
+                  else mutual s::ls)
+              []
+              (Set.toSeq (domain sorts))
+
+        fun sort_group_compare (l::ls, r::rs) =
+            let
+              val lgeqr =
+                  case find dep_table l of
+                      NONE => false
+                    | SOME deps => Set.find deps r
+              val rgeql =
+                  case find dep_table r of
+                      NONE => false
+                    | SOME deps => Set.find deps l
+            in
+              if lgeqr
+              then GREATER
+              else if rgeql
+              then LESS
+              else EQUAL
+            end
+
+        val sorts =
+            Seq.toList (Seq.sort sort_group_compare (Seq.fromList sorts))
+
       in
         {
           sorts=sorts,

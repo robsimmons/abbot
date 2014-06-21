@@ -4,6 +4,8 @@ signature UTIL =
 sig
     datatype ('a, 'b) sum = L of 'a | R of 'b
 
+    val >> : unit * 'a -> 'a
+
     (* Stateful; set or unset the indent *)
     val emit: string list -> unit
     val incr: unit -> unit
@@ -13,7 +15,7 @@ sig
     (* Write: output to a particular stream *)
     val write: TextIO.outstream -> (unit -> unit) -> unit
 
-    (* Annotate a listwith ints *)
+    (* Annotate a list with ints *)
     val mapi: (int * 'a -> 'b) -> 'a list -> 'b list
     val intify: 'a list -> (int * 'a) list
 
@@ -47,10 +49,12 @@ sig
         -> unit
 end
 
-structure Util:> UTIL =
+structure Util :> UTIL =
 struct
 
 datatype ('a, 'b) sum = L of 'a | R of 'b
+
+fun >> (_, e) = e
 
 fun mapi' f n [] alloc = rev alloc
   | mapi' f n (x :: xs) alloc = mapi' f (n+1) xs (f (n, x) :: alloc)
@@ -96,17 +100,21 @@ fun appFirst none some (first, rest) =
         appSuper none first' (first', rest', rest')
     end
 
-
 local
     val outstream: TextIO.outstream option ref =
         (ref NONE (*[ <: TextIO.outstream option ref ]*))
     val ind = ref ""
 in
 fun emit1 s =
-    let val s' = !ind ^ s ^ "\n"
-    in case !outstream of
-           NONE => print s'
-         | SOME stream => TextIO.output (stream, s')
+    let
+      val s' =
+          case s of
+              "" => "\n"
+            | _ => !ind ^ s ^ "\n"
+    in
+      case !outstream of
+          NONE => print s'
+        | SOME stream => TextIO.output (stream, s')
     end
 
 val emit = app emit1
