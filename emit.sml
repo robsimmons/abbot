@@ -26,9 +26,15 @@ end = struct
     = String of string
     | Newline of indent
 
+  fun type_args_to_string args =
+      case args of
+          [] => ""
+        | [arg] => arg ^ " "
+        | _ => "(" ^ String.concatWith ", " args ^ ") "
+
   fun precedence TYPE =
       case TYPE of
-          (TypeVar _ | ModProj _) => 0
+          (TypeVar _ | ModProj _ | Prod [] | Prod [_]) => 0
         | App _ => 1
         | Prod _ => 2
         | Arrow _ => 3
@@ -37,7 +43,7 @@ end = struct
       case TYPE of
           TypeVar name => String name :: acc
         | Arrow (TYPE1, TYPE2) =>
-          if precedence TYPE1 >2
+          if precedence TYPE1 > 2
           then
             emit_type TYPE2
               (String ") -> " :: emit_type TYPE1 (String "(" :: acc))
@@ -55,28 +61,45 @@ end = struct
                 else emit_type TYPE (String " * " :: acc))
             acc
             TYPES
-        | App {func, arg} =>
-          if precedence arg > 0
-          then emit_type func (String ") " :: emit_type arg (String "(" :: acc))
-          else emit_type func (String " " :: emit_type arg acc)
+        | App (args, func) =>
+          let
+            fun emit_args args acc =
+                case args of
+                    [] => acc
+                  | [arg] =>
+                    if precedence arg > 0
+                    then String ") " :: emit_type arg (String "(" :: acc)
+                    else String " " :: emit_type arg acc
+                  | arg::args =>
+                    String ") "
+                    :: List.foldl
+                         (fn (arg, acc) => emit_type arg (String ", " :: acc))
+                         (emit_type arg (String "(" :: acc))
+                         args
+          in
+            emit_type func (emit_args args acc)
+          end
         | ModProj (mod_name, TYPE) =>
           emit_type TYPE (String (mod_name ^ ".") :: acc)
 
-  fun emit_datatype name branches acc =
+  fun emit_datatype name args branches acc =
       Newline Decr
       :: foldlSuper
            (fn ((cons_name, type_opt), acc) =>
                case type_opt of
                    NONE => String cons_name :: acc
                  | SOME TYPE =>
-                   emit_type TYPE (String cons_name :: acc))
+                   emit_type TYPE (String (cons_name ^ " of ") :: acc))
            (fn ((cons_name, type_opt), acc) =>
                case type_opt of
-                   NONE => Newline None :: String ("| " ^ cons_name) :: acc
+                   NONE => String ("| " ^ cons_name) :: Newline None :: acc
                  | SOME TYPE =>
                    emit_type TYPE
-                     (Newline None :: String ("| " ^ cons_name) :: acc))
-           (String "= " :: Newline Incr :: String ("datatype " ^ name) :: acc)
+                     (String ("| " ^ cons_name ^ " of ") :: Newline None :: acc))
+           (String "= "
+            :: Newline Incr
+            :: String ("datatype " ^ type_args_to_string args ^ name)
+            :: acc)
            branches
 
   fun emit_exp EXP acc =
@@ -87,13 +110,17 @@ end = struct
       case d of
           StructureDecl SIG =>
           emit_sig SIG (String ("structure " ^ name ^ " : ") :: acc)
-        | DatatypeDecl branches =>
-          emit_datatype name branches acc
-        | TypeDecl type_opt =>
+        | DatatypeDecl (args, branches) =>
+          emit_datatype name args branches acc
+        | TypeDecl (args, type_opt) =>
           (case type_opt of
-               NONE => String ("type " ^ name) :: acc
+               NONE =>
+               String ("type " ^ type_args_to_string args ^ name)
+               :: acc
              | SOME TYPE =>
-               emit_type TYPE (String ("type " ^ name ^ " = ") :: acc))
+               emit_type TYPE
+                 (String ("type " ^ type_args_to_string args ^ name ^ " = ")
+                  :: acc))
         | ValDecl TYPE =>
           emit_type TYPE (String ("val " ^ name ^ " : ") :: acc)
         | SharingDecl (TYPE1, TYPE2) =>
@@ -118,10 +145,12 @@ end = struct
       case d of
           StructureDefn (sig_opt, STRUCT) =>
           emit_structure_defn name sig_opt STRUCT acc
-        | DatatypeDefn branches =>
-          emit_datatype name branches acc
-        | TypeDefn TYPE =>
-          emit_type TYPE (String ("type " ^ name ^ " = ") :: acc)
+        | DatatypeDefn (args, branches) =>
+          emit_datatype name args branches acc
+        | TypeDefn (args, TYPE) =>
+          emit_type TYPE
+            (String ("type " ^ type_args_to_string args ^ name ^ " = ")
+             :: acc)
         | ValDefn (type_opt, EXP) =>
           (case type_opt of
                NONE => emit_exp EXP (String ("val " ^ name ^ " = ") :: acc)

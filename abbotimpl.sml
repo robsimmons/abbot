@@ -39,7 +39,6 @@ fun emitgenstruct issym srt =
 
 val emitsymbolstruct = emitgenstruct true
 val emitvariablestruct = emitgenstruct false
-
 fun emitimplview (ana : ana) srt =
     emit ["structure " ^ Big srt ^ " =","struct"]
     >> incr ()

@@ -3,11 +3,10 @@
 structure AbbotUser =
 struct
 
-open Util
-infixr 0 >>
 open Analysis
+open AbstractSML
 open AbbotCore
-
+(*
 (* Symbols and variables: basically the same thing *)
 fun emitgensig issym srt =
     let
@@ -205,4 +204,143 @@ fun doit_user (ana : ana) =
     >> app (emituserstruct ana) (List.concat (#sorts ana))
     >> emit ["(* Intentionally shadow internals *)"]
     >> emit ["structure AbbotImpl = struct end"]
+*)
+fun create_sym_structure_decl sym =
+    (Big sym,
+     StructureDecl
+       (SigBody
+          [(sym, TypeDecl ([], NONE)),
+           ("t", TypeDecl ([], SOME (TypeVar sym))),
+           ("new", ValDecl (Arrow (TypeVar "string", TypeVar sym))),
+           ("equal",
+            ValDecl (Arrow (Prod [TypeVar sym, TypeVar sym], TypeVar "bool"))),
+           ("compare",
+            ValDecl (Arrow(Prod [TypeVar sym, TypeVar sym], TypeVar "order"))),
+           ("toString", ValDecl (Arrow (TypeVar sym, TypeVar "string"))),
+           ("hash", ValDecl (Arrow (TypeVar sym, TypeVar "int")))]))
+
+fun arity_to_type (ana : ana) srt (bound, srt') =
+    let
+      val srt_type =
+          if #mutualwith ana srt srt'
+          then TypeVar srt'
+          else ModProj (Big srt', TypeVar "t")
+    in
+      case bound of
+          [] => srt_type
+        | _ =>
+          Prod
+            (List.map
+               (fn srt_or_sym =>
+                   if #issym ana srt_or_sym
+                   then ModProj (Big srt_or_sym, TypeVar "t")
+                   else if #mutualwith ana srt srt_or_sym
+                   then TypeVar (srt_or_sym ^ "Var")
+                   else ModProj (Big srt_or_sym, TypeVar (srt_or_sym ^ "Var")))
+               bound
+             @ [srt_type])
+    end
+
+fun aritys_to_type ana srt oper =
+    case #arity ana srt oper of
+        [] => NONE
+      | [a] => SOME (arity_to_type ana srt a)
+      | arity => SOME (Prod (List.map (arity_to_type ana srt) arity))
+
+fun create_sort_structure_decl (ana : ana) mutual srt =
+    let
+      val mutual_type_decls =
+          List.map (fn srt => (srt, TypeDecl ([], NONE))) mutual
+
+      val mutual_var_decls =
+          List.concat
+            (List.map
+               (fn var_srt =>
+                   if #mutualwith ana srt var_srt
+                   then [(var_srt ^ "Var", TypeDecl ([], NONE))]
+                   else [])
+               (#varin ana srt))
+
+      val map_type =
+          List.foldr
+            (fn (srt, acc) =>
+                Arrow
+                  (Arrow
+                     (TypeVar ("'" ^ srt ^ "1"),
+                      TypeVar ("'" ^ srt ^ "2")),
+                   acc))
+            (Arrow (App (tyvarsofView ana srt "1", TypeVar "view"),
+                    App (tyvarsofView ana srt "2", TypeVar "view")))
+            mutual
+    in
+      (Big srt,
+       StructureDecl
+         (SigBody
+            (mutual_type_decls
+             @ [("t", TypeDecl ([], SOME (TypeVar srt)))]
+             @ mutual_var_decls
+             @ [("view",
+                 DatatypeDecl
+                   (List.map (fn srt => "'" ^ srt) mutual,
+                    List.map
+                      (fn oper => (oper, aritys_to_type ana srt oper))
+                      (#opers ana srt)))]
+             @ List.map
+                 (fn oper =>
+                     (oper ^ "'",
+                      ValDecl
+                        (case aritys_to_type ana srt oper of
+                             NONE => TypeVar srt
+                           | SOME TYPE =>
+                             Arrow (TYPE, TypeVar srt))))
+                 (#opers ana srt)
+             @ [("into",
+                 ValDecl
+                   (Arrow
+                      (App (concretesofView ana srt, TypeVar "view"),
+                       TypeVar srt))),
+                ("out",
+                 ValDecl
+                   (Arrow
+                      (TypeVar srt,
+                       App (concretesofView ana srt, TypeVar "view")))),
+                ("aequiv", ValDecl (Arrow (Prod [TypeVar srt, TypeVar srt], TypeVar "bool"))),
+                ("toString", ValDecl (Arrow (TypeVar srt, TypeVar "string"))),
+                ("map", ValDecl map_type)]
+             @ [(*??? substitutions*)])))
+    end
+
+fun create_sharing_decls mods srt =
+    case mods of
+        [x] => []
+      | x::y::mods' =>
+        ("",
+         SharingDecl
+           (ModProj (Big x, TypeVar srt),
+            ModProj (Big y, TypeVar srt)))
+        :: create_sharing_decls (y::mods') srt
+
+fun create_mutual_sort_structure_decls ana srts =
+    let
+      val sort_structures = List.map (create_sort_structure_decl ana srts) srts
+    in
+      case srts of
+          ([] | [_]) => sort_structures
+        | srt::_ =>
+          sort_structures
+          @ List.concat
+              (List.map
+                 (create_sharing_decls srts)
+                 (srts @ List.map (fn srt => srt ^ "Var") (#varin ana srt)))
+    end
+
+fun doit_user (ana : ana) =
+    let
+      val symbols = List.map create_sym_structure_decl (#symbs ana)
+      val sorts =
+          List.concat
+            (List.map (create_mutual_sort_structure_decls ana) (#sorts ana))
+    in
+      Emit.emit [("ABBOT", TLSignature (SigBody (symbols @ sorts)))]
+    end
 end

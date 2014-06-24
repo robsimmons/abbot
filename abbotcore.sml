@@ -6,6 +6,7 @@ struct
 open Util
 infixr 0 >>
 open Analysis
+open AbstractSML
 
 fun Big s = Char.toString (Char.toUpper (String.sub (s, 0)))
             ^ String.extract (s, 1, NONE)
@@ -29,34 +30,24 @@ fun tyvar s = "'" ^ s
 fun voidcons s = Big s ^ "_Void"
 
 fun tyvarsofView (ana : ana) srt post =
-    case #mutual ana srt of
-        [] => ""
-      | [ s ] => " " ^ tyvar srt ^ post
-      | srts =>
-        " ("
-        ^ String.concatWith ", "
-            (map (fn srt => tyvar srt ^ post) srts)
-        ^ ")"
+    List.map (fn srt => TypeVar ("'" ^ srt)) (#mutual ana srt)
 
 fun concretesofView (ana : ana) srt =
-    case #mutual ana srt of
-        [] => ""
-      | [ s ] => " " ^ srt
-      | srts => " (" ^ String.concatWith ", " srts ^ ")"
+    List.map TypeVar (#mutual ana srt)
 
 fun emitview (ana : ana) external srt =
     let
       val showvar = if external then externalvar else internalvar
       val showvart = if external then externalvart else internalvart
 
-      fun typeofBound (ana: ana) srt =
+      fun typeofBound (ana : ana) srt =
           if #issrt ana srt
           then showvart srt
           else if external
           then fullty srt
           else srt
 
-      fun typeofViewValence (ana: ana) srt (boundsrts, res) =
+      fun typeofViewValence (ana : ana) srt (boundsrts, res) =
           let
             val res' =
                 if #mutualwith ana srt res
@@ -68,7 +59,7 @@ fun emitview (ana : ana) external srt =
             else
               "("
               ^ String.concatWith " * "
-                                  (map (typeofBound ana) boundsrts @ [res'])
+                  (map (typeofBound ana) boundsrts @ [res'])
               ^ ")"
           end
 
@@ -95,8 +86,8 @@ fun emitview (ana : ana) external srt =
       val fst = if external then " *  = " else " = "
       val nxt = if external then " *  | " else " | "
     in
-      emit [pre ^ tyvarsofView ana srt "" ^ " " ^ shortview srt]
-      >> appSuper
+      (*emit [pre ^ (*???*)String.concat (tyvarsofView ana srt "") ^ " " ^ shortview srt]
+      >> *)appSuper
            (fn () => emit [fst ^ voidcons srt ^ " of " ^ shortview srt])
            (emitarm fst post)
            (emitarm fst "",
