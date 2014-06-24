@@ -238,6 +238,10 @@ end = struct
           let val (ss, e'') = peel_strings e []
           in emit [String.concat (List.rev ss)] >> flatten e''
           end
+        | Newline None :: Newline None :: Newline None :: e' =>
+          flatten (Newline None :: Newline None :: e')
+        | Newline None :: Newline None :: e' =>
+          flatten (Newline None :: String "" :: Newline None :: e')
         | Newline None :: e' =>
           flatten e'
         | Newline Incr :: e' =>

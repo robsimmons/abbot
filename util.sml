@@ -124,12 +124,12 @@ fun flush () =
         NONE => TextIO.flushOut TextIO.stdOut
       | SOME s => TextIO.flushOut s
 
-fun incr () = ind := !ind ^ "   "
+fun incr () = ind := !ind ^ "  "
 
 fun decr () =
     case !ind of
         "" => raise Fail "Unbalanced increment/decrement"
-      | s => ind := String.extract (!ind, 3, NONE)
+      | s => ind := String.extract (!ind, 2, NONE)
 
 fun write stream (f: unit -> unit) =
     case !outstream of

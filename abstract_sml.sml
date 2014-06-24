@@ -15,6 +15,7 @@ struct
   datatype SIG
     = SigVar of string
     | SigBody of decl list
+    | WhereType of SIG * TYPE * TYPE
 
   and decl_rhs
     = StructureDecl of SIG
