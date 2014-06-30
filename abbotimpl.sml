@@ -7,6 +7,7 @@ open Util
 infixr 0 >>
 open Analysis
 open AbbotCore
+open AbstractSML
 
 (* Symbols and variables: effectively the same implementation *)
 fun emitgenstruct issym srt =
@@ -33,18 +34,35 @@ fun emitgenstruct issym srt =
       >> decr ()
       >> emit ["end"]
       >> (if issym
-          then emit ["type " ^ srt ^ " = " ^ Big srt ^ "." ^ srt, ""]
-          else emit [""])
+          then emit ["type " ^ srt ^ " = " ^ Big srt ^ ".t", ""]
+          else emit ["type " ^ srt ^ "Var = "  ^ Big srt ^ "Var.t", ""])
+    end
+
+fun create_view_datatype_defn ana srt =
+    let
+      val args = List.map (fn srt => "'" ^ srt) (#mutual ana srt)
+
+      val oper_branches =
+          List.map
+            (fn oper => (oper, aritys_to_type ana srt oper false))
+            (#opers ana srt)
+
+      val body =
+          if List.exists (fn x => x = srt) (#varin ana srt)
+          then ("Var", SOME (TypeVar (srt ^ "Var"))) :: oper_branches
+          else oper_branches
+    in
+      DatatypeDefn ("view", args, body)
     end
 
 val emitsymbolstruct = emitgenstruct true
 val emitvariablestruct = emitgenstruct false
 fun emitimplview (ana : ana) srt =
-    emit ["structure " ^ Big srt ^ " =","struct"]
-    >> incr ()
-    >> emitview ana false srt
-    >> decr ()
-    >> emit ["end", ""]
+    Emit.emit
+      [TLStructure
+         (Big srt,
+          NONE,
+          StructBody [create_view_datatype_defn ana srt])]
 
 (* Actual implementation of sorts *)
 (* Naive implementation of locally nameless *)
@@ -546,7 +564,7 @@ fun emitfinalimpl (ana : ana) srt =
     >> emit ["open " ^ Big srt]
     >> emit [""]
     >> emitcasefunction
-         ana srt "fun" "fmap"
+         ana srt "fun" "map"
          (String.concatWith " "
                             (map (fn s => "f_" ^ s) (#mutual ana srt)) ^ " x")
          "x" NONE (fn (x, _) => emit [viewvar srt ^ " " ^ x])

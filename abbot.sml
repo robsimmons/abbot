@@ -14,13 +14,13 @@ structure Abbot = struct
         val _ = Util.flush ()
         val _ = TextIO.closeOut stream
         val _ = use (name' ^ ".sig")
-(*
+
         val stream = TextIO.openOut (name' ^ ".sml")
         val _ = Util.write stream (fn () => AbbotImpl.doit_impl ana)
         val _ = Util.flush ()
         val _ = TextIO.closeOut stream
         val _ = use (name' ^ ".sml")
-*)      in
+      in
         ()
       end
       handle Parse.Parse s => print s

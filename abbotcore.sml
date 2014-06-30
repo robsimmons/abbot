@@ -37,11 +37,11 @@ fun polymorphic_view (ana : ana) srt post =
 fun concrete_view (ana : ana) srt =
     App (List.map TypeVar (#mutual ana srt), TypeVar "view")
 
-fun arity_to_type (ana : ana) srt (bound, srt') =
+fun arity_to_type concrete (ana : ana) srt (bound, srt') =
     let
       val srt_type =
           if #mutualwith ana srt srt'
-          then TypeVar ("'" ^ srt')
+          then TypeVar ((if concrete then "" else "'") ^ srt')
           else ModProj (Big srt', TypeVar "t")
     in
       case bound of
@@ -59,72 +59,9 @@ fun arity_to_type (ana : ana) srt (bound, srt') =
              @ [srt_type])
     end
 
-fun aritys_to_type ana srt oper =
+fun aritys_to_type ana srt oper concrete =
     case #arity ana srt oper of
         [] => NONE
-      | [a] => SOME (arity_to_type ana srt a)
-      | arity => SOME (Prod (List.map (arity_to_type ana srt) arity))
-
-fun emitview (ana : ana) external srt =
-    let
-      val showvar = if external then externalvar else internalvar
-      val showvart = if external then externalvart else internalvart
-
-      fun typeofBound (ana : ana) srt =
-          if #issrt ana srt
-          then showvart srt
-          else if external
-          then fullty srt
-          else srt
-
-      fun typeofViewValence (ana : ana) srt (boundsrts, res) =
-          let
-            val res' =
-                if #mutualwith ana srt res
-                then tyvar res
-                else (if external then fullty res else res)
-          in
-            if null boundsrts
-            then res'
-            else
-              "("
-              ^ String.concatWith " * "
-                  (map (typeofBound ana) boundsrts @ [res'])
-              ^ ")"
-          end
-
-      fun typeofViewConstructor (ana : ana) srt prelude arity =
-          String.concat
-            (transFirst
-               (fn () => [])
-               (fn (prelude, arg) => [prelude ^ arg])
-               (" of ", " * ")
-               (map (typeofViewValence ana srt) arity))
-
-      datatype arm = Var | Oper of string
-
-      fun emitarm pre post Var =
-          emit [pre ^ "Var of " ^ showvart srt ^ post]
-        | emitarm pre post (Oper oper) =
-          emit [pre
-                ^ oper
-                ^ typeofViewConstructor ana srt pre (#arity ana srt oper)
-                ^ post]
-
-      val pre = if external then "(* datatype" else "datatype"
-      val post = if external then " *)" else ""
-      val fst = if external then " *  = " else " = "
-      val nxt = if external then " *  | " else " | "
-    in
-      (*emit [pre ^ (*???*)String.concat (tyvarsofView ana srt "") ^ " " ^ shortview srt]
-      >> *)appSuper
-           (fn () => emit [fst ^ voidcons srt ^ " of " ^ shortview srt])
-           (emitarm fst post)
-           (emitarm fst "",
-            emitarm nxt "",
-            (fn arm => emitarm nxt "" arm >> emit [post]))
-           ((if #binds ana srt srt then [Var] else [])
-            @ (map Oper (#opers ana srt)))
-    end
-
+      | [a] => SOME (arity_to_type concrete ana srt a)
+      | arity => SOME (Prod (List.map (arity_to_type concrete ana srt) arity))
 end

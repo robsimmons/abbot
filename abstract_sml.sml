@@ -17,33 +17,27 @@ struct
     | SigBody of decl list
     | WhereType of SIG * TYPE * TYPE
 
-  and decl_rhs
-    = StructureDecl of SIG
-    | DatatypeDecl of string list * data_cases
-    | TypeDecl of string list * TYPE option
-    | ValDecl of TYPE
+  and decl
+    = StructureDecl of string * SIG
+    | DatatypeDecl of string * string list * data_cases
+    | TypeDecl of string * string list * TYPE option
+    | ValDecl of string * TYPE
     | SharingDecl of TYPE * TYPE
-
-  withtype decl = string * decl_rhs
 
   datatype STRUCT
     = StructVar of string
     | StructBody of defn list
     | StructApp of string * STRUCT
 
-  and defn_rhs
-    = StructureDefn of SIG option * STRUCT
-    | DatatypeDefn of string list * data_cases
-    | TypeDefn of string list * TYPE
-    | ValDefn of TYPE option * EXP
-    | FunDefn of (string * TYPE option) list * TYPE option * EXP
+  and defn
+    = StructureDefn of string * SIG option * STRUCT
+    | DatatypeDefn of string * string list * data_cases
+    | TypeDefn of string * string list * TYPE
+    | ValDefn of string * TYPE option * EXP
+    | FunDefn of string * (string * TYPE option) list * TYPE option * EXP
 
-  withtype defn = string * defn_rhs
-
-  datatype toplevel_defn_rhs
-    = TLSignature of SIG
-    | TLStructure of SIG option * STRUCT
-    | TLFunctor of string * SIG * SIG option * STRUCT
-
-  type toplevel_defn = string * toplevel_defn_rhs
+  datatype toplevel_defn
+    = TLSignature of string * SIG
+    | TLStructure of string * SIG option * STRUCT
+    | TLFunctor of string * string * SIG * SIG option * STRUCT
 end

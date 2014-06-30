@@ -106,13 +106,13 @@ end = struct
       case EXP of
           ExpVar name => String name :: acc
 
-  fun emit_decl (name, d) acc =
+  fun emit_decl d acc =
       case d of
-          StructureDecl SIG =>
+          StructureDecl (name, SIG) =>
           emit_sig SIG (String ("structure " ^ name ^ " : ") :: acc)
-        | DatatypeDecl (args, branches) =>
+        | DatatypeDecl (name, args, branches) =>
           emit_datatype name args branches acc
-        | TypeDecl (args, type_opt) =>
+        | TypeDecl (name, args, type_opt) =>
           (case type_opt of
                NONE =>
                String ("type " ^ type_args_to_string args ^ name)
@@ -121,7 +121,7 @@ end = struct
                emit_type TYPE
                  (String ("type " ^ type_args_to_string args ^ name ^ " = ")
                   :: acc))
-        | ValDecl TYPE =>
+        | ValDecl (name, TYPE) =>
           emit_type TYPE (String ("val " ^ name ^ " : ") :: acc)
         | SharingDecl (TYPE1, TYPE2) =>
           emit_type TYPE2
@@ -141,17 +141,17 @@ end = struct
                (Newline Incr :: String "sig" :: acc)
                decls
 
-  fun emit_defn (name, d) acc =
+  fun emit_defn d acc =
       case d of
-          StructureDefn (sig_opt, STRUCT) =>
+          StructureDefn (name, sig_opt, STRUCT) =>
           emit_structure_defn name sig_opt STRUCT acc
-        | DatatypeDefn (args, branches) =>
+        | DatatypeDefn (name, args, branches) =>
           emit_datatype name args branches acc
-        | TypeDefn (args, TYPE) =>
+        | TypeDefn (name, args, TYPE) =>
           emit_type TYPE
             (String ("type " ^ type_args_to_string args ^ name ^ " = ")
              :: acc)
-        | ValDefn (type_opt, EXP) =>
+        | ValDefn (name, type_opt, EXP) =>
           (case type_opt of
                NONE => emit_exp EXP (String ("val " ^ name ^ " = ") :: acc)
              | SOME TYPE =>
@@ -159,7 +159,7 @@ end = struct
                  (String " = "
                   :: emit_type TYPE
                        (String ("val " ^ name ^ " : ") :: acc)))
-        | FunDefn (args, type_opt, EXP) => raise Fail "Unimpl???"
+        | FunDefn (name, args, type_opt, EXP) => raise Fail "Unimpl???"
 
   and emit_structure_defn name sig_opt STRUCT acc =
       case sig_opt of
@@ -204,13 +204,13 @@ end = struct
                  body
       end
 
-  fun emit_toplevel_defn (name, tld) acc =
+  fun emit_toplevel_defn tld acc =
       case tld of
-          TLSignature SIG =>
+          TLSignature (name, SIG) =>
           emit_sig SIG (String ("signature " ^ name ^ " = ") :: acc)
-        | TLStructure (sig_opt, STRUCT) =>
+        | TLStructure (name, sig_opt, STRUCT) =>
           emit_structure_defn name sig_opt STRUCT acc
-        | TLFunctor (arg_name, arg_sig, sig_opt, STRUCT) =>
+        | TLFunctor (name, arg_name, arg_sig, sig_opt, STRUCT) =>
           let
             val start_text =
                 "functor " ^ name ^ " (" ^ arg_name ^ " : "
