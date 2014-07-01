@@ -1,0 +1,9 @@
+Group
+  signature RANDOM210
+  structure Random210
+is
+  ../210basis.cm
+  signatures.cm
+  sequence.cm
+
+  ../structures/Random210.sml

@@ -1,0 +1,64 @@
+open Syntax
+open Util
+%%
+
+%term EOF | ABT | EQUAL | BAR | LPAREN | RPAREN | COMMA | SYMBOL | DOT | Name of string
+
+%nonterm start of (Syntax.oper list StringTable.table) * (string list)
+       | decls of (Syntax.oper list StringTable.table) * (string list)
+       | decl of (string * Syntax.oper list, string) Util.sum
+       | abt_decl of string * Syntax.oper list
+       | cases of Syntax.oper list
+       | oper of Syntax.oper
+       | aritys of (string list * string) list
+       | arity of string list * string
+       | symbol_decl of string
+
+%verbose
+%pos int
+%start start
+%eop EOF
+%noshift EOF
+%name Abt
+
+%%
+
+start: decls (decls)
+
+decls: (* empty *) ((StringTable.empty (),[]))
+     | decl decls (let
+                    val (sorts, symbs) = decls
+                  in
+                    case decl of
+                        L sort =>
+                        (StringTable.insert
+                           (fn _ => raise Fail "???")
+                           sort sorts,
+                         symbs)
+                      | R symb =>
+                        (sorts, symb::symbs)
+                  end)
+
+decl: abt_decl (L abt_decl)
+    | symbol_decl (R symbol_decl)
+
+abt_decl: ABT Name EQUAL cases ((Name, cases))
+        | ABT Name EQUAL BAR cases ((Name, cases))
+
+cases: oper ([oper])
+     | oper BAR cases (oper :: cases)
+
+oper: Name ({name=Name, arity=[]})
+    | Name LPAREN aritys RPAREN ({name=Name, arity=aritys})
+
+aritys: arity ([arity])
+      | arity COMMA aritys (arity :: aritys)
+
+arity: Name (([], Name))
+     | Name DOT arity (let
+                        val (bindings, atom) = arity
+                      in
+                        (Name :: bindings, atom)
+                      end)
+
+symbol_decl: SYMBOL Name (Name)
