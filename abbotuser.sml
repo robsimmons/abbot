@@ -1,176 +1,186 @@
-(* Abbot: emitting user interface (___.abt.user.sml) *)
+(* Abbot: emitting user interface (___.abt.sig) *)
 
-structure AbbotUser = 
+structure AbbotUser =
 struct
 
-open Util
 open Analysis
+open AbstractSML
 open AbbotCore
 
-(* Symbols and variables: basically the same thing *)
-fun emitgensig issym srt = 
-let val maybevar = if issym then "" else "Var"
-    val typ = srt^maybevar
-in  emit ["signature "^BIG srt^(if issym then "" else "_VAR")^" = ", "sig"];
-    incr();
-    emit ["type "^typ^(if issym 
-                       then (" = AbbotImpl."^Big srt^maybevar^"."^typ)
-                       else "")];
-    emit ["type t = "^typ];
-    emit ["val new"^(if issym then "sym" else "var")^": string -> "^typ];
-    emit ["val equal: ("^typ^" * "^typ^") -> bool"];
-    emit ["val compare: ("^typ^" * "^typ^") -> order"];
-    emit ["val toString: "^typ^" -> string"];
-    emit ["val hash: "^typ^" -> int"];
-    decr();
-    emit ["end"];
-    ()
-end
+fun create_gen_structure_decl is_var sym =
+    let
+      val tyvar =
+          if is_var
+          then TypeVar (sym ^ "Var")
+          else TypeVar sym
 
-val emitsymbolsig = emitgensig true
-val emitvariablesig = emitgensig false
-
-fun emituservariables (ana: ana) = 
-let 
-    val mkvars = List.filter 
-                     (fn srt => #binds ana srt srt)
-                     (List.concat (#sorts ana))
-in
-    if null mkvars then ()
-    else 
-        (emit ["(* Signatures for variables *)",""];
-         app (fn srt => 
-                 (emitvariablesig srt;
-                  emit [""]))
-             mkvars;
-         emit [""])
-end
-
-fun emitusersymbols (ana: ana) =
-let in
-    if null (#symbs ana) then ()
-    else 
-        (emit ["(* Implementation of symbol sorts *)",""];
-         app (fn srt => 
-                 (emitsymbolsig srt;
-                  emit ["structure "^Big srt^":> "^BIG srt^
-                        " = AbbotImpl."^Big srt,""]))
-             (#symbs ana);
-         emit [""])
-end
-
-(* Sorts and variable sorts to strings *)
-fun ss (ana: ana) srt s' = 
-    if (#mutualwith ana srt s') 
-    then (s')
-    else (Big s'^"."^s')
-fun ssv (ana: ana) srt varsrt = 
-    if (#mutualwith ana srt varsrt) 
-    then (varsrt^"Var")
-    else (Big varsrt^".Var."^varsrt^"Var")
-
-(* The convienece constructors *)
-fun emitconvienenceconstructor (ana: ana) srt oper =
-let 
-    fun typeofBound boundsrt = 
-        if #issrt ana boundsrt
-        then ssv ana srt boundsrt (* Variable *)
-        else ss ana srt boundsrt (* Symbol *)
-
-    fun typeofValence (boundsrts, res) = 
-        if null boundsrts then ss ana srt res
-        else "("^String.concatWith 
-                     " * " 
-                     (map typeofBound boundsrts @ [ss ana srt res])^")"
-    val args = map typeofValence (#arity ana srt oper)
-in
-    if null args
-    then emit ["val "^oper^"': "^srt]
-    else emit ["val "^oper^"': "^String.concatWith " * " args^" -> "^srt]
-end
-
-(* The sealing for the user struct is the most interesting part... *)
-fun emituserstruct (ana: ana) srt = 
-let 
-    fun emitwhereclauses s' =
-    let in
-        if (#binds ana srt s')
-        then (emit ["where type "^s'^" = AbbotImpl."^s'];
-              emit ["where type "^s'^"Var "^
-                    "= AbbotImpl."^Big s'^"Var."^s'^"Var"])
-        else (emit ["where type "^s'^" = AbbotImpl."^s'])
+      val gen_decls =
+          [TypeDecl ("t", [], SOME tyvar),
+           ValDecl
+             ("new" ^ (if is_var then "var" else "sym"),
+              Arrow (TypeVar "string", tyvar)),
+           ValDecl
+             ("equal",
+              Arrow (Prod [tyvar, tyvar], TypeVar "bool")),
+           ValDecl ("compare", Arrow (Prod [tyvar, tyvar], TypeVar "order")),
+           ValDecl ("toString", Arrow (tyvar, TypeVar "string")),
+           ValDecl ("hash", Arrow (tyvar, TypeVar "int"))]
+    in
+      StructureDecl
+        (if is_var
+         then "Var"
+         else Big sym,
+         SigBody
+           (if is_var
+            then gen_decls
+            else (TypeDecl (sym, [], NONE)) :: gen_decls))
     end
-in
-    emit ["signature "^BIG srt^" = ","sig"];
-    incr ();
-    app (fn s' => 
-            (emit ["type "^s'^" (* = "^fullty s'^" *)"];
-             (if (#binds ana srt s') 
-              then emit ["type "^s'^"Var (* = "^externalvart s'^" *)"]
-              else ())))
-        (#mutual ana srt);
-    emit ["type t = "^srt,""];
 
-    (if (#binds ana srt srt) 
-     then emit ["structure Var: "^BIG srt^"_VAR where type "^
-                srt^"Var = "^srt^"Var"] else ());
-    emit ["datatype "^shortview srt^
-          " = datatype AbbotImpl."^Big srt^"."^shortview srt];
-    emitview ana true srt;
-    emit [""];
-    (if (#binds ana srt srt)
-     then emit ["val Var' : "^srt^"Var -> "^srt] else ());
-    app (emitconvienenceconstructor ana srt)
-        (#opers ana srt);
-    emit [""];
+fun create_view_datatype_decl ana srt =
+    let
+      val args = List.map (fn srt => "'" ^ srt) (#mutual ana srt)
 
-    emit ["val into: "^concretesofView ana srt^" "^shortview srt^" -> "
-          ^srt];
-    emit ["val out: "^srt^" ->"^
-          concretesofView ana srt^" "^shortview srt];
-    emit ["val aequiv: "^srt^" * "^srt^" -> bool"];
-    emit ["val toString: "^srt^" -> string"];
-    (if #binds ana srt srt
-     then emit ["val subst: "^srt^" -> "^srt^"Var -> "^srt^" -> "^srt (*,
-                "val freevars: "^srt^" -> "^srt^"Var list" *)]
-     else ());
-    app (fn s' => 
-            if s' = srt then ()
-            else emit ["val subst"^Big s'^": "^ss ana srt s'^" -> "^
-                       ssv ana srt s'^" -> "^
-                       srt^" -> "^srt (*,
-                       "val free"^Big s'^"Vars: "^srt^" -> "^
-                       ssv ana srt s'^" list" *)])
-        (#varin ana srt);
-    (* app (fn s' => emit ["val free"^Big s'^": "^srt^" -> "^Big s'^"."^s'^" list"]) *)
-        (#symin ana srt);
-    appFirst 
-        (fn () => raise Fail "Can't fmap")
-        (fn (prelude, srt) => 
-            emit [prelude ^"("^tyvar srt^"1 -> "^tyvar srt^"2)"])
-        ("val fmap: ","       -> ")
-        (#mutual ana srt); 
-    emit ["       ->"^
-          tyvarsofView ana srt "1"^" "^shortview srt^" ->"^
-          tyvarsofView ana srt "2"^" "^shortview srt];
-    decr ();
-    emit ["end","structure "^Big srt^": "^BIG srt];
-    incr (); incr ();
-    app emitwhereclauses (#mutual ana srt); 
-    emit ["= AbbotImpl."^Big srt,""];
-    decr (); decr (); 
-    ()
-end
+      val oper_branches =
+          List.map
+            (fn oper => (oper, aritys_to_type ana srt oper false))
+            (#opers ana srt)
 
-fun doit_user (ana: ana) = 
-let in
-    emitusersymbols ana;
-    emituservariables ana;
-    emit ["(* Implementation of normal sorts *)", ""];
-    app (emituserstruct ana) (List.concat (#sorts ana));
-    emit ["(* Intentionally shadow internals *)"];
-    emit ["structure AbbotImpl = struct end"];
-    ()
-end
+      val body =
+          if List.exists (fn x => x = srt) (#varin ana srt)
+          then ("Var", SOME (TypeVar (srt ^ "Var"))) :: oper_branches
+          else oper_branches
+    in
+      DatatypeDecl ("view", args, body)
+    end
 
+fun create_sort_structure_decl (ana : ana) srt =
+    let
+      val mutual_type_decls =
+          List.map (fn srt => TypeDecl (srt, [], NONE)) (#mutual ana srt)
+
+      val mutual_var_decls =
+          List.concat
+            (List.map
+               (fn var_srt =>
+                   if #mutualwith ana srt var_srt
+                   then [TypeDecl (var_srt ^ "Var", [], NONE)]
+                   else [])
+               (#varin ana srt))
+
+      val var_structure_decl =
+          if List.exists (fn x => x = srt) (#varin ana srt)
+          then [create_gen_structure_decl true srt]
+          else []
+
+      val convenient_contructors =
+          let
+            val oper_constructors =
+                List.map
+                  (fn oper =>
+                      ValDecl
+                        (oper ^ "'",
+                         case aritys_to_type ana srt oper true of
+                             NONE => TypeVar srt
+                           | SOME TYPE => Arrow (TYPE, TypeVar srt)))
+                  (#opers ana srt)
+          in
+            if List.exists (fn x => x = srt) (#varin ana srt)
+            then
+              ValDecl ("Var'", Arrow (TypeVar (srt ^ "Var"), TypeVar srt))
+              :: oper_constructors
+            else oper_constructors
+          end
+
+      val map_type =
+          List.foldr
+            Arrow
+            (Arrow (polymorphic_view ana srt "1", polymorphic_view ana srt "2"))
+            (List.map
+               (fn srt =>
+                   Arrow (TypeVar ("'" ^ srt ^ "1"), TypeVar ("'" ^ srt ^ "2")))
+               (#mutual ana srt))
+
+      val substitutions =
+          List.map
+            (fn srt' =>
+                ValDecl
+                  (if srt = srt'
+                   then "subst"
+                   else "subst" ^ Big srt',
+                   Arrow
+                     (TypeVar srt',
+                      Arrow
+                        (TypeVar (srt' ^ "Var"),
+                         Arrow (TypeVar srt, TypeVar srt)))))
+            (#varin ana srt)
+
+      val all_decls =
+          List.concat
+            [mutual_type_decls,
+             [TypeDecl ("t", [], SOME (TypeVar srt))],
+             mutual_var_decls,
+             [BlankDecl],
+             var_structure_decl,
+             [BlankDecl],
+             [create_view_datatype_decl ana srt],
+             [BlankDecl],
+             convenient_contructors,
+             [BlankDecl,
+              ValDecl ("into", Arrow (concrete_view ana srt, TypeVar srt)),
+              ValDecl ("out", Arrow (TypeVar srt, concrete_view ana srt)),
+              ValDecl ("aequiv", Arrow (Prod [TypeVar srt, TypeVar srt], TypeVar "bool")),
+              ValDecl ("toString", Arrow (TypeVar srt, TypeVar "string")),
+              ValDecl ("map", map_type)],
+             (case substitutions of [] => [] | _ => BlankDecl :: substitutions)]
+    in
+      StructureDecl (Big srt, SigBody all_decls)
+    end
+
+fun create_sharing_decls mods srt =
+    case mods of
+        [x] => []
+      | x::y::mods' =>
+        SharingDecl (ModProj (Big x, TypeVar srt), ModProj (Big y, TypeVar srt))
+        :: create_sharing_decls (y::mods') srt
+
+fun create_mutual_sort_structure_decls ana srts =
+    let
+      val sort_structures = List.map (create_sort_structure_decl ana) srts
+    in
+      case srts of
+          ([] | [_]) => sort_structures
+        | srt::_ =>
+          sort_structures
+          @ List.concat
+              (List.map
+                 (create_sharing_decls srts)
+                 (srts @ List.map (fn srt => srt ^ "Var") (#varin ana srt)))
+    end
+
+fun interleave x l =
+    let
+      fun interleave' l =
+          case l of
+              [y] => [x, y]
+            | y::ys => x :: y :: interleave' ys
+    in
+      case l of
+          [] => []
+        | [y] => [y]
+        | y::ys => y :: interleave' ys
+    end
+
+fun doit_user (ana : ana) =
+    let
+      val symbols =
+          interleave BlankDecl
+            (List.map (create_gen_structure_decl false) (#symbs ana))
+
+      val sorts =
+          interleave BlankDecl
+            (List.concat
+               (List.map (create_mutual_sort_structure_decls ana) (#sorts ana)))
+    in
+      Emit.emit [TLSignature ("ABBOT", SigBody (symbols @ [BlankDecl] @ sorts))]
+    end
 end

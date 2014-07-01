@@ -1,9 +1,18 @@
 Group is
-   ../fpl/s14/admin/210lib/210basis.cm
-   ../fpl/s14/admin/210lib/210lib.cm
+   210lib/210basis.cm
+   210lib/210lib.cm
+   $/ml-yacc-lib.cm
    util.sml
+   syntax.sml
+   stringtable.sml
+   abt.lex
+   abt.grm
+   parse.sml
    analysis.sml
-   
+
    abbotcore.sml
    abbotimpl.sml
    abbotuser.sml
+   abstract_sml.sml
+   emit.sml
+   abbot.sml

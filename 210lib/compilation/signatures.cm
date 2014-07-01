@@ -1,0 +1,13 @@
+Group
+  source(-)
+is
+  ../signatures/BSTREE.sig
+  ../signatures/RANDOM210.sig
+  ../signatures/SET.sig
+  ../signatures/ELEMENT.sig
+  ../signatures/PRIMITIVES.sig
+  ../signatures/TABLE.sig
+  ../signatures/KEY.sig
+  ../signatures/PQUEUE.sig
+  ../signatures/SEQUENCE.sig
+  ../signatures/ST_SEQUENCE.sig

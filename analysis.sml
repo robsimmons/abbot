@@ -1,276 +1,228 @@
 structure Analysis =
 struct
-  
-   type ana = {
-       sorts: string list list,
-       issrt: string -> bool,
-       symbs: string list,
-       issym: string -> bool,
-       opers: string -> string list,
-       arity: string -> string -> (string list * string) list,
-       binds: string -> string -> bool,
-       varin: string -> string list,
-       symin: string -> string list,
-       mutual: string -> string list,
-       mutualwith: string -> string -> bool
-   }
+  open Syntax
 
-   val church: ana = {
-       sorts = [["exp"]],
-       issrt = (fn "exp" => true | _ => false),
-       symbs = [],
-       issym = (fn _ => false),
-       opers = (fn "exp" => ["Lam", "Ap"]
-               | _ => raise Fail ""),
-       arity = (fn "exp" =>
-                 (fn "Lam" => []
-                 | "Ap" => [([], "exp"), ([], "exp")])),
-       binds = (fn s => fn t => s = t),
-       varin = (fn "exp" => ["exp"]),
-       symin = (fn _ => []),
-       mutual = (fn s => [s]),
-       mutualwith = (fn s => fn t => s = t)
-   }
+  type ana = {
+    (* All sorts in dependency order and with mutual dependencies grouped.
+     * ??? Dependency does not consider binding. *)
+    sorts : string list list,
 
+    (* Returns true iff the given string is a valid sort. *)
+    issrt : string -> bool,
 
-   val systemf: ana = {
-       sorts = [["tp"], ["exp"]],
-       issrt = (fn "exp" => true | "tp" => true | _ => false),
-       symbs = [],
-       issym = (fn _ => false),
-       opers = (fn "exp" => ["Lam","App", "TLam",  "TApp"]
-               | "tp" => ["All", "Arr"]
-               | _ => raise Fail ""),
-       arity = (fn "exp" =>
-                 (fn "TLam" => [(["tp"], "exp")]
-                 | "Lam" => [([], "tp"), (["exp"], "exp")]
-                 | "TApp" => [([], "exp"), ([], "tp")]
-                 | "App" => [([], "exp"), ([], "exp")])
-               | "tp" =>
-                 (fn "All" => [(["tp"], "tp")]
-                 | "Arr" => [([], "tp"), ([], "tp")])),
-       binds = (fn "tp" => (fn s => s = "tp")
-               | "exp" => (fn "exp" => true | s => s = "tp")),
-       varin = (fn "tp" => ["tp"]
-               | "exp" => ["tp", "exp"]
-               | _ => raise Fail ""),
-       symin = (fn _ => []),
-       mutual = (fn s => [s]),
-       mutualwith = (fn s => fn t => s = t)
-   }
-                          
-   val godel: ana = {
-       sorts = [["tp"], ["exp"]],
-       issrt = (fn "exp" => true | "tp" => true | _ => false),
-       symbs = [],
-       issym = (fn _ => false),
-       opers = (fn "exp" => ["Z", "S", "Rec", "Lam", "Ap"]
-               | "tp" =>  ["Nat", "Arr"]
-               | _ => raise Fail ""),
-       arity = (fn "exp" => 
-                 (fn "Z" => []
-                 | "S" => [([], "exp")]
-                 | "Rec" => [([], "exp"), ([], "exp"), (["exp", "exp"], "exp")]
-                 | "Lam" => [([], "tp"), (["exp"], "exp")]
-                 | "Ap" => [([], "exp"), ([], "exp")]
-                 | _ => raise Fail "")
-               | "tp" =>
-                 (fn "Nat" => []
-                 | "Arr" => [([], "tp"), ([], "tp")]
-                 | _ => raise Fail "")
-               | _ => raise Fail ""),
-       varin = (fn "exp" => ["exp"] | _ => []),
-       symin = (fn _ => []),
-       binds = (fn s => (fn "exp" => s = "exp" | _ => false)),
-       mutual = (fn s => [s]),
-       mutualwith = (fn s => fn t => s = t)
-   }
+    (* All symbols. *)
+    symbs : string list,
 
-   val minalgol: ana = {
-       sorts = [["side"], ["tp"], ["exp", "cmd"]],
-       issrt = (fn s => List.exists (List.exists (fn t => s = t)) 
-                                     [["side"], ["tp"], ["exp", "cmd"]]),
-       symbs = ["assign"],
-       issym = (fn "assign" => true | _ => false),
-       opers = (fn "side" => ["L", "R"] 
-               | "tp" => ["Nat", "Parr", "Unit", "Prod", "Void", "Sum", "Cmd"]
-               | "exp" => ["Z", "S", "Ifz", "Lam", "Ap", "Let", "Fix",
-                           "Triv", "Pair", "Pr", "Abort", "In", "Case", "Cmd"]
-               | "cmd" => ["Ret", "Bnd", "Dcl", "Get", "Set"]
-               | _ => raise Fail ""),
-       arity = (fn "side" =>
-                 (fn "L" => []
-                 | "R" => [])
-               | "tp" => 
-                 (fn "Nat" => []
-                 | "Parr" => [([], "tp"), ([], "tp")]
-                 | "Unit" => []
-                 | "Prod" => [([], "tp"), ([], "tp")]
-                 | "Void" => []
-                 | "Sum" => [([], "tp"), ([], "tp")]
-                 | "Cmd" => [([], "tp")])
-               | "exp" =>
-                 (fn "Z" => []
-                 | "S" => [([], "exp")]
-                 | "Ifz" => [([], "exp"), ([], "exp"), (["exp"], "exp")]
-                 | "Lam" => [([], "tp"), (["exp"], "exp")]
-                 | "Ap" => [([], "exp"), ([], "exp")]
-                 | "Let" => [([], "exp"), (["exp"], "exp")]
-                 | "Fix" => [([], "tp"), (["exp"], "exp")]
-                 | "Triv" => []
-                 | "Pair" => [([], "exp"), ([], "exp")]
-                 | "Pr" => [([], "side"), ([], "exp")]
-                 | "Abort" => [([], "tp"), ([], "exp")]
-                 | "In" => [([], "tp"), ([], "tp"), ([], "side"), ([], "exp")]
-                 | "Case" => [([], "exp"), (["exp"], "exp"), (["exp"], "exp")]  
-                 | "Cmd" => [([], "cmd")])
-               | "cmd" => 
-                 (fn "Bnd" => [([], "exp"), (["exp"], "cmd")]
-                 | "Ret" => [([], "exp")]
-                 | "Dcl" => [([], "exp"), (["assign"], "cmd")]
-                 | "Get" => [([], "assign")]
-                 | "Set" => [([], "assign"), ([], "exp")])
-               | _ => raise Fail ""),
-       binds = (fn "cmd" => 
-                 (fn "exp" => true
-                 | "assign" => true
-                 | _ => false)
-               | "exp" => 
-                 (fn "exp" => true
-                 | "assign" => true
-                 | _ => false)
-               | "assign" => 
-                 (fn "assign" => true
-                 | _ => false)
-               | _ => (fn _ => false)), 
-       varin = (fn "exp" => ["exp"] | "cmd" => ["exp"] | _ => []),
-       symin = (fn "exp" => ["assign"] | "cmd" => ["assign"] | _ => []),
-       mutual = (fn "exp" => ["exp", "cmd"]
-                 | "cmd" => ["exp", "cmd"]
-                 | s => [s]),
-       mutualwith = (fn s =>
-                        (fn "exp" => s = "exp" orelse s = "cmd"
-                        | "cmd" => s = "exp" orelse s = "cmd"
-                        | t => s = t))
-   }
+    (* Returns true iff the given string is a valid symbol. *)
+    issym : string -> bool,
 
-   val algol: ana = {
-       sorts = [["side"], ["tp"], ["exp", "cmd"]],
-       issrt = (fn s => List.exists (List.exists (fn t => s = t)) 
-                                     [["side"], ["tp"], ["exp", "cmd"]]),
-       symbs = ["assign"],
-       issym = (fn "assign" => true | _ => false),
-       opers = (fn "side" => ["L", "R"] 
-               | "tp" => ["Nat", "Parr", "Unit", "Prod", "Void", "Sum", 
-                          "Rec", "Cmd", "Ref"]
-               | "exp" => ["Z", "S", "Ifz", "Lam", "Ap", "Let", "Fix",
-                           "Abort", "In", "Case",  
-                           "Triv", "Pair", "Pr", 
-                           "Fold", "Unfold",
-                           "Cmd", "Ref",
-                           "Proc"]
-               | "cmd" => ["Ret", "Bnd", "Dcl", "Get", "Set", 
-                           "Getref", "Setref", "Cast",
-                           "Call", "Seq", "Do", "Letm", "If", "While"]
-               | _ => raise Fail ""),
-       arity = (fn "side" =>
-                 (fn "L" => []
-                 | "R" => [])
-               | "tp" => 
-                 (fn "Nat" => []
-                 | "Parr" => [([], "tp"), ([], "tp")]
-                 | "Unit" => []
-                 | "Prod" => [([], "tp"), ([], "tp")]
-                 | "Void" => []
-                 | "Sum" => [([], "tp"), ([], "tp")]
-                 | "Rec" => [(["tp"], "tp")]
-                 | "Cmd" => [([], "tp")]
-                 | "Ref" => [([], "tp")])
-               | "exp" =>
-                 (fn "Z" => []
-                 | "S" => [([], "exp")]
-                 | "Ifz" => [([], "exp"), ([], "exp"), (["exp"], "exp")]
-                 | "Lam" => [([], "tp"), (["exp"], "exp")]
-                 | "Ap" => [([], "exp"), ([], "exp")]
-                 | "Let" => [([], "exp"), (["exp"], "exp")]
-                 | "Fix" => [([], "tp"), (["exp"], "exp")]
-                 | "Triv" => []
-                 | "Pair" => [([], "exp"), ([], "exp")]
-                 | "Pr" => [([], "side"), ([], "exp")]
-                 | "Abort" => [([], "tp"), ([], "exp")]
-                 | "In" => [([], "tp"), ([], "tp"), ([], "side"), ([], "exp")]
-                 | "Case" => [([], "exp"), (["exp"], "exp"), (["exp"], "exp")]  
-                 | "Fold" => [(["tp"], "tp"), ([], "exp")]
-                 | "Unfold" => [([], "exp")] 
-                 | "Cmd" => [([], "cmd")]
-                 | "Ref" => [([], "assign")]
-                 | "Proc" => [([], "tp"), (["exp"], "cmd")])
-               | "cmd" => 
-                 (fn "Bnd" => [([], "exp"), (["exp"], "cmd")]
-                 | "Ret" => [([], "exp")]
-                 | "Dcl" => [([], "exp"), (["assign"], "cmd")]
-                 | "Get" => [([], "assign")]
-                 | "Set" => [([], "assign"), ([], "exp")]
-                 | "Getref" => [([], "exp")]
-                 | "Setref" => [([], "exp"), ([], "exp")]
-                 | "Cast" => [([], "side"), ([], "exp"), (["exp"], "cmd")]
-                 | "Call" => [([], "exp"), ([], "exp")] 
-                 | "Seq" => [([], "cmd"), (["exp"], "cmd")]
-                 | "Do" => [([], "exp")]
-                 | "Letm" => [([], "exp"), (["exp"], "cmd")]
-                 | "If" => [([], "cmd"), ([], "cmd"), ([], "cmd")]
-                 | "While" => [([], "cmd"), ([], "cmd")]) 
-               | _ => raise Fail ""),
-       binds = (fn "cmd" => 
-                 (fn "exp" => true
-                 | "assign" => true
-                 | _ => false)
-               | "exp" => 
-                 (fn "exp" => true
-                 | "assign" => true
-                 | _ => false)
-               | "assign" => 
-                 (fn "assign" => true
-                 | _ => false)
-               | "tp" => 
-                 (fn "tp" => true
-                 | _ => false)
-               | _ => (fn _ => false)), 
-       varin = (fn "exp" => ["exp"] 
-               | "cmd" => ["exp"]
-               | "tp" => ["tp"] 
-               | _ => []),
-       symin = (fn "exp" => ["assign"] | "cmd" => ["assign"] | _ => []),
-       mutual = (fn "exp" => ["exp", "cmd"]
-                 | "cmd" => ["exp", "cmd"]
-                 | s => [s]),
-       mutualwith = (fn s =>
-                        (fn "exp" => s = "exp" orelse s = "cmd"
-                        | "cmd" => s = "exp" orelse s = "cmd"
-                        | t => s = t))
-   }
+    (* Maps sorts to a list of their operators. *)
+    opers : string -> string list,
 
-                    
+    (* Maps a sort and operator to the operator's arity. *)
+    arity : string -> string -> (string list * string) list,
 
-       
+    (* binds sry srt_or_sym:
+     * If srt_or_sym is a sort, returns true iff variables of sort srt_or_sym
+     *  can be bound by srt.
+     * If srt_or_sym is a symbol, returns true iff the symbol srt_or_sym can be
+     *  bound by srt. *)
+    binds : string -> string -> bool,
 
-(* val pcf_pattern = {
-       typs = [["tp"], ["side"], ["pat"], ["exp", "rules", "rule"]],
-       cons = (fn "tp" => ["nat", "parr", "unit", "pair", "zero", "sum"]
-              | "pat" => ["wild", "var", "z", "s", "triv", "pair", "in"]
-              | "exp" => ["fix", "z", "s", "ifz", "lam", "app",
-                          "triv", "pair", "pr",
-                          "abort", "in", "case", 
-                          "match"]
-              | "rules" => ["rules"]
-              | "rule" => ["rule"]),
-       (* arity = (fn "tp" =>
-                   (fn "nat" =>
-                   | "parr" =>
-                   | "unit" =>
-                   | "pair" =>
-                   | "zero" =>
-                   | "sum" => *)
-   } *)
+    (* Returns a list of the sorts of variables that can be found in the given
+     * sort or any sort it contains. *)
+    varin : string -> string list,
 
+    (* Returns a list of the symbols that can be found in the given sort or any
+     * sort it contains. *)
+    symin : string -> string list,
+
+    (* Returns all the mutually dependent sorts of a given sort,
+     * including itself *)
+    mutual : string -> string list,
+
+    (* Returns true iff the given sorts are mutually dependent. *)
+    mutualwith : string -> string -> bool
+  }
+
+  fun analyze (parse_data : Syntax.oper list StringTable.table * string list) : ana =
+      let
+        open StringTable
+
+        val (sorts, symbs) = parse_data
+
+        fun issrt s =
+            case find sorts s of
+                NONE => false
+              | SOME _ => true
+
+        fun issym s =
+            List.exists (fn a => a = s) symbs
+
+        fun opers s =
+            List.map #name (valOf (find sorts s))
+
+        fun arity s oper =
+            #arity
+              (valOf
+                 (List.find
+                    (fn {name, arity} => name = oper)
+                    (valOf (find sorts s))))
+
+        val binding_table =
+            map
+              (fn opers =>
+                  List.foldl Set.union (Set.empty ())
+                    (List.map
+                       (fn {name, arity} =>
+                           List.foldl Set.union (Set.empty ())
+                             (List.map
+                                (Set.fromSeq o Seq.fromList o #1)
+                                arity))
+                       opers))
+              sorts
+
+        fun binds s1 s2 =
+            case find binding_table s1 of
+                NONE => false
+              | SOME bound => Set.find bound s2
+
+        val set_to_list = Seq.toList o Set.toSeq
+
+        val depsym_table =
+            map
+              (fn opers =>
+                  List.foldl
+                    Set.union
+                    (Set.empty ())
+                    (List.map
+                       (fn {name, arity} =>
+                           List.foldl
+                             Set.union
+                             (Set.empty ())
+                             (List.map
+                                (Set.singleton o #2)
+                                arity))
+                       opers))
+              sorts
+
+        local
+          open StringTable
+
+          fun neighbors G F =
+              Seq.reduce Set.union (Set.empty ()) (range (extract (G, F)))
+
+          fun bfs G frontier visited =
+             if Set.size frontier = 0
+             then visited
+             else let
+               val visited' = Set.union (visited, frontier)
+               val frontier' = Set.difference (neighbors G frontier, visited')
+             in
+               bfs G frontier' visited'
+             end
+
+          (* Should this also consider bindings??? *)
+          val simple_dep_table =
+              map (Set.filter issrt) depsym_table
+        in
+        val dep_table =
+            mapk
+              (fn (srt, _) =>
+                  Set.insert
+                    srt
+                    (bfs simple_dep_table (Set.singleton srt) (Set.empty ())))
+              sorts
+        end
+
+        fun hasvar srt =
+            List.exists
+              (fn srt' => binds srt' srt)
+              (Seq.toList (Set.toSeq (domain sorts)))
+
+        val varin = List.filter hasvar o set_to_list o valOf o find dep_table
+
+        val simple_sym_table = map (Set.filter issym) depsym_table
+
+        val sym_table =
+            map
+              (fn srts =>
+                  Seq.reduce
+                    Set.union
+                    (Set.empty ())
+                    (Seq.map
+                       (valOf o find simple_sym_table)
+                       (Set.toSeq srts)))
+              dep_table
+
+        val symin = set_to_list o valOf o find sym_table
+
+        val mutual_table =
+            mapk
+              (fn (s, varsin) =>
+                  Set.insert s
+                    (Set.filter
+                       (fn s' =>
+                           case find dep_table s' of
+                               NONE => false
+                             | SOME varsin' =>
+                               Set.find varsin' s)
+                       varsin))
+              dep_table
+
+        fun mutual' s =
+            find mutual_table s
+
+        val mutual = set_to_list o valOf o mutual'
+
+        fun mutualwith s1 s2 =
+            case mutual' s1 of
+                NONE => false
+              | SOME mutuals => Set.find mutuals s2
+
+        val sorts =
+            Seq.iter
+              (fn (ls, s) =>
+                  if List.exists (List.exists (fn x => x = s)) ls
+                  then ls
+                  else mutual s::ls)
+              []
+              (Set.toSeq (domain sorts))
+
+        fun sort_group_compare (l::ls, r::rs) =
+            let
+              val lgeqr =
+                  case find dep_table l of
+                      NONE => false
+                    | SOME deps => Set.find deps r
+              val rgeql =
+                  case find dep_table r of
+                      NONE => false
+                    | SOME deps => Set.find deps l
+            in
+              if lgeqr
+              then GREATER
+              else if rgeql
+              then LESS
+              else EQUAL
+            end
+
+        val sorts =
+            Seq.toList (Seq.sort sort_group_compare (Seq.fromList sorts))
+
+      in
+        {
+          sorts=sorts,
+          issrt=issrt,
+          symbs=symbs,
+          issym=issym,
+          opers=opers,
+          arity=arity,
+          binds=binds,
+          varin=varin,
+          symin=symin,
+          mutual=mutual,
+          mutualwith=mutualwith
+        }
+      end
 end

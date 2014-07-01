@@ -1,0 +1,7 @@
+Group
+  structure StudentTestSuite
+is
+  ../210basis.cm
+  signatures.cm
+
+  ../structures/StudentTestSuite.sml

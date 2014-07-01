@@ -6,8 +6,8 @@ symbol assign
 
 abt side = L | R
 
-abt tp 
- = Nat 
+abt tp
+ = Nat
  | Parr (tp, tp)
  | Unit
  | Prod (tp, tp)
