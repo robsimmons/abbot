@@ -119,15 +119,19 @@ fun create_sort_structure_decl (ana : ana) srt =
             [mutual_type_decls,
              [TypeDecl ("t", [], SOME (TypeVar srt))],
              mutual_var_decls,
+             [BlankDecl],
              var_structure_decl,
+             [BlankDecl],
              [create_view_datatype_decl ana srt],
+             [BlankDecl],
              convenient_contructors,
-             [ValDecl ("into", Arrow (concrete_view ana srt, TypeVar srt)),
+             [BlankDecl,
+              ValDecl ("into", Arrow (concrete_view ana srt, TypeVar srt)),
               ValDecl ("out", Arrow (TypeVar srt, concrete_view ana srt)),
               ValDecl ("aequiv", Arrow (Prod [TypeVar srt, TypeVar srt], TypeVar "bool")),
               ValDecl ("toString", Arrow (TypeVar srt, TypeVar "string")),
               ValDecl ("map", map_type)],
-             substitutions]
+             (case substitutions of [] => [] | _ => BlankDecl :: substitutions)]
     in
       StructureDecl (Big srt, SigBody all_decls)
     end
@@ -153,13 +157,30 @@ fun create_mutual_sort_structure_decls ana srts =
                  (srts @ List.map (fn srt => srt ^ "Var") (#varin ana srt)))
     end
 
+fun interleave x l =
+    let
+      fun interleave' l =
+          case l of
+              [y] => [x, y]
+            | y::ys => x :: y :: interleave' ys
+    in
+      case l of
+          [] => []
+        | [y] => [y]
+        | y::ys => y :: interleave' ys
+    end
+
 fun doit_user (ana : ana) =
     let
-      val symbols = List.map (create_gen_structure_decl false) (#symbs ana)
+      val symbols =
+          interleave BlankDecl
+            (List.map (create_gen_structure_decl false) (#symbs ana))
+
       val sorts =
-          List.concat
-            (List.map (create_mutual_sort_structure_decls ana) (#sorts ana))
+          interleave BlankDecl
+            (List.concat
+               (List.map (create_mutual_sort_structure_decls ana) (#sorts ana)))
     in
-      Emit.emit [TLSignature ("ABBOT", SigBody (symbols @ sorts))]
+      Emit.emit [TLSignature ("ABBOT", SigBody (symbols @ [BlankDecl] @ sorts))]
     end
 end

@@ -9,8 +9,17 @@ struct
 
   type data_cases = (string * TYPE option) list
 
+  datatype PAT
+    = Wild
+    | VarPat of string
+    | TuplePat of PAT list
+    | InjPat of string * PAT
+
   datatype EXP
     = ExpVar of string
+    | TupleExp of EXP list
+    | CaseExp of EXP * (PAT * EXP) list
+    | SeqExp of EXP list
 
   datatype SIG
     = SigVar of string
@@ -18,7 +27,8 @@ struct
     | WhereType of SIG * TYPE * TYPE
 
   and decl
-    = StructureDecl of string * SIG
+    = BlankDecl
+    | StructureDecl of string * SIG
     | DatatypeDecl of string * string list * data_cases
     | TypeDecl of string * string list * TYPE option
     | ValDecl of string * TYPE
@@ -30,11 +40,12 @@ struct
     | StructApp of string * STRUCT
 
   and defn
-    = StructureDefn of string * SIG option * STRUCT
+    = BlankDefn
+    | StructureDefn of string * SIG option * STRUCT
     | DatatypeDefn of string * string list * data_cases
     | TypeDefn of string * string list * TYPE
-    | ValDefn of string * TYPE option * EXP
-    | FunDefn of string * (string * TYPE option) list * TYPE option * EXP
+    | ValDefn of PAT * EXP
+    | FunDefn of string * PAT list * TYPE option * EXP
 
   datatype toplevel_defn
     = TLSignature of string * SIG

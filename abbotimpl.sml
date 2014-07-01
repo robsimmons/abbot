@@ -10,33 +10,62 @@ open AbbotCore
 open AbstractSML
 
 (* Symbols and variables: effectively the same implementation *)
-fun emitgenstruct issym srt =
+fun create_gen_structure_defn is_var sym =
     let
-      val maybevar = if issym then "" else "Var"
-      val typ = srt ^ maybevar
-      val cons = if issym then "Sym" else "Var"
+      val tyvar =
+          if is_var
+          then TypeVar (sym ^ "Var")
+          else TypeVar sym
+
+      val type_defns =
+          if is_var
+          then [TypeDefn ("t", [], Prod [TypeVar "string", TypeVar "int"])]
+          else
+            [TypeDefn (sym, [], Prod [TypeVar "string", TypeVar "int"]),
+             TypeDefn ("t", [], TypeVar sym)]
+
+      val gen_defns =
+          [ValDefn (VarPat "counter", ExpVar "ref 0"),
+           FunDefn
+             ("new" ^ (if is_var then "var" else "sym"),
+              [VarPat "t"],
+              NONE,
+              TupleExp
+                [ExpVar "t",
+                 SeqExp
+                   [ExpVar "counter := !counter + 1",
+                    ExpVar "!counter"]]),
+           FunDefn
+             ("equal",
+              [TuplePat
+                 [TuplePat [Wild, VarPat "x"],
+                  TuplePat [Wild, VarPat "y"]]],
+              NONE,
+              ExpVar "x = y"),
+           FunDefn
+             ("compare",
+              [TuplePat
+                 [TuplePat [Wild, VarPat "x"],
+                  TuplePat [Wild, VarPat "y"]]],
+              NONE,
+              ExpVar "Int.compare (x, y)"),
+           FunDefn
+             ("toString",
+              [TuplePat [VarPat "s", VarPat "id"]],
+              NONE,
+              ExpVar "t ^ \"@\" ^ Int.toString id"),
+           FunDefn ("hash", [TuplePat [Wild, VarPat "id"]], NONE, ExpVar "id")]
     in
-      emit ["structure " ^ Big srt ^ maybevar ^ " =", "struct"]
-      >> incr ()
-      >> emit ["datatype " ^ typ ^ " = " ^ cons ^ " of string * int"]
-      >> emit ["type t = " ^ srt ^ maybevar]
-      >> emit ["val counter = ref 0"]
-      >> emit ["val default = (\"default\", 0)"]
-      >> emit ["fun hash (" ^ cons ^ " (_, id)) = id"]
-      >> emit ["fun new" ^ (if issym then "sym" else "var") ^ " s"
-               ^ " = " ^ cons ^ " (s, (counter := !counter + 1; !counter))"]
-      >> emit ["fun equal (" ^ cons ^ " (_, x), " ^ cons ^ " (_, y)) = x = y"]
-      >> emit ["fun compare (" ^ cons ^ " (_, x), " ^ cons
-               ^ " (_, y)) = Int.compare (x, y)"]
-      >> emit ["fun toString (" ^ cons
-               ^ " (s, id)) = s ^ \"@\" ^ Int.toString id"]
-      >> emit ["fun toUserString (" ^ cons ^ " (s, id)) = s"]
-      >> decr ()
-      >> emit ["end"]
-      >> (if issym
-          then emit ["type " ^ srt ^ " = " ^ Big srt ^ ".t", ""]
-          else emit ["type " ^ srt ^ "Var = "  ^ Big srt ^ "Var.t", ""])
+      StructureDefn
+        (if is_var then "Var" else Big sym,
+         NONE,
+         StructBody (type_defns @ gen_defns))
     end
+
+fun emitgenstruct issym srt =
+    Emit.flatten
+      (List.rev
+         (Emit.emit_defn (create_gen_structure_defn (not issym) srt) []))
 
 fun create_view_datatype_defn ana srt =
     let

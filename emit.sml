@@ -1,6 +1,6 @@
-structure Emit :> sig
+structure Emit(* :> sig
   val emit : AbstractSML.toplevel_defn list -> unit
-end = struct
+end *)= struct
   open Util
   infixr 0 >>
   open AbstractSML
@@ -102,13 +102,21 @@ end = struct
             :: acc)
            branches
 
+  fun emit_pat PAT acc =
+      case PAT of
+          Wild => String "_" :: acc
+        | VarPat name => String name :: acc
+        | TuplePat l => raise Fail "Unimpl"
+        | InjPat (name, PAT') => raise Fail "Unimpl"
+
   fun emit_exp EXP acc =
       case EXP of
           ExpVar name => String name :: acc
 
   fun emit_decl d acc =
       case d of
-          StructureDecl (name, SIG) =>
+          BlankDecl => Newline None :: acc
+        | StructureDecl (name, SIG) =>
           emit_sig SIG (String ("structure " ^ name ^ " : ") :: acc)
         | DatatypeDecl (name, args, branches) =>
           emit_datatype name args branches acc
@@ -136,14 +144,19 @@ end = struct
           :: Newline Decr
           :: foldlSuper
                (fn (decl, acc) => emit_decl decl acc)
-               (fn (decl, acc) =>
-                   emit_decl decl (Newline None :: Newline None :: acc))
+               (fn (decl, acc) => emit_decl decl (Newline None :: acc))
                (Newline Incr :: String "sig" :: acc)
                decls
+        | WhereType (SIG, TYPE1, TYPE2) =>
+          emit_type TYPE2
+            (String " = "
+             :: emit_type TYPE1
+                  (String "where type " :: emit_sig SIG acc))
 
   fun emit_defn d acc =
       case d of
-          StructureDefn (name, sig_opt, STRUCT) =>
+          BlankDefn => Newline None :: acc
+        | StructureDefn (name, sig_opt, STRUCT) =>
           emit_structure_defn name sig_opt STRUCT acc
         | DatatypeDefn (name, args, branches) =>
           emit_datatype name args branches acc
@@ -151,15 +164,10 @@ end = struct
           emit_type TYPE
             (String ("type " ^ type_args_to_string args ^ name ^ " = ")
              :: acc)
-        | ValDefn (name, type_opt, EXP) =>
-          (case type_opt of
-               NONE => emit_exp EXP (String ("val " ^ name ^ " = ") :: acc)
-             | SOME TYPE =>
-               emit_exp EXP
-                 (String " = "
-                  :: emit_type TYPE
-                       (String ("val " ^ name ^ " : ") :: acc)))
-        | FunDefn (name, args, type_opt, EXP) => raise Fail "Unimpl???"
+        | ValDefn (PAT, EXP) =>
+          emit_exp EXP (String " = " :: emit_pat PAT (String "val " :: acc))
+        | FunDefn (name, args, type_opt, EXP) => raise Fail "Unimpl"
+          (*emit_args args (String ("fun " ^ name ^ " ") :: acc)*)
 
   and emit_structure_defn name sig_opt STRUCT acc =
       case sig_opt of
@@ -193,14 +201,13 @@ end = struct
             :: Newline Decr
             :: foldlSuper
                  (fn (defn, acc) => emit_defn defn acc)
-                 (fn (defn, acc) =>
-                     emit_defn defn (Newline None :: Newline None :: acc))
+                 (fn (defn, acc) => emit_defn defn (Newline None :: acc))
                  (case names of
-                    [] => Newline Incr :: String "struct" :: acc
-                  | _ =>
-                    Newline Incr
-                    :: String (String.concatWith " (" names ^ " (struct")
-                    :: acc)
+                      [] => Newline Incr :: String "struct" :: acc
+                    | _ =>
+                      Newline Incr
+                      :: String (String.concatWith " (" names ^ " (struct")
+                      :: acc)
                  body
       end
 
@@ -241,7 +248,7 @@ end = struct
         | Newline None :: Newline None :: Newline None :: e' =>
           flatten (Newline None :: Newline None :: e')
         | Newline None :: Newline None :: e' =>
-          flatten (Newline None :: String "" :: Newline None :: e')
+          emit [""] >> flatten e'
         | Newline None :: e' =>
           flatten e'
         | Newline Incr :: e' =>
@@ -254,8 +261,7 @@ end = struct
         val emittable =
             foldlSuper
               (fn (defn, acc) => emit_toplevel_defn defn acc)
-              (fn (defn, acc) =>
-                  emit_toplevel_defn defn (Newline None :: Newline None :: acc))
+              (fn (defn, acc) => emit_toplevel_defn defn (Newline None :: acc))
               []
               defns
       in
