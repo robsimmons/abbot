@@ -2,6 +2,21 @@ structure Analysis =
 struct
   open Syntax
 
+  datatype mappable
+    = MappableVar of string
+    | ProdMappable of mappable list
+    | ExternalMappable of string * mappable list
+
+  datatype iterable
+    = IterableVar of string
+    | ProdIterable of iterable list
+    | ExternalIterable of string * iterable list
+
+  datatype arity
+    = Sort of string
+    | Symbol of string
+    | Binding of iterable * string list * mappable * arity list
+
   type ana = {
     (* All sorts in dependency order and with mutual dependencies grouped.
      * ??? Dependency does not consider binding. *)

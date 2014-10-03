@@ -9,18 +9,6 @@ struct
 
   type data_cases = (string * TYPE option) list
 
-  datatype PAT
-    = Wild
-    | VarPat of string
-    | TuplePat of PAT list
-    | InjPat of string * PAT
-
-  datatype EXP
-    = ExpVar of string
-    | TupleExp of EXP list
-    | CaseExp of EXP * (PAT * EXP) list
-    | SeqExp of EXP list
-
   datatype SIG
     = SigVar of string
     | SigBody of decl list
@@ -29,12 +17,29 @@ struct
   and decl
     = BlankDecl
     | StructureDecl of string * SIG
-    | DatatypeDecl of string * string list * data_cases
-    | TypeDecl of string * string list * TYPE option
+    | TypeDecls of {datatypes : (string * string list * data_cases) list,
+                    aliases : (string * string list * TYPE option) list}
     | ValDecl of string * TYPE
     | SharingDecl of TYPE * TYPE
 
-  datatype STRUCT
+  datatype PAT
+    = Wild
+    | VarPat of string
+    | TuplePat of PAT list
+    | InjPat of string * PAT
+    | ListPat of PAT list
+    | AscribedPat of PAT * TYPE
+
+  datatype EXP
+    = ExpVar of string
+    | TupleExp of EXP list
+    | CaseExp of EXP * (PAT * EXP) list
+    | SeqExp of EXP list
+    | StringExp of string
+    | ListExp of EXP list
+    | LetExp of defn list * EXP
+(**x**)
+  and STRUCT
     = StructVar of string
     | StructBody of defn list
     | StructApp of string * STRUCT
@@ -42,10 +47,10 @@ struct
   and defn
     = BlankDefn
     | StructureDefn of string * SIG option * STRUCT
-    | DatatypeDefn of string * string list * data_cases
-    | TypeDefn of string * string list * TYPE
+    | TypeDefns of {datatypes : (string * string list * data_cases) list,
+                    aliases : (string * string list * TYPE) list}
     | ValDefn of PAT * EXP
-    | FunDefn of string * PAT list * TYPE option * EXP
+    | FunDefn of (string * PAT list * TYPE option * EXP) list
 
   datatype toplevel_defn
     = TLSignature of string * SIG

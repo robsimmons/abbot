@@ -59,8 +59,7 @@ end *)= struct
                 if precedence TYPE > 1
                 then String ")" :: emit_type TYPE (String " * (" :: acc)
                 else emit_type TYPE (String " * " :: acc))
-            acc
-            TYPES
+            acc TYPES
         | App (args, func) =>
           let
             fun emit_args args acc =
@@ -82,7 +81,7 @@ end *)= struct
         | ModProj (mod_name, TYPE) =>
           emit_type TYPE (String (mod_name ^ ".") :: acc)
 
-  fun emit_datatype name args branches acc =
+  fun emit_datatype mutual name args branches acc =
       Newline Decr
       :: foldlSuper
            (fn ((cons_name, type_opt), acc) =>
@@ -98,37 +97,55 @@ end *)= struct
                      (String ("| " ^ cons_name ^ " of ") :: Newline None :: acc))
            (String "= "
             :: Newline Incr
-            :: String ("datatype " ^ type_args_to_string args ^ name)
+            :: String
+                 ((if mutual then "and " else "datatype ")
+                  ^ type_args_to_string args
+                  ^ name)
             :: acc)
            branches
-
-  fun emit_pat PAT acc =
-      case PAT of
-          Wild => String "_" :: acc
-        | VarPat name => String name :: acc
-        | TuplePat l => raise Fail "Unimpl"
-        | InjPat (name, PAT') => raise Fail "Unimpl"
-
-  fun emit_exp EXP acc =
-      case EXP of
-          ExpVar name => String name :: acc
 
   fun emit_decl d acc =
       case d of
           BlankDecl => Newline None :: acc
         | StructureDecl (name, SIG) =>
           emit_sig SIG (String ("structure " ^ name ^ " : ") :: acc)
-        | DatatypeDecl (name, args, branches) =>
-          emit_datatype name args branches acc
-        | TypeDecl (name, args, type_opt) =>
-          (case type_opt of
-               NONE =>
-               String ("type " ^ type_args_to_string args ^ name)
-               :: acc
-             | SOME TYPE =>
-               emit_type TYPE
-                 (String ("type " ^ type_args_to_string args ^ name ^ " = ")
-                  :: acc))
+        | TypeDecls {datatypes, aliases} =>
+          foldlSuper
+            (fn ((name, args, type_opt), acc) =>
+                (case type_opt of
+                     NONE =>
+                     String ("type " ^ type_args_to_string args ^ name)
+                     :: acc
+                   | SOME TYPE =>
+                     emit_type TYPE
+                               (String
+                                  ("type "
+                                   ^ type_args_to_string args
+                                   ^ name
+                                   ^ " = ")
+                                :: acc)))
+            (fn ((name, args, type_opt), acc) =>
+                (case type_opt of
+                     NONE =>
+                     String ("type "
+                             ^ type_args_to_string args
+                             ^ name)
+                     :: acc
+                   | SOME TYPE =>
+                     emit_type TYPE
+                               (String
+                                  ("type "
+                                   ^ type_args_to_string args
+                                   ^ name
+                                   ^ " = ")
+                                :: acc)))
+            (foldlSuper
+               (fn ((name, args, branches), acc) =>
+                   emit_datatype false name args branches acc)
+               (fn ((name, args, branches), acc) =>
+                   emit_datatype true name args branches acc)
+               acc datatypes)
+            aliases
         | ValDecl (name, TYPE) =>
           emit_type TYPE (String ("val " ^ name ^ " : ") :: acc)
         | SharingDecl (TYPE1, TYPE2) =>
@@ -151,23 +168,165 @@ end *)= struct
           emit_type TYPE2
             (String " = "
              :: emit_type TYPE1
-                  (String "where type " :: emit_sig SIG acc))
+                  (String " where type " :: emit_sig SIG acc))
 
-  fun emit_defn d acc =
+  fun emit_pat PAT acc =
+      case PAT of
+          Wild => String "_" :: acc
+        | VarPat name => String name :: acc
+        | TuplePat pats =>
+          (case pats of
+               [] => String "()" :: acc
+             | [PAT] => emit_pat PAT acc
+             | pats =>
+               String ")"
+               :: foldlSuper
+                    (fn (PAT, acc) => emit_pat PAT acc)
+                    (fn (PAT, acc) => emit_pat PAT (String ", " :: acc))
+                    (String "(" :: acc)
+                    pats)
+        | ListPat pats =>
+          String "]"
+          :: foldlSuper
+               (fn (PAT, acc) => emit_pat PAT acc)
+               (fn (PAT, acc) => emit_pat PAT (String ", " :: acc))
+               (String "[" :: acc)
+               pats
+        | InjPat (name, PAT') =>
+          String ")" :: emit_pat PAT' (String ("(" ^ name ^ " ") :: acc)
+        | AscribedPat (PAT, TYPE) =>
+          String ")"
+          :: emit_type TYPE (String " : " :: emit_pat PAT (String "(" :: acc))
+
+  fun emit_exp EXP acc =
+      case EXP of
+          ExpVar name => String name :: acc
+        | TupleExp exps =>
+          (case exps of
+               [] => String "()" :: acc
+             | [EXP] => emit_exp EXP acc
+             | exps =>
+               String ")"
+               :: foldlSuper
+                    (fn (EXP, acc) => emit_exp EXP acc)
+                    (fn (EXP, acc) => emit_exp EXP (String ", " :: acc))
+                    (String "(" :: acc)
+                    exps)
+        | ListExp exps =>
+          String "]"
+          :: foldlSuper
+               (fn (EXP, acc) => emit_exp EXP acc)
+               (fn (EXP, acc) => emit_exp EXP (String ", " :: acc))
+               (String "[" :: acc)
+               exps
+        | CaseExp (EXP, cases) =>
+          Newline None
+          :: String ")"
+          :: foldlSuper
+               (fn ((PAT, EXP), acc) =>
+                   Newline Decr
+                   :: emit_exp EXP
+                        (Newline Incr
+                         :: String " =>"
+                         :: emit_pat PAT (String "  " :: acc)))
+               (fn ((PAT, EXP), acc) =>
+                   Newline Decr
+                   :: emit_exp EXP
+                        (Newline Incr
+                         :: String " =>"
+                         :: emit_pat PAT (String "| " :: acc)))
+               (Newline None
+                :: String " of"
+                :: emit_exp EXP (String "(case " :: acc))
+               cases (* Add parens sometimes??? *)
+        | SeqExp exps =>
+          String ")"
+          :: foldlSuper
+               (fn (EXP, acc) => emit_exp EXP acc)
+               (fn (EXP, acc) => emit_exp EXP (String " " :: acc))
+               (String "(" :: acc) exps
+        | StringExp str =>
+          String ("\"" ^ str ^ "\"") :: acc
+        | LetExp (defns, EXP) =>
+          String "end"
+          :: Newline Decr
+          :: emit_exp EXP
+               (Newline Incr
+                :: String "in"
+                :: Newline Decr
+                :: emit_defns defns
+                     (Newline Incr :: String "let" :: acc))
+
+  and emit_defn d acc =
       case d of
           BlankDefn => Newline None :: acc
         | StructureDefn (name, sig_opt, STRUCT) =>
           emit_structure_defn name sig_opt STRUCT acc
-        | DatatypeDefn (name, args, branches) =>
-          emit_datatype name args branches acc
-        | TypeDefn (name, args, TYPE) =>
-          emit_type TYPE
-            (String ("type " ^ type_args_to_string args ^ name ^ " = ")
-             :: acc)
+        | TypeDefns {datatypes, aliases} =>
+          let
+            val alias_start =
+                case datatypes of
+                    [] => ""
+                  | _ => "with"
+          in
+            foldlSuper
+              (fn ((name, args, TYPE), acc) =>
+                  emit_type TYPE
+                    (String (alias_start ^ "type "
+                             ^ type_args_to_string args
+                             ^ name
+                             ^ " = ")
+                     :: acc))
+              (fn ((name, args, TYPE), acc) =>
+                  emit_type TYPE
+                    (String ("and "
+                             ^ type_args_to_string args
+                             ^ name
+                             ^ " = ")
+                     :: Newline None
+                     :: acc))
+              (foldlSuper
+                 (fn ((name, args, branches), acc) =>
+                     emit_datatype false name args branches acc)
+                 (fn ((name, args, branches), acc) =>
+                     emit_datatype true name args branches acc)
+                 acc datatypes)
+              aliases
+          end
         | ValDefn (PAT, EXP) =>
           emit_exp EXP (String " = " :: emit_pat PAT (String "val " :: acc))
-        | FunDefn (name, args, type_opt, EXP) => raise Fail "Unimpl"
-          (*emit_args args (String ("fun " ^ name ^ " ") :: acc)*)
+        | FunDefn funs =>
+          let
+            fun emit_args args acc =
+                foldlSuper
+                  (fn (PAT, acc) => emit_pat PAT acc)
+                  (fn (PAT, acc) => emit_pat PAT (String " " :: acc))
+                  acc args
+
+            fun emit_fun mutual ((name, args, type_opt, EXP), acc) =
+                Newline Decr
+                :: emit_exp EXP
+                     (Newline Incr
+                      :: String " ="
+                      :: (case type_opt of
+                              NONE =>
+                              emit_args
+                                args
+                                (String
+                                   ((if mutual then "and " else "fun ")
+                                    ^ name
+                                    ^ " ")
+                                 :: acc)
+                            | SOME TYPE =>
+                              emit_type
+                                TYPE
+                                (String " : "
+                                 :: emit_args
+                                      args
+                                      (String ("fun " ^ name ^ " ")
+                                       :: acc))))
+          in foldlSuper (emit_fun false) (emit_fun true) acc funs
+          end
 
   and emit_structure_defn name sig_opt STRUCT acc =
       case sig_opt of
@@ -178,6 +337,13 @@ end *)= struct
             (String " = "
              :: emit_sig SIG
                   (String ("structure " ^ name ^ " :> ") :: acc))
+
+  and emit_defns defns acc =
+      foldlSuper
+        (fn (defn, acc) => emit_defn defn acc)
+        (fn (defn, acc) => emit_defn defn (Newline None :: acc))
+        acc
+        defns
 
   and emit_struct STRUCT acc =
       let
@@ -199,16 +365,14 @@ end *)= struct
           | SOME body =>
             String "end"
             :: Newline Decr
-            :: foldlSuper
-                 (fn (defn, acc) => emit_defn defn acc)
-                 (fn (defn, acc) => emit_defn defn (Newline None :: acc))
+            :: emit_defns body
                  (case names of
                       [] => Newline Incr :: String "struct" :: acc
                     | _ =>
                       Newline Incr
                       :: String (String.concatWith " (" names ^ " (struct")
                       :: acc)
-                 body
+
       end
 
   fun emit_toplevel_defn tld acc =

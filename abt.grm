@@ -6,7 +6,7 @@ open Util
 
 %nonterm start of (Syntax.oper list StringTable.table) * (string list)
        | decls of (Syntax.oper list StringTable.table) * (string list)
-       | decl of (string * Syntax.oper list, string) Util.sum
+       | decl of (string * Syntax.oper list, string) Util.Sum2.t
        | abt_decl of string * Syntax.oper list
        | cases of Syntax.oper list
        | oper of Syntax.oper
@@ -30,17 +30,17 @@ decls: (* empty *) ((StringTable.empty (),[]))
                     val (sorts, symbs) = decls
                   in
                     case decl of
-                        L sort =>
+                        Sum2.In1 sort =>
                         (StringTable.insert
                            (fn _ => raise Fail "???")
                            sort sorts,
                          symbs)
-                      | R symb =>
+                      | Sum2.In2 symb =>
                         (sorts, symb::symbs)
                   end)
 
-decl: abt_decl (L abt_decl)
-    | symbol_decl (R symbol_decl)
+decl: abt_decl (Sum2.In1 abt_decl)
+    | symbol_decl (Sum2.In2 symbol_decl)
 
 abt_decl: ABT Name EQUAL cases ((Name, cases))
         | ABT Name EQUAL BAR cases ((Name, cases))

@@ -20,6 +20,7 @@ structure Abbot = struct
         val _ = Util.flush ()
         val _ = TextIO.closeOut stream
         val _ = use (name' ^ ".sml")
+
       in
         ()
       end

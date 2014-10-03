@@ -37,7 +37,10 @@ fun polymorphic_view (ana : ana) srt post =
 fun concrete_view (ana : ana) srt =
     App (List.map TypeVar (#mutual ana srt), TypeVar "view")
 
-fun arity_to_type concrete (ana : ana) srt (bound, srt') =
+fun flatten_arity arity =
+    List.map (fn (bound, srt) => bound @ [srt]) arity
+
+fun arity_to_type_external concrete (ana : ana) srt (bound, srt') =
     let
       val srt_type =
           if #mutualwith ana srt srt'
@@ -59,9 +62,27 @@ fun arity_to_type concrete (ana : ana) srt (bound, srt') =
              @ [srt_type])
     end
 
-fun aritys_to_type ana srt oper concrete =
+fun aritys_to_type_external ana srt oper concrete =
     case #arity ana srt oper of
         [] => NONE
-      | [a] => SOME (arity_to_type concrete ana srt a)
-      | arity => SOME (Prod (List.map (arity_to_type concrete ana srt) arity))
+      | [a] => SOME (arity_to_type_external concrete ana srt a)
+      | arity =>
+        SOME (Prod (List.map (arity_to_type_external concrete ana srt) arity))
+
+fun ops_name (ana : ana) srt =
+    String.concat (List.map Big (#mutual ana srt)) ^ "Ops"
+
+fun arity_to_type_internal concrete (ana : ana) srt (bound, srt') =
+    if #issym ana srt'
+    then ModProj (Big srt', TypeVar "t")
+    else if #mutualwith ana srt srt'
+    then TypeVar ((if concrete then "" else "'") ^ srt')
+    else ModProj (ops_name ana srt', TypeVar srt')
+
+fun aritys_to_type_internal (ana : ana) srt oper concrete =
+    case List.filter (fn (_, srt') => srt <> srt') (#arity ana srt oper) of
+        [] => NONE
+      | [a] => SOME (arity_to_type_internal concrete ana srt a)
+      | arity =>
+        SOME (Prod (List.map (arity_to_type_internal concrete ana srt) arity))
 end

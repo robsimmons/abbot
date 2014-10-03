@@ -2,57 +2,75 @@
 
 signature UTIL =
 sig
-    datatype ('a, 'b) sum = L of 'a | R of 'b
+  structure Sum2 : sig
+    datatype ('a, 'b) t = In1 of 'a | In2 of 'b
+  end
+  structure Sum3 : sig
+    datatype ('a, 'b, 'c) t = In1 of 'a | In2 of 'b | In3 of 'c
+  end
+  structure Sum4 : sig
+    datatype ('a, 'b, 'c, 'd) t = In1 of 'a | In2 of 'b | In3 of 'c | In4 of 'd
+  end
 
-    val >> : unit * 'a -> 'a
+  val >> : unit * 'a -> 'a
 
-    (* Stateful; set or unset the indent *)
-    val emit: string list -> unit
-    val incr: unit -> unit
-    val decr: unit -> unit
-    val flush: unit -> unit
+  (* Stateful; set or unset the indent *)
+  val emit: string list -> unit
+  val incr: unit -> unit
+  val decr: unit -> unit
+  val flush: unit -> unit
 
-    (* Write: output to a particular stream *)
-    val write: TextIO.outstream -> (unit -> unit) -> unit
+  (* Write: output to a particular stream *)
+  val write: TextIO.outstream -> (unit -> unit) -> unit
 
-    (* Annotate a list with ints *)
-    val mapi: (int * 'a -> 'b) -> 'a list -> 'b list
-    val intify: 'a list -> (int * 'a) list
+  (* Annotate a list with ints *)
+  val mapi: (int * 'a -> 'b) -> 'a list -> 'b list
+  val intify: 'a list -> (int * 'a) list
 
-    (* Application utility functions *)
-    val transSuper: (* Analogy: String.translate *)
-        (unit -> 'c list)                             (* There are no items *)
-        -> ('a -> 'c list)                            (* There is one item *)
-        -> ('a -> 'c list) * ('a -> 'c list) * ('a -> 'c list) (* F,M,L *)
-        -> 'a list                                    (* List *)
-        -> 'c list
+  (* Application utility functions *)
+  val transSuper: (* Analogy: String.translate *)
+      (unit -> 'c list)                             (* There are no items *)
+      -> ('a -> 'c list)                            (* There is one item *)
+      -> ('a -> 'c list) * ('a -> 'c list) * ('a -> 'c list) (* F,M,L *)
+      -> 'a list                                    (* List *)
+      -> 'c list
 
-    val appSuper:
-        (unit -> unit)                                (* There are no items *)
-        -> ('a -> unit)                               (* There is one item *)
-        -> ('a -> unit) * ('a -> unit) * ('a -> unit) (* First, middle, last *)
-        -> 'a list                                    (* List *)
-        -> unit
+  val appSuper:
+      (unit -> unit)                                (* There are no items *)
+      -> ('a -> unit)                               (* There is one item *)
+      -> ('a -> unit) * ('a -> unit) * ('a -> unit) (* First, middle, last *)
+      -> 'a list                                    (* List *)
+      -> unit
 
-    val transFirst:
-        (unit -> 'c list)
-        -> ('pre * 'a -> 'c list)
-        -> ('pre * 'pre)
-        -> 'a list
-        -> 'c list
+  val transFirst:
+      (unit -> 'c list)
+      -> ('pre * 'a -> 'c list)
+      -> ('pre * 'pre)
+      -> 'a list
+      -> 'c list
 
-    val appFirst:
-        (unit -> unit)       (* Function if there are no items *)
-        -> ('a * 'b -> unit) (* Function for each item *)
-        -> ('a * 'a)         (* Data for first item, data for other items *)
-        -> 'b list           (* List of items *)
-        -> unit
+  val appFirst:
+      (unit -> unit)       (* Function if there are no items *)
+      -> ('a * 'b -> unit) (* Function for each item *)
+      -> ('a * 'a)         (* Data for first item, data for other items *)
+      -> 'b list           (* List of items *)
+      -> unit
+
+  val interleave : 'a -> 'a list -> 'a list
 end
 
 structure Util :> UTIL =
 struct
 
-datatype ('a, 'b) sum = L of 'a | R of 'b
+structure Sum2 = struct
+  datatype ('a, 'b) t = In1 of 'a | In2 of 'b
+end
+structure Sum3 = struct
+  datatype ('a, 'b, 'c) t = In1 of 'a | In2 of 'b | In3 of 'c
+end
+structure Sum4 = struct
+  datatype ('a, 'b, 'c, 'd) t = In1 of 'a | In2 of 'b | In3 of 'c | In4 of 'd
+end
 
 fun >> (_, e) = e
 
@@ -141,6 +159,19 @@ fun write stream (f: unit -> unit) =
             handle exn => (outstream := NONE; raise exn)
         end
       | SOME _ => raise Fail "Nested calls to write"
+
+fun interleave x l =
+    let
+      fun interleave' l =
+          case l of
+              [y] => [x, y]
+            | y::ys => x :: y :: interleave' ys
+    in
+      case l of
+          [] => []
+        | [y] => [y]
+        | y::ys => y :: interleave' ys
+    end
 end
 
 end

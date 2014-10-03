@@ -2,17 +2,14 @@
  * frontend to produce the internal minalgol spec given in
  * analysis.sml *)
 
-ast int
-ast 'a list
-
 symbol assign
 
-ast side = L | R
+abt side = L | R
 
-ast tp
+abt tp
  = Nat
  | Parr (tp, tp)
- | Prod (tp list)
+ | Prod (tp, tp)
  | Void
  | Sum (tp, tp)
  | Cmd (tp)
@@ -25,8 +22,9 @@ abt exp
  | Ap (exp, exp)
  | Let (exp, exp.exp)
  | Fix (tp, exp.exp)
- | Tuple (exp list)
- | Pr (int, exp)
+ | Pair (exp, exp)
+ | Prl (exp)
+ | Prr (exp)
  | Abort (tp, exp)
  | In (tp, tp, side, exp)
  | Case (exp, exp.exp, exp.exp)
