@@ -1,3 +1,5 @@
+(* ??? sean mclaughlin formatter *)
+
 structure Emit(* :> sig
   val emit : AbstractSML.toplevel_defn list -> unit
 end *)= struct
@@ -50,16 +52,19 @@ end *)= struct
           else
             emit_type TYPE2 (String " -> " :: emit_type TYPE1 acc)
         | Prod TYPES =>
-          foldlSuper
-            (fn (TYPE, acc) =>
-                if precedence TYPE > 1
-                then String ")" :: emit_type TYPE (String "(" :: acc)
-                else emit_type TYPE acc)
-            (fn (TYPE, acc) =>
-                if precedence TYPE > 1
-                then String ")" :: emit_type TYPE (String " * (" :: acc)
-                else emit_type TYPE (String " * " :: acc))
-            acc TYPES
+          (case TYPES of
+               [] => String "unit" :: acc
+             | _ =>
+               foldlSuper
+                 (fn (TYPE, acc) =>
+                     if precedence TYPE > 1
+                     then String ")" :: emit_type TYPE (String "(" :: acc)
+                     else emit_type TYPE acc)
+                 (fn (TYPE, acc) =>
+                     if precedence TYPE > 1
+                     then String ")" :: emit_type TYPE (String " * (" :: acc)
+                     else emit_type TYPE (String " * " :: acc))
+                 acc TYPES)
         | App (args, func) =>
           let
             fun emit_args args acc =
@@ -197,6 +202,9 @@ end *)= struct
         | AscribedPat (PAT, TYPE) =>
           String ")"
           :: emit_type TYPE (String " : " :: emit_pat PAT (String "(" :: acc))
+        | ConsPat (PAT1, PAT2) =>
+          String ")"
+          :: emit_pat PAT2 (String " :: " :: emit_pat PAT1 (String "(" :: acc))
 
   fun emit_exp EXP acc =
       case EXP of
@@ -222,23 +230,12 @@ end *)= struct
         | CaseExp (EXP, cases) =>
           Newline None
           :: String ")"
-          :: foldlSuper
-               (fn ((PAT, EXP), acc) =>
-                   Newline Decr
-                   :: emit_exp EXP
-                        (Newline Incr
-                         :: String " =>"
-                         :: emit_pat PAT (String "  " :: acc)))
-               (fn ((PAT, EXP), acc) =>
-                   Newline Decr
-                   :: emit_exp EXP
-                        (Newline Incr
-                         :: String " =>"
-                         :: emit_pat PAT (String "| " :: acc)))
-               (Newline None
+          :: emit_cases
+               (String "  "
+                :: Newline None
                 :: String " of"
                 :: emit_exp EXP (String "(case " :: acc))
-               cases (* Add parens sometimes??? *)
+               cases
         | SeqExp exps =>
           String ")"
           :: foldlSuper
@@ -256,6 +253,28 @@ end *)= struct
                 :: Newline Decr
                 :: emit_defns defns
                      (Newline Incr :: String "let" :: acc))
+        | LamExp cases =>
+          String ")"
+          :: emit_cases
+               (String "(fn " :: acc)
+               cases
+
+  and emit_cases acc cases =
+      foldlSuper
+        (fn ((PAT, EXP), acc) =>
+            Newline Decr
+            :: emit_exp EXP
+                        (Newline Incr
+                         :: String " =>"
+                         :: emit_pat PAT acc))
+        (fn ((PAT, EXP), acc) =>
+            Newline Decr
+            :: emit_exp EXP
+                        (Newline Incr
+                         :: String " =>"
+                         :: emit_pat PAT (String "| " :: acc)))
+        acc
+        cases
 
   and emit_defn d acc =
       case d of
@@ -295,6 +314,8 @@ end *)= struct
           end
         | ValDefn (PAT, EXP) =>
           emit_exp EXP (String " = " :: emit_pat PAT (String "val " :: acc))
+        | OpenDefn STRUCT =>
+          emit_struct STRUCT (String "open " :: acc)
         | FunDefn funs =>
           let
             fun emit_args args acc =
@@ -381,12 +402,18 @@ end *)= struct
           emit_sig SIG (String ("signature " ^ name ^ " = ") :: acc)
         | TLStructure (name, sig_opt, STRUCT) =>
           emit_structure_defn name sig_opt STRUCT acc
-        | TLFunctor (name, arg_name, arg_sig, sig_opt, STRUCT) =>
+        | TLFunctor (name, args, sig_opt, STRUCT) =>
           let
             val start_text =
-                "functor " ^ name ^ " (" ^ arg_name ^ " : "
+                "functor " ^ name ^ " ("
+
             val with_arg =
-                String ") " :: emit_sig arg_sig (String start_text :: acc)
+                String ") "
+                :: foldlSuper
+                     (fn (decl, acc) => emit_decl decl acc)
+                     (fn (decl, acc) => emit_decl decl (String " " :: acc))
+                     (String start_text :: acc)
+                     args
           in
             case sig_opt of
                 NONE =>

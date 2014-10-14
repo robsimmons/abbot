@@ -15,41 +15,43 @@ sig
   val >> : unit * 'a -> 'a
 
   (* Stateful; set or unset the indent *)
-  val emit: string list -> unit
-  val incr: unit -> unit
-  val decr: unit -> unit
-  val flush: unit -> unit
+  val emit : string list -> unit
+  val incr : unit -> unit
+  val decr : unit -> unit
+  val flush : unit -> unit
 
   (* Write: output to a particular stream *)
-  val write: TextIO.outstream -> (unit -> unit) -> unit
+  val write : TextIO.outstream -> (unit -> unit) -> unit
 
   (* Annotate a list with ints *)
-  val mapi: (int * 'a -> 'b) -> 'a list -> 'b list
-  val intify: 'a list -> (int * 'a) list
+  val mapi : (int * 'a -> 'b) -> 'a list -> 'b list
+  val intify : 'a list -> (int * 'a) list
+  val foldli : (int * 'a * 'b -> 'b) -> 'b -> 'a list -> 'b
+  val mapfilter : ('a -> 'b option) -> 'a list -> 'b list
 
   (* Application utility functions *)
-  val transSuper: (* Analogy: String.translate *)
+  val transSuper : (* Analogy: String.translate *)
       (unit -> 'c list)                             (* There are no items *)
       -> ('a -> 'c list)                            (* There is one item *)
       -> ('a -> 'c list) * ('a -> 'c list) * ('a -> 'c list) (* F,M,L *)
       -> 'a list                                    (* List *)
       -> 'c list
 
-  val appSuper:
+  val appSuper :
       (unit -> unit)                                (* There are no items *)
       -> ('a -> unit)                               (* There is one item *)
       -> ('a -> unit) * ('a -> unit) * ('a -> unit) (* First, middle, last *)
       -> 'a list                                    (* List *)
       -> unit
 
-  val transFirst:
+  val transFirst :
       (unit -> 'c list)
       -> ('pre * 'a -> 'c list)
       -> ('pre * 'pre)
       -> 'a list
       -> 'c list
 
-  val appFirst:
+  val appFirst :
       (unit -> unit)       (* Function if there are no items *)
       -> ('a * 'b -> unit) (* Function for each item *)
       -> ('a * 'a)         (* Data for first item, data for other items *)
@@ -80,6 +82,17 @@ fun mapi' f n [] alloc = rev alloc
 fun mapi f xs = mapi' f 0 xs []
 
 fun intify xs = mapi (fn x => x) xs
+
+fun foldli f e l =
+    #2 (List.foldl (fn (a, (i, b)) => (i + 1, f (i, a, b))) (0, e) l)
+
+fun mapfilter f l =
+    List.foldr
+      (fn (x, acc) =>
+          case f x of
+              NONE => acc
+            | SOME y => y :: acc)
+      [] l
 
 fun transSuper none one (first, middle, last) xs =
     let

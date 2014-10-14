@@ -1,25 +1,43 @@
 structure Abbot = struct
-  fun genfromfile (name : string) =
+  fun genfromfile (filename : string, name_parts_opt : string list option) =
       let
-        val parse_data = Parse.parsefile name
-        val name' =
-            if String.isSuffix ".abt" name
-            then name
-            else name ^ ".abt"
+        val parse_data = Parse.parsefile filename
+
+        val filename' =
+            if String.isSuffix ".abt" filename
+            then filename
+            else filename ^ ".abt"
+
+        val (sig_name, struct_name) =
+            case name_parts_opt of
+                SOME name_parts =>
+                (String.concatWith "_" (List.map AbbotCore.BIG name_parts),
+                 String.concat (List.map AbbotCore.Big name_parts))
+              | NONE =>
+                let
+                  val _ :: name :: _ =
+                      List.rev
+                        (String.tokens
+                           (fn (#"/" | #".") => true | _ => false)
+                           filename')
+                in
+                  (AbbotCore.BIG name ^ "_ABT", AbbotCore.Big name ^ "Abt")
+                end
 
         val ana = Analysis.analyze parse_data
 
-        val stream = TextIO.openOut (name' ^ ".sig")
-        val _ = Util.write stream (fn () => AbbotUser.doit_user ana)
+        val stream = TextIO.openOut (filename' ^ ".sig")
+        val _ = Util.write stream (fn () => AbbotUser.doit_user sig_name ana)
         val _ = Util.flush ()
         val _ = TextIO.closeOut stream
-        val _ = use (name' ^ ".sig")
+        val _ = use (filename' ^ ".sig")
 
-        val stream = TextIO.openOut (name' ^ ".sml")
-        val _ = Util.write stream (fn () => AbbotImpl.doit_impl ana)
+        val stream = TextIO.openOut (filename' ^ ".sml")
+        val _ = Util.write stream
+                  (fn () => AbbotImpl.doit_impl sig_name struct_name ana)
         val _ = Util.flush ()
         val _ = TextIO.closeOut stream
-        val _ = use (name' ^ ".sml")
+        val _ = use (filename' ^ ".sml")
 
       in
         ()

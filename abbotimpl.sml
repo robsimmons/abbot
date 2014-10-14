@@ -9,6 +9,11 @@ open Analysis
 open AbbotCore
 open AbstractSML
 
+fun with_index f x =
+    let val index = ref 0
+    in f (fn () => (index := !index + 1; Int.toString (!index))) x
+    end
+
 val create_symbol_structures =
     List.map
       (fn sym =>
@@ -23,6 +28,8 @@ fun internalize_binding binding =
       | SymbolBinding _ => ProdBinding []
       | ProdBinding bindings =>
         ProdBinding (List.map internalize_binding bindings)
+      | ListBinding binding =>
+        ListBinding (internalize_binding binding)
       | AppBinding (ast, bindings) =>
         AppBinding (ast, List.map internalize_binding bindings)
 
@@ -32,6 +39,8 @@ fun internalize_arity arity =
       | SymbolArity sym => SymbolArity sym
       | ProdArity aritys =>
         ProdArity (List.map internalize_arity aritys)
+      | ListArity arity =>
+        ListArity (internalize_arity arity)
       | AppArity (ast, aritys) =>
         AppArity (ast, List.map internalize_arity aritys)
       | BindingArity (binding, arity) =>
@@ -40,142 +49,202 @@ fun internalize_arity arity =
 fun binding_to_pat' index binding =
     case binding of
         SortBinding srt =>
-        VarPat (sort_to_string srt ^ Int.toString (index ()))
+        VarPat (sort_to_string srt ^ index ())
       | SymbolBinding sym =>
-        VarPat (sym_to_string sym ^ Int.toString (index ()))
+        VarPat (sym_to_string sym ^ index ())
       | ProdBinding bindings =>
         TuplePat (List.map (binding_to_pat' index) bindings)
+      | ListBinding binding =>
+        VarPat ("list" ^ index ())
       | AppBinding (ast, bindings) =>
-        VarPat (ast_to_string ast ^ Int.toString (index ()))
+        VarPat (ast_to_string ast ^ index ())
 
-fun binding_to_pat binding =
-    let val index = ref 0
-    in binding_to_pat' (fn () => (index := !index + 1; !index)) binding
-    end
+val binding_to_pat = with_index binding_to_pat'
 
 fun arity_to_pat' index arity =
     case arity of
         SortArity srt =>
-        VarPat (sort_to_string srt ^ Int.toString (index ()))
+        VarPat (sort_to_string srt ^ index ())
       | SymbolArity sym =>
-        VarPat (sym_to_string sym ^ Int.toString (index ()))
+        VarPat (sym_to_string sym ^ index ())
       | ProdArity aritys =>
         TuplePat (List.map (arity_to_pat' index) aritys)
+      | ListArity arity =>
+        VarPat ("list" ^ index ())
       | AppArity (ast, arity) =>
-        VarPat (ast_to_string ast ^ Int.toString (index ()))
+        VarPat (ast_to_string ast ^ index ())
       | BindingArity (binding, arity) =>
         TuplePat [binding_to_pat' index binding, arity_to_pat' index arity]
 
-fun arity_to_pat arity =
-    let val index = ref 0
-    in arity_to_pat' (fn () => (index := !index + 1; !index)) arity
-    end
+val arity_to_pat = with_index arity_to_pat'
 
-(*
 fun unbind_single ana srt exp =
-    LetExp
-      ([ValDefn
-          (InjPat ("Abt.Binding",
-                   TuplePat [VarPat "x", VarPat "t"]),
-           SeqExp
-             [ExpVar "Abt.out",
-              ExpVar
-                (ops_name ana srt ^ "."
-                 ^ sort_to_string srt ^ "_oper_unbind"),
-              exp])],
-       TupleExp [ExpVar "x", ExpVar "t"])
+    SeqExp
+      [ExpVar "List.foldr",
+       LamExp
+         [(TuplePat [VarPat "x", VarPat "acc"],
+           LetExp
+             ([ValDefn
+                 (InjPat ("Abt.Binding", TuplePat [VarPat "y", VarPat "acc'"]),
+                  SeqExp
+                    [ExpVar "Abt.out",
+                     ExpVar
+                       (ops_name ana srt ^ "."
+                        ^ sort_to_string srt ^ "_oper_unbind"),
+                     SeqExp
+                       [ExpVar "Abt.unbind",
+                        ExpVar
+                          (ops_name ana srt ^ "."
+                          ^ sort_to_string srt ^ "_oper_unbind"),
+                        ExpVar "x",
+                        ExpVar "~1", (* This violates every invariant... *)
+                        ExpVar "acc"]])],
+              ExpVar "acc'"))],
+       exp,
+       ExpVar "vars"]
 
-fun unbind_binding ana srt binding_exp exp binding =
+fun place_vars' index binding =
     case binding of
-        SortBinding _ => unbind_single ana srt exp
-      | SymbolBinding _ => unbind_single ana srt exp
-      (*| ProdBinding bindings =>*)
-      | AppBinding (ast, bindings) =>
-        (case bindings of
-             [] => TupleExp [binding_exp, exp]
-           | _ =>
-             SeqExp
-               (ExpVar (Big (ast_to_string ast))
-                :: List.map
-                     (fn binding =>
-                         LamExp
-                           [(TuplePat [VarPat "binding", VarPat "t"],
-                             binding_to_exp_external ana srt
-                               (ExpVar "binding") (ExpVar "t")
-                               binding)])
-                     bindings
-                @ [TupleExp [binding_exp, exp]]))
-
-fun unbind_vars ana srt exp bindings =
-    List.foldl
-      (fn (binding, exp) =>
-          LetExp
-            ([ValDefn (TuplePat [VarPat "binding", VarPat "t"], exp)],
-             unbind_binding ana srt (ExpVar "binding") (ExpVar "t") binding))
-      exp bindings
-
-fun arity_to_exp_external ana srt vars arity =
-    case arity of
-        SortArity srt' =>
-        if srt = srt'
-        then
-          LetExp
-            ([ValDefn (ConsPat (VarPat "hd", VarPat "tl"), ExpVar "self")],
-             TupleExp [ExpVar "hd", ExpVar "tl"])
-        else
-          TupleExp [ExpVar "others", ExpVar "self"]
-      | SymbolArity sym =>
-        TupleExp [ExpVar "others", ExpVar "self"]
-      | ProdArity aritys =>
+        SortBinding srt =>
+        (index ();
+         LetExp
+           ([ValDefn
+               (VarPat "x", SeqExp [ExpVar "Variable.new", StringExp "x"])],
+            TupleExp [ExpVar "x", ListExp [ExpVar "x"]]))
+      | SymbolBinding sym =>
+        (index ();
+         LetExp
+           ([ValDefn
+               (VarPat "x", SeqExp [ExpVar "Variable.new", StringExp "x"])],
+            TupleExp [ExpVar "x", ListExp [ExpVar "x"]]))
+      | ProdBinding bindings =>
         LetExp
           (mapi
-             (fn (i, arity) =>
+             (fn (i, binding) =>
                  ValDefn
-                   (TuplePat
-                      [VarPat ("others" ^ Int.toString i),
-                       VarPat "self"],
-                    LetExp
-                      ([ValDefn
-                          (VarPat "others",
-                           SeqExp
-                             [ExpVar ("#" ^ Int.toString (i + 1)),
-                              ExpVar "others"])],
-                       arity_to_exp_external ana srt index arity)))
-             aritys,
-          TupleExp
-            [TupleExp
-               (mapi
-                  (fn (i, _) => ExpVar ("others" ^ Int.toString i))
-                  aritys),
-             ExpVar "self"])
-      | AppArity (ast, aritys) =>
-        (case aritys of
-             [] => TupleExp [ExpVar "others", ExpVar "self"]
+                   (VarPat ("x" ^ Int.toString i ^ "'"),
+                    place_vars' index binding))
+             bindings,
+           TupleExp
+             [TupleExp
+                (mapi
+                   (fn (i, _) =>
+                       SeqExp [ExpVar "#1", ExpVar ("x" ^ Int.toString i ^ "'")])
+                   bindings),
+              SeqExp
+                [ExpVar "List.concat",
+                 ListExp
+                   (mapi
+                      (fn (i, _) =>
+                          SeqExp [ExpVar "#2", ExpVar ("x" ^ Int.toString i ^ "'")])
+                      bindings)]])
+      | ListBinding binding =>
+        SeqExp
+          [ExpVar "List.iter",
+           LamExp
+             [(TuplePat [binding_to_pat binding, VarPat "acc"],
+              LetExp
+                ([ValDefn
+                    (TuplePat [TuplePat [VarPat "binding", VarPat "vars"]],
+                     place_vars binding)],
+                 TupleExp
+                   [ExpVar "binding",
+                    SeqExp [ExpVar "vars", ExpVar "@", ExpVar "acc"]]))],
+           TupleExp [ExpVar ("list" ^ index ()), ListExp []]]
+      | AppBinding (ast, bindings) =>
+        (case bindings of
+             [] => TupleExp [ExpVar (ast_to_string ast ^ index ()), ListExp []]
            | _ =>
              SeqExp
                (ExpVar (Big (ast_to_string ast) ^ ".iter")
                 :: List.map
-                     (fn arity =>
+                     (fn binding =>
                          LamExp
-                           [(TuplePat [VarPat "others", VarPat "self"],
-                             arity_to_exp_external ana srt bindings arity)])
-                     aritys
-                @ [TupleExp [ExpVar "others", ExpVar "self"]]))
+                           [(TuplePat [binding_to_pat binding, VarPat "acc"],
+                             LetExp
+                               ([ValDefn
+                                   (TuplePat
+                                      [VarPat "binding", VarPat "vars"],
+                                    place_vars binding)],
+                                TupleExp
+                                  [ExpVar "binding",
+                                   SeqExp
+                                     [ExpVar "vars",
+                                      ExpVar "@",
+                                      ExpVar "acc"]]))])
+                        bindings
+                @ [TupleExp
+                     [ExpVar (ast_to_string ast ^ index ()),
+                      ListExp []]]))
+
+and place_vars binding =
+    with_index place_vars' binding
+
+fun arity_to_exp_out' ana index arity =
+    case arity of
+        SortArity srt =>
+        unbind_single ana srt (ExpVar (sort_to_string srt ^ index ()))
+      | SymbolArity sym =>
+        ExpVar (sym_to_string sym ^ index ())
+      | ProdArity aritys =>
+        TupleExp (List.map (arity_to_exp_out' ana index) aritys)
+      | ListArity arity =>
+        SeqExp
+          [ExpVar "List.map",
+           LamExp [(arity_to_pat arity, arity_to_exp_out ana arity)],
+           ExpVar ("list" ^ index ())]
+      | AppArity (ast, aritys) =>
+        (case aritys of
+             [] => ExpVar (ast_to_string ast ^ index ())
+           | _ =>
+             SeqExp
+               [ExpVar "#1",
+                SeqExp
+                  (ExpVar (Big (ast_to_string ast) ^ ".iter")
+                   :: List.map
+                        (fn arity =>
+                            LamExp
+                              [(TuplePat
+                                  [arity_to_pat arity,
+                                   TuplePat []],
+                                TupleExp
+                                  [arity_to_exp_out ana arity,
+                                   TupleExp []])])
+                        aritys
+                   @ [TupleExp
+                        [ExpVar (ast_to_string ast ^ index ()),
+                         TupleExp []]])])
       | BindingArity (binding, arity) =>
-        arity_to_exp_external ana srt (binding :: bindings) arity
-*)
+        LetExp
+          ([ValDefn
+              (TuplePat [VarPat "binding", VarPat "vars'"],
+               place_vars' index binding),
+            ValDefn
+              (VarPat "vars",
+               SeqExp [ExpVar "vars", ExpVar "@", ExpVar "vars'"])],
+           TupleExp
+             [ExpVar "binding",
+              arity_to_exp_out' ana index arity])
+
+and arity_to_exp_out ana =
+    with_index (arity_to_exp_out' ana)
 
 fun map_binding_to_exp' f index binding =
     case binding of
         SortBinding srt =>
-        f (srt, ExpVar (sort_to_string srt ^ "Var" ^ Int.toString (index ())))
+        f (srt, ExpVar (sort_to_string srt ^ "Var" ^ index ()))
       | SymbolBinding sym =>
-        ExpVar (sym_to_string sym ^ Int.toString (index ()))
+        ExpVar (sym_to_string sym ^ index ())
       | ProdBinding bindings =>
         TupleExp (List.map (map_binding_to_exp' f index) bindings)
+      | ListBinding binding =>
+        SeqExp
+          [ExpVar "List.map",
+           LamExp [(binding_to_pat binding, map_binding_to_exp f binding)],
+           ExpVar ("list" ^ index ())]
       | AppBinding (ast, bindings) =>
         (case bindings of
-             [] => ExpVar (ast_to_string ast ^ Int.toString (index ()))
+             [] => ExpVar (ast_to_string ast ^ index ())
            | _ =>
              SeqExp
                [ExpVar "#1",
@@ -186,29 +255,32 @@ fun map_binding_to_exp' f index binding =
                             LamExp
                               [(TuplePat [binding_to_pat binding, TuplePat []],
                                 TupleExp
-                                  [map_binding_to_exp binding f,
+                                  [map_binding_to_exp f binding,
                                    TupleExp []])])
                         bindings
                    @ [TupleExp
-                        [ExpVar (ast_to_string ast ^ Int.toString (index ())),
+                        [ExpVar (ast_to_string ast ^ index ()),
                          TupleExp []]])])
 
-and map_binding_to_exp binding f =
-    let val index = ref 0
-    in map_binding_to_exp' f (fn () => (index := !index + 1; !index)) binding
-    end
+and map_binding_to_exp f =
+    with_index (map_binding_to_exp' f)
 
 fun map_arity_to_exp' f index arity =
     case arity of
         SortArity srt =>
-        f (srt, ExpVar (sort_to_string srt ^ Int.toString (index ())))
+        f (srt, ExpVar (sort_to_string srt ^ index ()))
       | SymbolArity sym =>
-        ExpVar (sym_to_string sym ^ Int.toString (index ()))
+        ExpVar (sym_to_string sym ^ index ())
       | ProdArity aritys =>
         TupleExp (List.map (map_arity_to_exp' f index) aritys)
+      | ListArity arity =>
+        SeqExp
+          [ExpVar "List.map",
+           LamExp [(arity_to_pat arity, map_arity_to_exp arity f)],
+           ExpVar ("list" ^ index ())]
       | AppArity (ast, aritys) =>
         (case aritys of
-             [] => ExpVar (ast_to_string ast ^ Int.toString (index ()))
+             [] => ExpVar (ast_to_string ast ^ index ())
            | _ =>
              SeqExp
                [ExpVar "#1",
@@ -223,7 +295,7 @@ fun map_arity_to_exp' f index arity =
                                    TupleExp []])])
                         aritys
                    @ [TupleExp
-                        [ExpVar (ast_to_string ast ^ Int.toString (index ())),
+                        [ExpVar (ast_to_string ast ^ index ()),
                          TupleExp []]])])
       | BindingArity (binding, arity) =>
         TupleExp
@@ -231,20 +303,18 @@ fun map_arity_to_exp' f index arity =
            map_arity_to_exp' f index arity]
 
 and map_arity_to_exp arity f =
-    let val index = ref 0
-    in map_arity_to_exp' f (fn () => (index := !index + 1; !index)) arity
-    end
+    with_index (map_arity_to_exp' f) arity
 
 fun extract_vars' index binding =
     case binding of
         SortBinding srt =>
         TupleExp
           [TupleExp [],
-           ListExp [ExpVar (sort_to_string srt ^ Int.toString (index ()))]]
+           ListExp [ExpVar (sort_to_string srt ^ index ())]]
       | SymbolBinding sym =>
         TupleExp
           [TupleExp [],
-           ListExp [ExpVar (sym_to_string sym ^ Int.toString (index ()))]]
+           ListExp [ExpVar (sym_to_string sym ^ index ())]]
       | ProdBinding bindings =>
         LetExp
           (mapi
@@ -266,12 +336,22 @@ fun extract_vars' index binding =
                       (fn (i, _) =>
                           SeqExp [ExpVar "#2", ExpVar ("x" ^ Int.toString i ^ "'")])
                       bindings)]])
+      | ListBinding binding =>
+        SeqExp
+          [ExpVar "List.iter",
+           LamExp
+             [(TuplePat [binding_to_pat binding, VarPat "acc"],
+               LetExp
+                 ([ValDefn
+                     (TuplePat [VarPat "binding", VarPat "vars"],
+                      extract_vars binding)],
+                  TupleExp
+                    [ExpVar "binding",
+                     SeqExp [ExpVar "vars", ExpVar "@", ExpVar "acc"]]))],
+           TupleExp [ExpVar ("list" ^ index ()), ListExp []]]
       | AppBinding (ast, bindings) =>
         (case bindings of
-             [] =>
-             TupleExp
-               [ExpVar (ast_to_string ast ^ Int.toString (index ())),
-                ListExp []]
+             [] => TupleExp [ExpVar (ast_to_string ast ^ index ()), ListExp []]
            | _ =>
              SeqExp
                (ExpVar (Big (ast_to_string ast) ^ ".iter")
@@ -282,117 +362,84 @@ fun extract_vars' index binding =
                              LetExp
                                ([ValDefn
                                    (TuplePat
-                                      [VarPat "others",
-                                       VarPat "self"],
+                                      [VarPat "binding",
+                                       VarPat "vars"],
                                     extract_vars binding)],
                                 TupleExp
-                                  [ExpVar "others",
+                                  [ExpVar "binding",
                                    SeqExp
-                                     [ExpVar "acc",
+                                     [ExpVar "vars",
                                       ExpVar "@",
-                                      ExpVar "self"]]))])
+                                      ExpVar "acc"]]))])
                         bindings
                 @ [TupleExp
-                     [ExpVar (ast_to_string ast ^ Int.toString (index ())),
+                     [ExpVar (ast_to_string ast ^ index ()),
                       ListExp []]]))
 
 and extract_vars binding =
-    let val index = ref 0
-    in extract_vars' (fn () => (index := !index + 1; !index)) binding
-    end
+    with_index extract_vars' binding
 
-fun arity_to_exp_split' (ana : ana) srt index arity =
-    case arity of
-        SortArity srt' =>
-        ExpVar (sort_to_string srt' ^ Int.toString (index ()))
-      | SymbolArity sym =>
-        ExpVar (sym_to_string sym ^ Int.toString (index ()))
-      | ProdArity aritys =>
-        TupleExp
-          (mapi
-             (fn (i, arity) =>
-                 ValDefn
-                   (VarPat ("x" ^ Int.toString i ^ "'"),
-                    arity_to_exp_split' ana srt index arity))
-             aritys,
-           TupleExp
-             [TupleExp
-                (mapi
-                   (fn (i, _) =>
-                       SeqExp [ExpVar "#1", ExpVar ("x" ^ Int.toString i ^ "'")])
-                   aritys),
+fun bind_single ana srt exp =
+    SeqExp
+      [ExpVar "List.foldl",
+       LamExp
+         [(TuplePat [VarPat "x", VarPat "acc"],
+           SeqExp
+             [ExpVar "Abt.into",
+              ExpVar
+                (ops_name ana srt ^ "." ^ sort_to_string srt ^ "_oper_bind"),
               SeqExp
-                [ExpVar "List.concat",
-                 ListExp
-                   (mapi
-                      (fn (i, _) =>
-                          SeqExp [ExpVar "#2", ExpVar ("x" ^ Int.toString i ^ "'")])
-                      aritys)]])
+                [ExpVar ("Abt.Binding"),
+                 TupleExp [ExpVar "x", ExpVar "acc"]]])],
+       exp,
+       ExpVar "vars"]
+
+fun arity_to_exp_in' (ana : ana) index arity =
+    case arity of
+        SortArity srt =>
+        bind_single ana srt (ExpVar (sort_to_string srt ^ index ()))
+      | SymbolArity sym =>
+        ExpVar (sym_to_string sym ^ index ())
+      | ProdArity aritys =>
+        TupleExp (List.map (arity_to_exp_in' ana index) aritys)
+      | ListArity arity =>
+        SeqExp
+          [ExpVar "List.map",
+           LamExp [(arity_to_pat arity, arity_to_exp_in ana arity)],
+           ExpVar ("list" ^ index ())]
       | AppArity (ast, aritys) =>
         (case aritys of
-             [] =>
-             TupleExp
-               [ExpVar (ast_to_string ast ^ Int.toString (index ())),
-                ListExp []]
+             [] => ExpVar (ast_to_string ast ^ index ())
            | _ =>
              SeqExp
-               (ExpVar (Big (ast_to_string ast) ^ ".iter")
-                :: List.map
-                     (fn arity =>
-                         LamExp
-                           [(TuplePat [arity_to_pat arity, VarPat "acc"],
-                             LetExp
-                               ([ValDefn
-                                   (TuplePat
-                                      [VarPat "others",
-                                       VarPat "self"],
-                                    arity_to_exp_split ana srt arity)],
+               [ExpVar "#1",
+                SeqExp
+                  (ExpVar (Big (ast_to_string ast) ^ ".iter")
+                   :: List.map
+                        (fn arity =>
+                            LamExp
+                              [(TuplePat [arity_to_pat arity, TuplePat []],
                                 TupleExp
-                                  [ExpVar "others",
-                                   SeqExp
-                                     [ExpVar "acc",
-                                      ExpVar "@",
-                                      ExpVar "self"]]))])
+                                  [arity_to_exp_in ana arity,
+                                   TupleExp []])])
                         aritys
-                @ [TupleExp
-                     [ExpVar (ast_to_string ast ^ Int.toString (index ())),
-                      ListExp []]]))
+                   @ [TupleExp
+                        [ExpVar (ast_to_string ast ^ index ()),
+                         TupleExp []]])])
       | BindingArity (binding, arity) =>
         LetExp
           ([ValDefn
-              (TuplePat [VarPat "skeleton", VarPat "varsandsyms"],
+              (TuplePat [VarPat "binding", VarPat "vars'"],
                extract_vars' index binding),
             ValDefn
-              (TuplePat [VarPat "others", VarPat "self"],
-               arity_to_exp_split' ana srt index arity)],
+              (VarPat "vars",
+               SeqExp [ExpVar "vars", ExpVar "@", ExpVar "vars'"])],
            TupleExp
-             [TupleExp
-                [ExpVar "skeleton",
-                 (* ??? bind in here *) ExpVar "others"],
-              SeqExp
-                [ExpVar "List.map",
-                 LamExp
-                   [(VarPat (sort_to_string srt),
-                     SeqExp
-                       [ExpVar "List.foldl",
-                        LamExp
-                          [(TuplePat [VarPat "x", VarPat "acc"],
-                            SeqExp
-                              [ExpVar "Abt.into",
-                               ExpVar
-                                 (ops_name ana srt ^ "."
-                                  ^ sort_to_string srt ^ "_oper_bind"),
-                               SeqExp
-                                 [ExpVar ("Abt.Binding"),
-                                  TupleExp [ExpVar "x", ExpVar "acc"]]])],
-                        ExpVar (sort_to_string srt),
-                        ExpVar "varsandsyms"])],
-                 ExpVar "self"]])
+             [ExpVar "binding",
+              arity_to_exp_in' ana index arity])
 
-and arity_to_exp_split (ana : ana) srt arity =
-    let val index = ref 0
-    in arity_to_exp_split' ana srt (fn () => (index := !index + 1; !index)) arity
-    end
+and arity_to_exp_in (ana : ana) =
+    with_index (arity_to_exp_in' ana)
 
 fun create_mutual_ops (ana : ana) srts =
     let
@@ -408,14 +455,14 @@ fun create_mutual_ops (ana : ana) srts =
                  [],
                  List.map
                    (fn (oper, arity_opt) =>
-                       (oper,
+                       (sort_to_string srt ^ "'" ^ oper,
                         case arity_opt of
                             NONE => NONE
                           | SOME arity =>
                             SOME
                               (arity_to_type
                                  ana srt true
-                                 (internalize_arity srt arity))))
+                                 (internalize_arity arity))))
                    opers))
             srts
 
@@ -438,24 +485,27 @@ fun create_mutual_ops (ana : ana) srts =
               List.map
                 (fn (oper, arity_opt) =>
                     case arity_opt of
-                        NONE => (VarPat oper, ExpVar oper)
+                        NONE =>
+                        (VarPat (sort_to_string srt ^ "'" ^ oper),
+                         ExpVar (sort_to_string srt ^ "'" ^ oper))
                       | SOME arity =>
-                        (InjPat
-                           (oper,
-                            arity_to_pat (internalize_arity srt arity)),
-                         SeqExp [ExpVar oper,
-                                 map_arity_to_exp
-                                   (internalize_arity srt arity)
-                                   (fn (srt', exp) =>
-                                       SeqExp
-                                         (List.concat
-                                            [[ExpVar ("Abt." ^ name),
-                                              ExpVar
-                                                (scoped_sort srt srt'
-                                                 ^ "_oper_"
-                                         ^ name)],
-                                             List.map ExpVar args,
-                                             [exp]]))]))
+                        let val arity' = internalize_arity arity in
+                          (InjPat
+                             (sort_to_string srt ^ "'" ^ oper,
+                              arity_to_pat arity'),
+                           SeqExp [ExpVar (sort_to_string srt ^ "'" ^ oper),
+                                   map_arity_to_exp arity'
+                                     (fn (srt', exp) =>
+                                         SeqExp
+                                           (List.concat
+                                              [[ExpVar ("Abt." ^ name),
+                                                ExpVar
+                                                  (scoped_sort srt srt'
+                                                   ^ "_oper_"
+                                                   ^ name)],
+                                               List.map ExpVar args,
+                                               [exp]]))])
+                        end)
                 opers))
 
       fun aequiv_code (srt, opers) =
@@ -502,6 +552,41 @@ fun create_view_datatype_defn ana (srt, opers) =
     in
       TypeDefns {datatypes = [("view", args, body)], aliases = []}
     end
+
+fun oper_to_case_in ana srt (oper, arity_opt) =
+    case arity_opt of
+        NONE =>
+        (VarPat oper,
+         SeqExp
+           [ExpVar "Abt.Oper",
+            ExpVar (ops_name ana srt ^ "." ^ sort_to_string srt ^ "'" ^ oper)])
+      | SOME arity =>
+        (InjPat (oper, arity_to_pat arity),
+         LetExp
+           ([ValDefn (VarPat "vars", ListExp [])],
+            SeqExp
+              [ExpVar "Abt.Oper",
+               SeqExp
+                 [ExpVar
+                    (ops_name ana srt ^ "." ^ sort_to_string srt ^ "'" ^ oper),
+                  arity_to_exp_in ana arity]]))
+
+fun oper_to_case_out ana srt (oper, arity_opt) =
+    case arity_opt of
+        NONE =>
+        (InjPat
+           ("Abt.Oper",
+            VarPat (ops_name ana srt ^ "." ^ sort_to_string srt ^ "'" ^ oper)),
+         ExpVar oper)
+      | SOME arity =>
+        (InjPat
+           ("Abt.Oper",
+            InjPat
+              (ops_name ana srt ^ "." ^ sort_to_string srt ^ "'" ^ oper,
+               arity_to_pat arity)),
+         LetExp
+           ([ValDefn (VarPat "vars", ListExp [])],
+            SeqExp [ExpVar oper, arity_to_exp_out ana arity]))
 
 fun create_sort_structure_defn (ana : ana) (srt, opers) =
     let
@@ -568,44 +653,15 @@ fun create_sort_structure_defn (ana : ana) (srt, opers) =
               NONE,
               CaseExp
                 (ExpVar "v",
-                 let
-                   val oper_cases =
-                       List.map
-                         (fn (oper, arity_opt) =>
-                             case arity_opt of
-                                 NONE =>
-                                 (VarPat oper,
-                                  SeqExp
-                                    [ExpVar "Abt.Oper",
-                                     TupleExp
-                                       [ExpVar (ops_name ana srt ^ "." ^ oper),
-                                        ListExp []]])
-                               | SOME arity =>
-                                 (InjPat (oper, arity_to_pat arity),
-                                  LetExp
-                                    ([ValDefn
-                                        (TuplePat
-                                           [VarPat "others",
-                                            VarPat "self"],
-                                         arity_to_exp_split ana srt arity)],
-                                     SeqExp
-                                       [ExpVar "Abt.Oper",
-                                        TupleExp
-                                          [SeqExp
-                                             [ExpVar
-                                                (ops_name ana srt ^ "." ^ oper),
-                                              ExpVar "others"],
-                                           ExpVar "self"]])))
-                         opers
-                 in
+                 let val cases = List.map (oper_to_case_in ana srt) opers in
                    if #hasvar ana srt
                    then
                      (InjPat ("Var", VarPat (sort_to_string srt ^ "Var")),
                       SeqExp
                         [ExpVar "Abt.Var",
                          ExpVar (sort_to_string srt ^ "Var")])
-                     :: oper_cases
-                   else oper_cases
+                     :: cases
+                   else cases
                  end))]
 
       val view_out_code =
@@ -615,45 +671,26 @@ fun create_sort_structure_defn (ana : ana) (srt, opers) =
               NONE,
               CaseExp
                 (ExpVar "v",
-                 List.concat
-                   [(if #hasvar ana srt
-                     then
-                       [(InjPat
-                           ("Abt.Var",
-                            VarPat (sort_to_string srt ^ "Var")),
-                         SeqExp
-                           [ExpVar "Var",
-                            ExpVar (sort_to_string srt ^ "Var")])]
-                     else []),
-                    List.map
-                      (fn (oper, arity_opt) =>
-                          case arity_opt of
-                              NONE =>
-                              (InjPat
-                                 ("Abt.Oper",
-                                  TuplePat
-                                    [VarPat (ops_name ana srt ^ "." ^ oper),
-                                     ListPat []]),
-                               ExpVar oper)
-                            | SOME arity =>
-                              (InjPat
-                                 ("Abt.Oper",
-                                  TuplePat
-                                    [InjPat
-                                       (ops_name ana srt ^ "." ^ oper,
-                                        VarPat "others"),
-                                     VarPat "self"]),
-                               SeqExp
-                                 [ExpVar oper,
-                                  SeqExp
-                                    [ExpVar "#1",
-                                     arity_to_exp_external ana srt arity]]))
-                      opers,
-                    [(Wild,
+                 let
+                   val cases =
+                       List.map (oper_to_case_out ana srt) opers
+                       @ [(Wild,
+                           SeqExp
+                             [ExpVar "raise",
+                              ExpVar "Fail",
+                              StringExp "Internal Abbot Error"])]
+                 in
+                   if #hasvar ana srt
+                   then
+                     (InjPat
+                        ("Abt.Var",
+                         VarPat (sort_to_string srt ^ "Var")),
                       SeqExp
-                        [ExpVar "raise",
-                         ExpVar "Fail",
-                         StringExp "Internal Abbot Error"])]]))]
+                        [ExpVar "Var",
+                         ExpVar (sort_to_string srt ^ "Var")])
+                     :: cases
+                   else cases
+                 end))]
 
       val into_code =
           FunDefn
@@ -762,14 +799,111 @@ fun create_sort_structure_defn (ana : ana) (srt, opers) =
       StructureDefn (Big (sort_to_string srt), NONE, StructBody all_defns)
     end
 
-fun doit_impl (ana : ana) =
+fun ast_datatype ana ast args opers =
+    ("t",
+     List.map (fn arg => "'" ^ arg) args,
+     List.map
+       (fn (oper, arity_opt) =>
+           (oper,
+            case arity_opt of
+                NONE => NONE
+              | SOME arity => SOME (ast_arity_to_type ana ast arity)))
+       opers)
+
+fun ast_arity_to_pat' index arity =
+    case arity of
+        Param str => VarPat (str ^ index ())
+      | ProdAstArity aritys =>
+        TuplePat (List.map (ast_arity_to_pat' index) aritys)
+      | AppAstArity (ast, aritys) =>
+        VarPat (ast_to_string ast ^ index ())
+      | ListAstArity arity =>
+        VarPat ("list" ^ index ())
+
+val ast_arity_to_pat = with_index ast_arity_to_pat'
+
+fun ast_arity_to_exp' ast index arity =
+    case arity of
+        Param str =>
+        SeqExp
+          [ExpVar ("f" ^ str),
+           TupleExp [ExpVar (str ^ index ()), ExpVar "state"]]
+      | ProdAstArity aritys =>
+        LetExp
+          (mapi
+             (fn (i, arity) =>
+                 ValDefn
+                   (TuplePat [VarPat ("x" ^ Int.toString i), VarPat "state"],
+                    ast_arity_to_exp' ast index arity))
+             aritys,
+           TupleExp
+             [TupleExp
+                (mapi
+                   (fn (i, _) => ExpVar ("x" ^ Int.toString i))
+                   aritys),
+              ExpVar "state"])
+      | AppAstArity (ast', aritys) =>
+        (case aritys of
+            [] =>
+            TupleExp
+              [ExpVar (ast_to_string ast' ^ index ()),
+               ExpVar "state"]
+          | _ =>
+            SeqExp
+              ((if ast = ast'
+                then ExpVar "iter"
+                else ExpVar (Big (ast_to_string ast' ^ ".iter")))
+               :: List.map
+                    (fn arity =>
+                        LamExp
+                          [(TuplePat [ast_arity_to_pat arity, VarPat "state"],
+                            ast_arity_to_exp ast arity)])
+                    aritys
+               @ [TupleExp
+                    [ExpVar (ast_to_string ast' ^ index ()),
+                     ExpVar "state"]]))
+      | ListAstArity arity =>
+        SeqExp
+          [ExpVar "List.iter",
+           LamExp
+             [(TuplePat [ast_arity_to_pat arity, VarPat "state"],
+               ast_arity_to_exp ast arity)],
+           TupleExp [ExpVar ("list" ^ index ()), ExpVar "state"]]
+
+and ast_arity_to_exp ast = with_index (ast_arity_to_exp' ast)
+
+fun ast_iter ana ast args opers =
+    FunDefn
+      [("iter",
+        (List.map (fn arg => VarPat ("f" ^ arg)) args)
+        @ [TuplePat [VarPat "t", VarPat "state"]],
+        NONE,
+        CaseExp
+          (ExpVar "t",
+           List.map
+             (fn (oper, arity_opt) =>
+                 case arity_opt of
+                     NONE =>
+                     (VarPat oper, TupleExp [ExpVar oper, ExpVar "state"])
+                   | SOME arity =>
+                     (InjPat (oper, ast_arity_to_pat arity),
+                      LetExp
+                        ([(ValDefn
+                             (TuplePat [VarPat "t", VarPat "state"],
+                              ast_arity_to_exp ast arity))],
+                         TupleExp
+                           [SeqExp [ExpVar oper, ExpVar "t"],
+                            ExpVar "state"])))
+             opers))]
+
+fun doit_impl sig_name struct_name (ana : ana) =
     let
       val external_ast_decls =
           mapfilter
             (fn (ast, (args, opers)) =>
                 case opers of
                     [] => SOME (ast_decl ast args)
-                  | _ => SOME (ast_decl ast args) (* ??? *))
+                  | _ => NONE)
             (#asts ana)
 
       val external_ast_defns =
@@ -782,41 +916,92 @@ fun doit_impl (ana : ana) =
                          (Big (ast_to_string ast),
                           NONE,
                           StructVar (Big (ast_to_string ast))))
-                  | _ => (* ??? *)
+                  | _ => NONE)
+            (#asts ana)
+
+      val internal_asts =
+          mapfilter
+            (fn (ast, (args, opers)) =>
+                case opers of
+                    [] => NONE
+                  | _ =>
                     SOME
                       (StructureDefn
                          (Big (ast_to_string ast),
                           NONE,
-                          StructVar (Big (ast_to_string ast)))))
+                          StructBody
+                            (case args of
+                                 [] =>
+                                 [TypeDefns
+                                    {datatypes=
+                                     [ast_datatype ana ast args opers],
+                                     aliases=[]}]
+                               | _ =>
+                                 [TypeDefns
+                                    {datatypes=
+                                     [ast_datatype ana ast args opers],
+                                     aliases=[]},
+                                  ast_iter ana ast args opers]))))
             (#asts ana)
 
-      val internal_asts = [] (* ??? *)
+      val list_ast =
+          if #haslist ana
+          then
+            [StructureDefn
+               ("List",
+                NONE,
+                StructBody
+                  [OpenDefn (StructVar "List"),
+                   FunDefn
+                     [("iter",
+                       [VarPat "f", TuplePat [VarPat "l", VarPat "state"]],
+                       NONE,
+                       SeqExp
+                         [ExpVar "List.foldr",
+                          LamExp
+                            [(TuplePat
+                                [VarPat "x",
+                                 TuplePat [VarPat "l", VarPat "state"]],
+                              LetExp
+                                ([ValDefn
+                                    (TuplePat [VarPat "x'", VarPat "state'"],
+                                     SeqExp
+                                       [ExpVar "f",
+                                        TupleExp [ExpVar "x", ExpVar "state"]])],
+                                 TupleExp
+                                   [SeqExp
+                                      [ExpVar "x'", ExpVar "::", ExpVar "l"],
+                                    ExpVar "state'"]))],
+                          TupleExp [ListExp [], ExpVar "state"],
+                          ExpVar "l"])]])]
+          else []
 
       val symbols = create_symbol_structures (#symbs ana)
 
-      val ops = List.map (create_mutual_ops ana) (#sorts ana)
-
       val sorts = List.concat
                      (List.map
-                        (List.map (create_sort_structure_defn ana))
+                        (fn mutual =>
+                            create_mutual_ops ana mutual
+                            :: List.map (create_sort_structure_defn ana) mutual)
                         (#sorts ana))
+
       val defns =
           interleave BlankDefn
-            (symbols @ external_ast_defns @ internal_asts @ ops @ sorts)
+            (symbols @ list_ast @ external_ast_defns @ internal_asts @ sorts)
     in
       case external_ast_decls of
           [] =>
           Emit.emit
             [TLStructure
-               ("Abbot",
-                SOME (SigVar "ABBOT"),
+               (struct_name,
+                SOME (SigVar sig_name),
                 StructBody defns)]
         | _ =>
           Emit.emit
             [TLFunctor
-               ("Abbot",
+               (struct_name,
                 external_ast_decls,
-                SOME (SigVar "ABBOT"),
+                SOME (SigVar sig_name),
                 StructBody defns)]
     end
 end

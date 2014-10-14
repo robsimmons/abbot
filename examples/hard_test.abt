@@ -1,6 +1,3 @@
-ast int
-ast 'a list
-
 symbol assign
 
 ast side = L | R
@@ -16,21 +13,22 @@ ast tp
 ast 'a pat
  = Wild
  | Var of 'a
- | TuplePat of 'a pat list
+ | Z
+ | S of 'a pat
+ | Tuple of 'a pat list
+ | In of side * 'a pat
 
 abt exp
  = Z
  | S of exp
- | Ifz of exp * exp * exp . exp
  | Lam of tp * exp . exp
  | Ap of exp * exp
  | Let of exp * exp . exp
  | Fix of tp * exp . exp
  | Tuple of exp list
- | Pr of int * exp
  | Abort of tp * exp
  | In of tp * tp * side * exp
- | Case of exp * exp . exp * exp . exp
+ | Match of exp * ((exp * tp) pat . exp) list
  | Cmd of cmd
 
 abt cmd
@@ -39,3 +37,5 @@ abt cmd
  | Dcl of exp * (assign . cmd)
  | Get of assign
  | Set of assign * exp
+ | BndDcl of exp * (exp * cmd) . cmd
+ | WhileMatch of exp * exp pat . cmd

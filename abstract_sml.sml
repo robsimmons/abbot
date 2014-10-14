@@ -17,8 +17,9 @@ struct
   and decl
     = BlankDecl
     | StructureDecl of string * SIG
-    | TypeDecls of {datatypes : (string * string list * data_cases) list,
-                    aliases : (string * string list * TYPE option) list}
+    | TypeDecls of
+      {datatypes : (string * string list * data_cases) list,
+       aliases : (string * string list * TYPE option) list}
     | ValDecl of string * TYPE
     | SharingDecl of TYPE * TYPE
 
@@ -29,6 +30,7 @@ struct
     | InjPat of string * PAT
     | ListPat of PAT list
     | AscribedPat of PAT * TYPE
+    | ConsPat of PAT * PAT
 
   datatype EXP
     = ExpVar of string
@@ -38,7 +40,8 @@ struct
     | StringExp of string
     | ListExp of EXP list
     | LetExp of defn list * EXP
-(**x**)
+    | LamExp of (PAT * EXP) list
+
   and STRUCT
     = StructVar of string
     | StructBody of defn list
@@ -47,13 +50,15 @@ struct
   and defn
     = BlankDefn
     | StructureDefn of string * SIG option * STRUCT
-    | TypeDefns of {datatypes : (string * string list * data_cases) list,
-                    aliases : (string * string list * TYPE) list}
+    | TypeDefns of
+      {datatypes : (string * string list * data_cases) list,
+       aliases : (string * string list * TYPE) list}
     | ValDefn of PAT * EXP
     | FunDefn of (string * PAT list * TYPE option * EXP) list
+    | OpenDefn of STRUCT
 
   datatype toplevel_defn
     = TLSignature of string * SIG
     | TLStructure of string * SIG option * STRUCT
-    | TLFunctor of string * string * SIG * SIG option * STRUCT
+    | TLFunctor of string * decl list * SIG option * STRUCT
 end

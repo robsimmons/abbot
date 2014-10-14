@@ -31,7 +31,7 @@ fun initString () = thestring := []
 
 alpha=[A-Za-z];
 digit=[0-9];
-any = [a-zA-Z0-9'_];
+any = [a-zA-Z0-9_];
 
 ws = [\ \t\011\012\r];
 
@@ -47,7 +47,11 @@ ws = [\ \t\011\012\r];
 <INITIAL> "|"      => (Tokens.BAR (!pos, !pos));
 <INITIAL> ","      => (Tokens.COMMA (!pos, !pos));
 <INITIAL> "."      => (Tokens.DOT (!pos, !pos));
+<INITIAL> "*"      => (Tokens.STAR (!pos, !pos));
+<INITIAL> "'"      => (Tokens.TICK (!pos, !pos));
 
+<INITIAL> "of"  => (Tokens.OF (!pos, !pos));
+<INITIAL> "ast"  => (Tokens.AST (!pos, !pos));
 <INITIAL> "abt"  => (Tokens.ABT (!pos, !pos));
 <INITIAL> "symbol"  => (Tokens.SYMBOL (!pos, !pos));
 

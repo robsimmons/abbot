@@ -1,0 +1,66 @@
+(* Might be able to remove these later. *)
+ast int
+ast bool
+ast char
+ast string
+
+ast prim
+
+abt kind =
+| Type
+| Sing of con
+| Pi of kind * con . kind
+| Sigma of kind * con . kind
+| Unit
+
+abt con =
+| Lam of kind * con . con
+| App of con * con
+| Pair of con * con
+| Pi1 of con
+| Pi2 of con
+| Unit
+
+| Not of con
+| Forall of kind * con . con
+| Exists of kind * con . con
+| Prod of con list
+| Sum of con list
+| Rec of con
+| Tag of con
+| Ref of con
+| Exn
+| Bool
+| Int
+| Char
+| String
+
+abt exp =
+| App of value * value
+| Unpack of value * (con * value) . exp
+| Proj of value * int * value . exp
+| Case of value * (value . exp) list
+| Iftag of value * value * (value . exp) * exp
+| Newtag of con * value * exp
+| Ref of value * value . exp
+| Deref of value * value . exp
+| Assign of value * value * exp
+| If of value * exp * exp
+| Let of value * value . exp
+| Prim of prim * value list * value . exp
+| Halt
+
+abt value =
+| Lam of con * value . exp
+| TpLam of kind * con . value
+| TpApp of value * con
+| Pack of con * value * con
+| Tuple of value list
+| Inj of value * int * con
+| Roll of value * con
+| Unroll of value
+| Tag of value * value
+| Bool of bool
+| Int of int
+| Char of char
+| String of string

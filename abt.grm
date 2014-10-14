@@ -1,18 +1,57 @@
 open Syntax
 open Util
+
+fun arity_to_binding binding =
+    case binding of
+        ArityVar str =>
+        BindingVar str
+      | ProdArity aritys =>
+        ProdBinding (List.map arity_to_binding aritys)
+      | AppArity (str, aritys) =>
+        AppBinding (str, List.map arity_to_binding aritys)
+      | BindingArity _ => raise Fail "Variables can't be bound in other variables"
+
 %%
 
-%term EOF | ABT | EQUAL | BAR | LPAREN | RPAREN | COMMA | SYMBOL | DOT | Name of string
+%term EOF | ABT | AST | EQUAL | BAR | LPAREN | RPAREN | COMMA | SYMBOL | DOT | Name of string | STAR | TICK | OF
 
-%nonterm start of (Syntax.oper list StringTable.table) * (string list)
-       | decls of (Syntax.oper list StringTable.table) * (string list)
-       | decl of (string * Syntax.oper list, string) Util.Sum2.t
+%nonterm start
+         of Syntax.oper list StringTable.table
+         * string list
+         * (string list * Syntax.ast_oper list) StringTable.table
+       | decls
+         of Syntax.oper list StringTable.table
+         * string list
+         * (string list * Syntax.ast_oper list) StringTable.table
+       | decl of (string * Syntax.oper list,
+                  string,
+                  string * (string list * Syntax.ast_oper list))
+                  Util.Sum3.t
        | abt_decl of string * Syntax.oper list
        | cases of Syntax.oper list
        | oper of Syntax.oper
-       | aritys of (string list * string) list
-       | arity of string list * string
+       | arity of Syntax.arity
+       | simple_arity of Syntax.arity
+       | aritys of Syntax.arity list
+       | prod_arity of Syntax.arity list
+       | binding of Syntax.binding
+       | bindings of Syntax.binding list
+       | prod_binding of Syntax.binding list
        | symbol_decl of string
+       | ast_decl of string * (string list * Syntax.ast_oper list)
+       | ast_arg of string list
+       | ast_args of string list
+       | ast_cases of Syntax.ast_oper list
+       | ast_oper of Syntax.ast_oper
+       | ast_arity of Syntax.ast_arity
+       | simple_ast_arity of Syntax.ast_arity
+       | ast_aritys of Syntax.ast_arity list
+       | prod_ast_arity of Syntax.ast_arity list
+
+%nonassoc COMMA
+%nonassoc STAR
+%right DOT
+%left Name
 
 %verbose
 %pos int
@@ -25,22 +64,30 @@ open Util
 
 start: decls (decls)
 
-decls: (* empty *) ((StringTable.empty (),[]))
+decls: (* empty *) ((StringTable.empty (), [], StringTable.empty ()))
      | decl decls (let
-                    val (sorts, symbs) = decls
+                    val (sorts, symbs, asts) = decls
                   in
                     case decl of
-                        Sum2.In1 sort =>
+                        Sum3.In1 sort =>
                         (StringTable.insert
-                           (fn _ => raise Fail "???")
+                           (fn _ => raise Fail "Duplicate sort defined.")
                            sort sorts,
-                         symbs)
-                      | Sum2.In2 symb =>
-                        (sorts, symb::symbs)
+                         symbs,
+                         asts)
+                      | Sum3.In2 symb =>
+                        (sorts, symb::symbs, asts)
+                      | Sum3.In3 ast =>
+                        (sorts,
+                         symbs,
+                         StringTable.insert
+                           (fn _ => raise Fail "Duplicate ast defined.")
+                           ast asts)
                   end)
 
-decl: abt_decl (Sum2.In1 abt_decl)
-    | symbol_decl (Sum2.In2 symbol_decl)
+decl: abt_decl (Sum3.In1 abt_decl)
+    | symbol_decl (Sum3.In2 symbol_decl)
+    | ast_decl (Sum3.In3 ast_decl)
 
 abt_decl: ABT Name EQUAL cases ((Name, cases))
         | ABT Name EQUAL BAR cases ((Name, cases))
@@ -48,17 +95,58 @@ abt_decl: ABT Name EQUAL cases ((Name, cases))
 cases: oper ([oper])
      | oper BAR cases (oper :: cases)
 
-oper: Name ({name=Name, arity=[]})
-    | Name LPAREN aritys RPAREN ({name=Name, arity=aritys})
+oper: Name ((Name, NONE))
+    | Name OF arity ((Name, SOME arity))
 
-aritys: arity ([arity])
+arity: simple_arity (simple_arity)
+     | prod_arity (ProdArity prod_arity)
+     | arity DOT arity (BindingArity (arity_to_binding arity1, arity2))
+
+simple_arity: Name (ArityVar Name)
+            | simple_arity Name (AppArity (Name, [simple_arity]))
+            | LPAREN aritys RPAREN Name (AppArity (Name, aritys))
+            | LPAREN arity RPAREN (arity)
+            | simple_arity DOT simple_arity
+                (BindingArity (arity_to_binding simple_arity1, simple_arity2))
+
+aritys: arity COMMA arity ([arity1, arity2])
       | arity COMMA aritys (arity :: aritys)
 
-arity: Name (([], Name))
-     | Name DOT arity (let
-                        val (bindings, atom) = arity
-                      in
-                        (Name :: bindings, atom)
-                      end)
+prod_arity: simple_arity STAR simple_arity ([simple_arity1, simple_arity2])
+          | simple_arity STAR prod_arity (simple_arity :: prod_arity)
 
 symbol_decl: SYMBOL Name (Name)
+
+ast_decl: AST ast_arg Name ((Name, (ast_arg, [])))
+        | AST ast_arg Name EQUAL ast_cases ((Name, (ast_arg, ast_cases)))
+        | AST ast_arg Name EQUAL BAR ast_cases ((Name, (ast_arg, ast_cases)))
+
+ast_arg: (* empty *) ([])
+       | TICK Name ([Name])
+       | LPAREN ast_args RPAREN (ast_args)
+
+ast_args: TICK Name ([Name])
+        | TICK Name COMMA ast_args (Name :: ast_args)
+
+ast_cases: ast_oper ([ast_oper])
+         | ast_oper BAR ast_cases (ast_oper :: ast_cases)
+
+ast_oper: Name ((Name, NONE))
+        | Name OF ast_arity ((Name, SOME ast_arity))
+
+ast_arity: simple_ast_arity (simple_ast_arity)
+         | prod_ast_arity (ProdAstArity prod_ast_arity)
+
+simple_ast_arity: Name (AppAstArity (Name, []))
+                | TICK Name (Param Name)
+                | simple_ast_arity Name (AppAstArity (Name, [simple_ast_arity]))
+                | LPAREN ast_aritys RPAREN Name (AppAstArity (Name, ast_aritys))
+                | LPAREN ast_arity RPAREN (ast_arity)
+
+ast_aritys: ast_arity COMMA ast_arity ([ast_arity1, ast_arity2])
+          | ast_arity COMMA ast_aritys (ast_arity :: ast_aritys)
+
+prod_ast_arity: simple_ast_arity STAR simple_ast_arity
+                ([simple_ast_arity1, simple_ast_arity2])
+              | simple_ast_arity STAR prod_ast_arity
+                (simple_ast_arity :: prod_ast_arity)
