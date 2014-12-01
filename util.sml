@@ -96,7 +96,8 @@ fun mapfilter f l =
 
 fun transSuper none one (first, middle, last) xs =
     let
-        fun loop [ x ] accum = List.concat (rev (last x :: accum))
+        fun loop [] _ = raise Fail "Internal Abbot Error"
+          | loop [x] accum = List.concat (rev (last x :: accum))
           | loop (x :: xs) accum = loop xs (middle x :: accum)
     in case xs of
            [] => none ()
@@ -107,7 +108,8 @@ fun transSuper none one (first, middle, last) xs =
 fun appSuper none one (first: 'a -> unit, middle: 'a -> unit, last) xs: unit =
     let
         (*[ val loop: ('a conslist) -> unit ]*)
-        fun loop [ x ] = last x
+        fun loop [] = raise Fail "Internal Abbot Error"
+          | loop [x] = last x
           | loop (x :: (xs as _ :: _)) = (middle x; loop xs)
     in case xs of
            [] => none ()
@@ -177,7 +179,8 @@ fun interleave x l =
     let
       fun interleave' l =
           case l of
-              [y] => [x, y]
+              [] => raise Fail "Internal Abbot Error"
+            | [y] => [x, y]
             | y::ys => x :: y :: interleave' ys
     in
       case l of
