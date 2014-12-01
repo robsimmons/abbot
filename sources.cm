@@ -2,7 +2,7 @@ Group is
    210lib/210basis.cm
    210lib/210lib.cm
    $/ml-yacc-lib.cm
-   syn/sources.cm
+   core_abt/sources.cm
    util.sml
    syntax.sml
    stringtable.sml

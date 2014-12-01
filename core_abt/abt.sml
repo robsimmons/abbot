@@ -1,20 +1,20 @@
 structure Abt :> ABT = struct
   datatype ('t, 'oper) view
-    = Var of Variable.t
-    | Binding of Variable.t * 't
+    = Var of Temp.t
+    | Binding of Temp.t * 't
     | Oper of 'oper
 
   datatype 'oper t
-    = FV of Variable.t
+    = FV of Temp.t
     | BV of int
     | ABS of 'oper t
     | OPER of 'oper
 
-  type 'a binding_modifier = Variable.t -> int -> 'a -> 'a
+  type 'a binding_modifier = Temp.t -> int -> 'a -> 'a
 
   exception Malformed
 
-  fun aequiv _ (FV x, FV y) = Variable.equal (x, y)
+  fun aequiv _ (FV x, FV y) = Temp.equal (x, y)
     | aequiv _ (BV n, BV m) = (n = m)
     | aequiv aequiv_oper (ABS t, ABS t') = aequiv aequiv_oper (t, t')
     | aequiv aequiv_oper (OPER f, OPER f') = aequiv_oper (f, f')
@@ -22,7 +22,7 @@ structure Abt :> ABT = struct
 
   fun bind bind_oper x i t =
       case t of
-        FV y => if Variable.equal (x, y) then BV i else FV y
+        FV y => if Temp.equal (x, y) then BV i else FV y
       | ABS t => ABS (bind bind_oper x (i + 1) t)
       | BV n => BV n
       | OPER f => OPER (bind_oper x i f)
@@ -48,16 +48,16 @@ structure Abt :> ABT = struct
       | FV x => Var x
       | OPER f => Oper f
       | ABS t =>
-        let val x = Variable.new "x"
+        let val x = Temp.new "x"
         in Binding (x, unbind unbind_oper x 0 t)
         end
 
   fun toString operToString e = (* ??? *)
       case out (fn _ => fn _ => fn f => f) e of
-        Var x => Variable.toString x
+        Var x => Temp.toString x
       | Oper f => operToString f
       | Binding (x, e) =>
-        (Variable.toString x) ^ ". " ^ (toString operToString e)
+        (Temp.toString x) ^ ". " ^ (toString operToString e)
   and toStrings _ [] = ""
     | toStrings operToString [e] = toString operToString e
     | toStrings operToString (e :: es) =

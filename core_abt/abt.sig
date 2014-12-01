@@ -6,13 +6,13 @@ sig
   type 'oper t
 
   datatype ('t, 'oper) view
-    = Var of Variable.t
-    | Binding of Variable.t * 't
+    = Var of Temp.t
+    | Binding of Temp.t * 't
     | Oper of 'oper
 
   exception Malformed
 
-  type 'a binding_modifier = Variable.t -> int -> 'a -> 'a
+  type 'a binding_modifier = Temp.t -> int -> 'a -> 'a
 
   val bind : 'oper binding_modifier -> 'oper t binding_modifier
   val unbind : 'oper binding_modifier -> 'oper t binding_modifier

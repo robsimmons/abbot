@@ -1,4 +1,4 @@
-functor Temp () :> TEMP =
+structure Temp :> TEMP =
 struct
   type t = string * int
 
