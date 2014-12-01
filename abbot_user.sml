@@ -4,7 +4,7 @@ structure AbbotUser =
 struct
 
 open Analysis
-open AbstractSML
+open SmlSyntax
 open AbbotCore
 
 fun create_view_datatype_decl ana (srt, opers) =

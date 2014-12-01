@@ -5,7 +5,7 @@ structure Emit(* :> sig
 end *)= struct
   open Util
   infixr 0 >>
-  open AbstractSML
+  open SmlSyntax
 
   fun foldlSuper first middle start l =
       let

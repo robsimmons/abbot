@@ -6,7 +6,7 @@ struct
 open Util
 infixr 0 >>
 open Analysis
-open AbstractSML
+open SmlSyntax
 
 fun Big s =
     Char.toString (Char.toUpper (String.sub (s, 0)))

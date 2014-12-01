@@ -1,5 +1,4 @@
 ast int
-ast 'a list
 
 symbol assign
 

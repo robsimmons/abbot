@@ -7,7 +7,7 @@ open Util
 infixr 0 >>
 open Analysis
 open AbbotCore
-open AbstractSML
+open SmlSyntax
 
 fun with_index f x =
     let val index = ref 0
@@ -20,7 +20,7 @@ val create_symbol_structures =
           StructureDefn
             (Big (sym_to_string sym),
              NONE,
-             StructVar "Variable"))
+             StructVar "Temp"))
 
 fun internalize_binding binding =
     case binding of
@@ -109,13 +109,13 @@ fun place_vars' index binding =
         (index ();
          LetExp
            ([ValDefn
-               (VarPat "x", SeqExp [ExpVar "Variable.new", StringExp "x"])],
+               (VarPat "x", SeqExp [ExpVar "Temp.new", StringExp "x"])],
             TupleExp [ExpVar "x", ListExp [ExpVar "x"]]))
       | SymbolBinding sym =>
         (index ();
          LetExp
            ([ValDefn
-               (VarPat "x", SeqExp [ExpVar "Variable.new", StringExp "x"])],
+               (VarPat "x", SeqExp [ExpVar "Temp.new", StringExp "x"])],
             TupleExp [ExpVar "x", ListExp [ExpVar "x"]]))
       | ProdBinding bindings =>
         LetExp
@@ -615,12 +615,12 @@ fun create_sort_structure_defn (ana : ana) (srt, opers) =
                    aliases =
                    [(sort_to_string var_srt ^ "Var",
                      [],
-                     ModProj ("Variable", TypeVar "t"))]})
+                     ModProj ("Temp", TypeVar "t"))]})
             (List.filter (#hasvar ana) (#mutual ana srt))
 
       val var_structure_defn =
           if #hasvar ana srt
-          then [StructureDefn ("Var", NONE, StructVar "Variable")]
+          then [StructureDefn ("Var", NONE, StructVar "Temp")]
           else []
 
       val convenient_contructors =
