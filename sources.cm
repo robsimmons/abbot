@@ -4,16 +4,16 @@ Group is
    $/ml-yacc-lib.cm
    core_abt/sources.cm
    util.sml
-   syntax.sml
+   abt_syntax.sml
    stringtable.sml
    abt.lex
    abt.grm
    parse.sml
    analysis.sml
 
-   abbotcore.sml
-   abbotimpl.sml
-   abbotuser.sml
-   abstract_sml.sml
+   abbot_core.sml
+   abbot_impl.sml
+   abbot_user.sml
+   sml_syntax.sml
    emit.sml
    abbot.sml
