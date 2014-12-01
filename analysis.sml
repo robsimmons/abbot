@@ -61,9 +61,9 @@ structure Analysis :> sig
     mutualwith : sort -> sort -> bool
   }
 
-  val analyze : AbtSyntax.oper list StringTable.table
+  val analyze : Syntax.oper list StringTable.table
                 * string list
-                * (string list * AbtSyntax.ast_oper list) StringTable.table
+                * (string list * Syntax.ast_oper list) StringTable.table
                 -> ana
 end = struct
   open Util
@@ -115,46 +115,46 @@ end = struct
 
   fun convert_binding (sorts, symbs) binding =
       case binding of
-          AbtSyntax.BindingVar name =>
+          Syntax.BindingVar name =>
           (if List.exists (fn x => x = name) sorts
            then SortBinding name
            else if List.exists (fn x => x = name) symbs
            then SymbolBinding name
            else AppBinding (name, []))
-        | AbtSyntax.ProdBinding bindings =>
+        | Syntax.ProdBinding bindings =>
           ProdBinding (List.map (convert_binding (sorts, symbs)) bindings)
-        | AbtSyntax.AppBinding ("list", [binding]) =>
+        | Syntax.AppBinding ("list", [binding]) =>
           ListBinding (convert_binding (sorts, symbs) binding)
-        | AbtSyntax.AppBinding (ast, bindings) =>
+        | Syntax.AppBinding (ast, bindings) =>
           AppBinding (ast, List.map (convert_binding (sorts, symbs)) bindings)
 
   fun convert_arity (sorts, symbs) arity =
       case arity of
-          AbtSyntax.ArityVar name =>
+          Syntax.ArityVar name =>
           (if List.exists (fn x => x = name) sorts
            then SortArity name
            else if List.exists (fn x => x = name) symbs
            then SymbolArity name
            else AppArity (name, []))
-        | AbtSyntax.ProdArity aritys =>
+        | Syntax.ProdArity aritys =>
           ProdArity (List.map (convert_arity (sorts, symbs)) aritys)
-        | AbtSyntax.AppArity ("list", [arity]) =>
+        | Syntax.AppArity ("list", [arity]) =>
           ListArity (convert_arity (sorts, symbs) arity)
-        | AbtSyntax.AppArity (ast, aritys) =>
+        | Syntax.AppArity (ast, aritys) =>
           AppArity (ast, List.map (convert_arity (sorts, symbs)) aritys)
-        | AbtSyntax.BindingArity (binding, arity) =>
+        | Syntax.BindingArity (binding, arity) =>
           BindingArity
             (convert_binding (sorts, symbs) binding,
              convert_arity (sorts, symbs) arity)
 
   fun convert_ast_arity ast_arity =
       case ast_arity of
-          AbtSyntax.Param str => Param str
-        | AbtSyntax.ProdAstArity ast_aritys =>
+          Syntax.Param str => Param str
+        | Syntax.ProdAstArity ast_aritys =>
           ProdAstArity (List.map convert_ast_arity ast_aritys)
-        | AbtSyntax.AppAstArity ("list", [ast_arity]) =>
+        | Syntax.AppAstArity ("list", [ast_arity]) =>
           ListAstArity (convert_ast_arity ast_arity)
-        | AbtSyntax.AppAstArity (ast, ast_aritys) =>
+        | Syntax.AppAstArity (ast, ast_aritys) =>
           AppAstArity (ast, List.map convert_ast_arity ast_aritys)
 
   fun sorts_in_binding binding =
@@ -362,7 +362,6 @@ end = struct
               then LESS
               else EQUAL
             end
-          | sort_group_compare _ = raise Fail "Internal Abbot Error"
 
         val sorts =
             Seq.toList (Seq.sort sort_group_compare (Seq.fromList sorts))

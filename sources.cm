@@ -2,17 +2,18 @@ Group is
    210lib/210basis.cm
    210lib/210lib.cm
    $/ml-yacc-lib.cm
+   syn/sources.cm
    util.sml
-   abt_syntax.sml
+   syntax.sml
    stringtable.sml
    abt.lex
    abt.grm
    parse.sml
    analysis.sml
 
-   abbot_core.sml
-   abbot_impl.sml
-   abbot_user.sml
-   sml_syntax.sml
+   abbotcore.sml
+   abbotimpl.sml
+   abbotuser.sml
+   abstract_sml.sml
    emit.sml
    abbot.sml

@@ -37,5 +37,5 @@ abt cmd
  | Dcl of exp * (assign . cmd)
  | Get of assign
  | Set of assign * exp
- | BndDcl of exp * (exp * assign) . cmd
+ | BndDcl of exp * (exp * cmd) . cmd
  | WhileMatch of exp * exp pat . cmd

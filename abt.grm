@@ -1,4 +1,4 @@
-open AbtSyntax
+open Syntax
 open Util
 
 fun arity_to_binding binding =
@@ -16,37 +16,37 @@ fun arity_to_binding binding =
 %term EOF | ABT | AST | EQUAL | BAR | LPAREN | RPAREN | COMMA | SYMBOL | DOT | Name of string | STAR | TICK | OF
 
 %nonterm start
-         of AbtSyntax.oper list StringTable.table
+         of Syntax.oper list StringTable.table
          * string list
-         * (string list * AbtSyntax.ast_oper list) StringTable.table
+         * (string list * Syntax.ast_oper list) StringTable.table
        | decls
-         of AbtSyntax.oper list StringTable.table
+         of Syntax.oper list StringTable.table
          * string list
-         * (string list * AbtSyntax.ast_oper list) StringTable.table
-       | decl of (string * AbtSyntax.oper list,
+         * (string list * Syntax.ast_oper list) StringTable.table
+       | decl of (string * Syntax.oper list,
                   string,
-                  string * (string list * AbtSyntax.ast_oper list))
+                  string * (string list * Syntax.ast_oper list))
                   Util.Sum3.t
-       | abt_decl of string * AbtSyntax.oper list
-       | cases of AbtSyntax.oper list
-       | oper of AbtSyntax.oper
-       | arity of AbtSyntax.arity
-       | simple_arity of AbtSyntax.arity
-       | aritys of AbtSyntax.arity list
-       | prod_arity of AbtSyntax.arity list
-       | binding of AbtSyntax.binding
-       | bindings of AbtSyntax.binding list
-       | prod_binding of AbtSyntax.binding list
+       | abt_decl of string * Syntax.oper list
+       | cases of Syntax.oper list
+       | oper of Syntax.oper
+       | arity of Syntax.arity
+       | simple_arity of Syntax.arity
+       | aritys of Syntax.arity list
+       | prod_arity of Syntax.arity list
+       | binding of Syntax.binding
+       | bindings of Syntax.binding list
+       | prod_binding of Syntax.binding list
        | symbol_decl of string
-       | ast_decl of string * (string list * AbtSyntax.ast_oper list)
+       | ast_decl of string * (string list * Syntax.ast_oper list)
        | ast_arg of string list
        | ast_args of string list
-       | ast_cases of AbtSyntax.ast_oper list
-       | ast_oper of AbtSyntax.ast_oper
-       | ast_arity of AbtSyntax.ast_arity
-       | simple_ast_arity of AbtSyntax.ast_arity
-       | ast_aritys of AbtSyntax.ast_arity list
-       | prod_ast_arity of AbtSyntax.ast_arity list
+       | ast_cases of Syntax.ast_oper list
+       | ast_oper of Syntax.ast_oper
+       | ast_arity of Syntax.ast_arity
+       | simple_ast_arity of Syntax.ast_arity
+       | ast_aritys of Syntax.ast_arity list
+       | prod_ast_arity of Syntax.ast_arity list
 
 %nonassoc COMMA
 %nonassoc STAR
