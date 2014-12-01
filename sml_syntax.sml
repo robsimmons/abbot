@@ -1,4 +1,4 @@
-structure Syntax = struct
+structure SmlSyntax = struct
   (* allow functors that are pos in some args and negative in others??? *)
   datatype binding
     = BindingVar of string (* sort, symbol, or constant iterable *)
