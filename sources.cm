@@ -12,8 +12,8 @@ Group is
    analysis.sml
 
    abbot_core.sml
-   abbot_impl.sml
    abbot_user.sml
+   abbot_impl.sml
    sml_syntax.sml
    emit.sml
    abbot.sml

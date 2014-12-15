@@ -14,16 +14,6 @@ val commentLevel = ref 0
 fun enterComment () = commentLevel := !commentLevel + 1
 fun exitComment () = (commentLevel := !commentLevel - 1; !commentLevel = 0)
 
-val thestring: string list ref = ref []
-fun addString s = thestring := s :: !thestring
-fun addSpecialChar s =
-   case Char.fromCString s of
-      NONE => raise Fail ("Not a legitimate character escape: '" ^ s ^ "'")
-    | SOME c => thestring := Char.toString c :: !thestring
-fun convertString (): string =
-     (String.concat (rev (!thestring))) before thestring := []
-fun initString () = thestring := []
-
 %%
 %full
 %header (functor Abt_LexFun(structure Tokens: Abt_TOKENS));
@@ -51,9 +41,10 @@ ws = [\ \t\011\012\r];
 <INITIAL> "'"      => (Tokens.TICK (!pos, !pos));
 
 <INITIAL> "of"  => (Tokens.OF (!pos, !pos));
-<INITIAL> "ast"  => (Tokens.AST (!pos, !pos));
+<INITIAL> "sort"  => (Tokens.SORT (!pos, !pos));
 <INITIAL> "abt"  => (Tokens.ABT (!pos, !pos));
 <INITIAL> "symbol"  => (Tokens.SYMBOL (!pos, !pos));
+<INITIAL> "binding"  => (Tokens.BINDING (!pos, !pos));
 
 <INITIAL> {alpha}{any}* => (Tokens.Name (yytext, !pos, !pos));
 <INITIAL> "(*"     => (YYBEGIN COMMENT; enterComment (); lex ());

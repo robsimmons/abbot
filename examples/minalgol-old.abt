@@ -13,7 +13,7 @@ abt tp
 abt exp
  = Z
  | S (exp)
- | Ifz (exp, exp, exp.exp)
+ | Ifz (exp, exp, exp.exp*)
  | Lam (tp, exp.exp)
  | Ap (exp, exp)
  | Let (exp, exp.exp)

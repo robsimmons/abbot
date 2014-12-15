@@ -2,10 +2,10 @@ structure SmlSyntax =
 struct
   datatype TYPE
     = TypeVar of string
-    | Arrow of TYPE * TYPE
-    | Prod of TYPE list
-    | App of TYPE list * TYPE
-    | ModProj of string * TYPE
+    | ArrowType of TYPE * TYPE
+    | ProdType of TYPE list
+    | AppType of TYPE list * TYPE
+    | ModProjType of string * TYPE
 
   type data_cases = (string * TYPE option) list
 
@@ -41,6 +41,7 @@ struct
     | ListExp of EXP list
     | LetExp of defn list * EXP
     | LamExp of (PAT * EXP) list
+    | IfExp of EXP * EXP * EXP
 
   and STRUCT
     = StructVar of string
@@ -54,8 +55,9 @@ struct
       {datatypes : (string * string list * data_cases) list,
        aliases : (string * string list * TYPE) list}
     | ValDefn of PAT * EXP
-    | FunDefn of (string * PAT list * TYPE option * EXP) list
+    | FunDefns of (string * PAT list * TYPE option * EXP) list
     | OpenDefn of STRUCT
+    | DatatypeCopy of string * TYPE
 
   datatype toplevel_defn
     = TLSignature of string * SIG

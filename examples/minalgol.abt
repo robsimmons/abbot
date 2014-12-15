@@ -1,10 +1,11 @@
-ast int
+abt int
 
 symbol assign
+symbol constructor
 
-ast side = L | R
+abt side = L | R
 
-ast tp
+sort tp
  = Nat
  | Parr of tp * tp
  | Prod of tp list
@@ -12,29 +13,34 @@ ast tp
  | Sum of tp * tp
  | Cmd of tp
 
-ast 'a pat
+abt pat
  = Wild
- | Var of 'a
- | TuplePat of 'a pat list
+ | Var of exp binding
+ | TuplePat of pat list
+ | Inj of constructor * pat
 
-abt exp
+abt decl =
+| Type of tp binding * tp
+| Val of exp binding * exp
+
+sort exp
  = Z
  | S of exp
- | Ifz of exp * exp * exp . exp
- | Lam of tp * exp . exp
+ | Ifz of exp * exp * exp binding . exp
+ | Lam of tp * exp binding . exp
  | Ap of exp * exp
- | Let of exp * exp . exp
- | Fix of tp * exp . exp
+ | Fix of tp * exp binding . exp
  | Tuple of exp list
  | Pr of int * exp
  | Abort of tp * exp
  | In of tp * tp * side * exp
- | Case of exp * exp . exp * exp . exp
+ | Case of exp * exp binding . exp * exp binding . exp
  | Cmd of cmd
+ | Let of decl list . exp
 
-abt cmd
- = Bnd of exp * (exp . cmd)
+sort cmd
+ = Bnd of exp * (exp binding . cmd)
  | Ret of exp
- | Dcl of exp * (assign . cmd)
+ | Dcl of exp * (assign binding . cmd)
  | Get of assign
  | Set of assign * exp

@@ -23,11 +23,13 @@ sig
   (* Write: output to a particular stream *)
   val write : TextIO.outstream -> (unit -> unit) -> unit
 
-  (* Annotate a list with ints *)
+  (* Useful list functions missing form the sml standard library. *)
   val mapi : (int * 'a -> 'b) -> 'a list -> 'b list
   val intify : 'a list -> (int * 'a) list
   val foldli : (int * 'a * 'b -> 'b) -> 'b -> 'a list -> 'b
   val mapfilter : ('a -> 'b option) -> 'a list -> 'b list
+  val concatWith : 'a list -> 'a list list -> 'a list
+  val unzip3 : ('a * 'b * 'c) list -> 'a list * 'b list * 'c list
 
   (* Application utility functions *)
   val transSuper : (* Analogy: String.translate *)
@@ -93,6 +95,24 @@ fun mapfilter f l =
               NONE => acc
             | SOME y => y :: acc)
       [] l
+
+fun concatWith l ll =
+    case List.filter (fn [] => false | _::_ => true) ll of
+        [] => []
+      | [x] => x
+      | x::xs =>
+        List.rev
+          (List.foldl
+             (fn (x, acc) => List.revAppend (x, revAppend (l, acc)))
+             (List.rev x) xs)
+
+fun unzip3 l =
+    case l of
+        [] => ([], [], [])
+      | (x, y, z)::xs =>
+        let val (xs, ys, zs) = unzip3 xs
+        in (x::xs, y::ys, z::zs)
+        end
 
 fun transSuper none one (first, middle, last) xs =
     let

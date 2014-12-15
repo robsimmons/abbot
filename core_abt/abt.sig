@@ -5,9 +5,9 @@ signature ABT =
 sig
   type 'oper t
 
-  datatype ('t, 'oper) view
+  datatype 'oper view
     = Var of Temp.t
-    | Binding of Temp.t * 't
+    | Binding of Temp.t * 'oper t
     | Oper of 'oper
 
   exception Malformed
@@ -16,9 +16,6 @@ sig
 
   val bind : 'oper binding_modifier -> 'oper t binding_modifier
   val unbind : 'oper binding_modifier -> 'oper t binding_modifier
-  val into : 'oper binding_modifier -> ('oper t, 'oper) view -> 'oper t
-  val out : 'oper binding_modifier -> 'oper t -> ('oper t, 'oper) view
-  val aequiv : ('oper * 'oper -> bool) -> 'oper t * 'oper t -> bool
-  val toString : ('oper -> string) -> 'oper t -> string
-  val map : ('a -> 'b) -> ('a, 'oper) view -> ('b, 'oper) view
+  val into : 'oper binding_modifier -> 'oper view -> 'oper t
+  val out : 'oper binding_modifier -> 'oper t -> 'oper view
 end

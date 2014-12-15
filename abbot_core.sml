@@ -14,8 +14,8 @@ fun Big s =
 
 fun BIG s = String.map Char.toUpper s
 
-fun sort_to_type concrete s =
-    TypeVar (if concrete then sort_to_string s else "'" ^ sort_to_string s)
+fun sort_to_type s =
+    TypeVar (sort_to_string s)
 
 fun sort_to_var_type s =
     TypeVar (sort_to_string s ^ "Var")
@@ -23,94 +23,120 @@ fun sort_to_var_type s =
 fun sym_to_type s =
     TypeVar (sym_to_string s)
 
-fun polymorphic_view (ana : ana) srt post =
-    App
-      (List.map
-         (fn srt => TypeVar ("'" ^ sort_to_string srt ^ post))
-         (#mutual ana srt),
-       TypeVar "view")
-
-fun concrete_view (ana : ana) srt =
-    App (List.map (sort_to_type true) (#mutual ana srt), TypeVar "view")
-
-fun binding_to_type (ana : ana) srt concrete binding =
-    case binding of
-        SortBinding srt' =>
-        if #mutualwith ana srt srt'
-        then sort_to_var_type srt'
-        else ModProj (Big (sort_to_string srt'), sort_to_var_type srt')
-      | SymbolBinding sym => ModProj (Big (sym_to_string sym), TypeVar "t")
-      | ProdBinding bindings =>
-        Prod (List.map (binding_to_type ana srt concrete) bindings)
-      | ListBinding binding =>
-        App ([binding_to_type ana srt concrete binding], TypeVar "list")
-      | AppBinding (ast, bindings) =>
-        App
-          (List.map (binding_to_type ana srt concrete) bindings,
-           ModProj (Big (ast_to_string ast), TypeVar "t"))
-
-fun arity_to_type (ana : ana) srt concrete arity =
-    case arity of
-        SortArity srt' =>
-        if #mutualwith ana srt srt'
-        then sort_to_type concrete srt'
-        else ModProj (Big (sort_to_string srt'), TypeVar "t")
-      | SymbolArity sym => ModProj (Big (sym_to_string sym), TypeVar "t")
-      | ProdArity aritys =>
-        Prod (List.map (arity_to_type ana srt concrete) aritys)
-      | ListArity arity =>
-        App ([arity_to_type ana srt concrete arity], TypeVar "list")
-      | AppArity (ast, aritys) =>
-        App
-          (List.map (arity_to_type ana srt concrete) aritys,
-           ModProj (Big (ast_to_string ast), TypeVar "t"))
-      | BindingArity (binding, arity) =>
-        Prod
-          [binding_to_type ana srt concrete binding,
-           arity_to_type ana srt concrete arity]
-
-fun ast_arity_to_type (ana : ana) ast arity =
-    case arity of
-        Param str => TypeVar ("'" ^ str)
-      | ProdAstArity aritys =>
-        Prod (List.map (ast_arity_to_type ana ast) aritys)
-      | AppAstArity (ast', aritys) =>
-        App
-          (List.map (ast_arity_to_type ana ast) aritys,
-           if ast = ast'
-           then TypeVar ("t")
-           else ModProj (Big (ast_to_string ast'), TypeVar "t"))
-      | ListAstArity arity =>
-        App ([ast_arity_to_type ana ast arity], TypeVar "list")
-
 fun ops_name (ana : ana) srt =
-    String.concat (List.map (Big o sort_to_string) (#mutual ana srt)) ^ "Ops"
+    let val (mut_abts, mut_sorts) = #mutual ana srt in
+      String.concat
+        (List.map (Big o abt_to_string) mut_abts
+         @ List.map (Big o sort_to_string) mut_sorts)
+      ^ "Ops"
+    end
 
-fun map_binding f g h binding =
-    case binding of
-        SortBinding srt => SortBinding (h srt)
-      | SymbolBinding sym => SymbolBinding (f sym)
-      | ProdBinding bindings =>
-        ProdBinding (List.map (map_binding f g h) bindings)
-      | ListBinding binding =>
-        ListBinding (map_binding f g h binding)
-      | AppBinding (ast, bindings) =>
-        AppBinding (g ast, List.map (map_binding f g h) bindings)
+fun create_abt_and_sort_fun
+      {sym_usef : symbol -> 'a,
+       sort_usef : sort -> 'a,
+       sym_bindingf : symbol -> 'a,
+       sort_bindingf : sort -> 'a,
+       prodf : 'a list -> 'a,
+       listf : 'a -> 'a,
+       extf : ext * 'a list -> 'a,
+       abtf : abt * 'a list -> 'a,
+       dotf : 'a * 'a -> 'a}
+    : ((string -> 'a) -> AbtArity.t -> 'a) * (SortArity.t -> 'a) =
+    (fn paramf =>
+        let
+          open AbtArity
+          fun abt_fun arity =
+              case arity of
+                  Param str => paramf str
+                | SymbolUse sym => sym_usef sym
+                | SortUse sort => sort_usef sort
+                | SymbolBinding sym => sym_bindingf sym
+                | SortBinding sort => sort_bindingf sort
+                | Prod aritys => prodf (List.map abt_fun aritys)
+                | List arity => abt_fun arity
+                | AppExt (ext, aritys) =>
+                  extf (ext, List.map abt_fun aritys)
+                | AppAbt (abt, aritys) =>
+                  abtf (abt, List.map abt_fun aritys)
+                | Dot (binding, arity) =>
+                  dotf (abt_fun binding, abt_fun arity)
+        in
+          abt_fun
+        end,
+     let
+       open SortArity
+       fun sort_fun arity =
+           case arity of
+               SymbolUse sym => sym_usef sym
+             | SortUse sort => sort_usef sort
+             | SymbolBinding sym => sym_bindingf sym
+             | SortBinding sort => sort_bindingf sort
+             | Prod aritys => prodf (List.map sort_fun aritys)
+             | List arity => sort_fun arity
+             | AppExt (ext, aritys) =>
+               extf (ext, List.map sort_fun aritys)
+             | AppAbt (abt, aritys) =>
+               abtf (abt, List.map sort_fun aritys)
+             | Dot (binding, arity) =>
+               dotf (sort_fun binding, sort_fun arity)
+    in
+      sort_fun
+    end)
 
-fun map_arity f g h arity =
-    case arity of
-        SortArity srt => SortArity (h srt)
-      | SymbolArity sym => SymbolArity (f sym)
-      | ProdArity aritys =>
-        ProdArity (List.map (map_arity f g h) aritys)
-      | ListArity arity =>
-        ListArity (map_arity f g h arity)
-      | AppArity (ast, aritys) =>
-        AppArity (g ast, List.map (map_arity f g h) aritys)
-      | BindingArity (binding, arity) =>
-        BindingArity (map_binding f g h binding, map_arity f g h arity)
+fun arity_to_type (ana : ana) internal abt_or_sort =
+    create_abt_and_sort_fun
+      {sym_usef =
+       fn sym =>
+          if internal
+          then
+            AppType
+              ([ModProjType ("Symbol", TypeVar "t")],
+               ModProjType ("Abt", TypeVar "t"))
+          else ModProjType (Big (sym_to_string sym), TypeVar "t"),
+       sort_usef =
+       fn srt =>
+          if #mutualwith ana abt_or_sort (Sort srt)
+          then sort_to_type srt
+          else ModProjType (Big (sort_to_string srt), TypeVar "t"),
+       sym_bindingf =
+       fn sym =>
+          if internal
+          then ModProjType ("Temp", TypeVar "t")
+          else ModProjType (Big (sym_to_string sym), TypeVar "t"),
+       sort_bindingf =
+       fn srt =>
+          if #mutualwith ana abt_or_sort (Sort srt)
+          then sort_to_var_type srt
+          else ModProjType (Big (sort_to_string srt), sort_to_var_type srt),
+       prodf = ProdType,
+       listf = fn typ => AppType ([typ], TypeVar "list"),
+       extf =
+       fn (ext, typs) =>
+          AppType (typs, ModProjType (Big (ext_to_string ext), TypeVar "t")),
+       abtf =
+       fn (abt, typs) =>
+          AppType
+            (typs,
+             if #mutualwith ana abt_or_sort (Abt abt)
+             then TypeVar (abt_to_string abt)
+             else if internal
+             then
+               ModProjType
+                 (ops_name ana (Abt abt),
+                  TypeVar (abt_to_string abt))
+             else
+               ModProjType (Big (abt_to_string abt), TypeVar "t")),
+       dotf =
+       fn (binding_typ, arity_typ) =>
+          ProdType [binding_typ, arity_typ]}
 
-fun create_ast_signature args =
+fun abt_arity_to_type (ana : ana) internal abt =
+    #1 (arity_to_type ana internal (Abt abt)) (fn str => TypeVar ("'" ^ str))
+
+fun sort_arity_to_type (ana : ana) internal sort =
+    #2 (arity_to_type ana internal (Sort sort))
+
+fun create_ext_signature args =
     SigBody
       ((TypeDecls
           {datatypes=[],
@@ -125,23 +151,23 @@ fun create_ast_signature args =
                   ("iter",
                    List.foldr
                      (fn (arg, acc) =>
-                         Arrow
-                           (Arrow
-                              (Prod [TypeVar ("'" ^ arg ^ "1"),
-                                     TypeVar "'state"],
-                               Prod [TypeVar ("'" ^ arg ^ "2"),
-                                     TypeVar "'state"]),
+                         ArrowType
+                           (ArrowType
+                              (ProdType [TypeVar ("'" ^ arg ^ "1"),
+                                         TypeVar "'state"],
+                               ProdType [TypeVar ("'" ^ arg ^ "2"),
+                                         TypeVar "'state"]),
                             acc))
-                     (Arrow
-                        (Prod
-                           [App
+                     (ArrowType
+                        (ProdType
+                           [AppType
                               (List.map
                                  (fn arg => TypeVar ("'" ^ arg ^ "1"))
                                  args,
                                TypeVar "t"),
                             TypeVar "'state"],
-                         Prod
-                           [App
+                         ProdType
+                           [AppType
                               (List.map
                                  (fn arg => TypeVar ("'" ^ arg ^ "2"))
                                  args,
@@ -149,8 +175,60 @@ fun create_ast_signature args =
                             TypeVar "'state"]))
                      args)]))
 
-fun ast_decl ast args =
-    StructureDecl
-      (Big (ast_to_string ast),
-       create_ast_signature args)
+fun abt_datatype ana (abt, (args, opers)) =
+    (abt_to_string abt,
+     List.map (fn arg => "'" ^ arg) args,
+     List.map
+       (fn (oper, arity_opt) =>
+           (oper,
+            case arity_opt of
+                NONE => NONE
+              | SOME arity => SOME (abt_arity_to_type ana false abt arity)))
+       opers)
+
+fun create_mutual_types (ana : ana) abt_or_sort =
+    let
+      val (mut_abts, mut_sorts) = #mutual ana abt_or_sort
+
+      val (other_abts, other_sorts) =
+          case abt_or_sort of
+              Abt abt =>
+              (List.filter (fn abt' => abt' <> abt) mut_abts, mut_sorts)
+            | Sort sort =>
+              (mut_abts, List.filter (fn sort' => sort' <> sort) mut_sorts)
+
+      val mutual_abt_types =
+          List.map
+            (fn abt =>
+                {datatypes = [],
+                 aliases =
+                 [(abt_to_string abt,
+                   [(* ??? #args ana abt *)],
+                   TypeVar (abt_to_string abt))]})
+            other_abts
+
+      val mutual_sort_types =
+          List.map
+            (fn sort =>
+                {datatypes = [],
+                 aliases =
+                 [(sort_to_string sort,
+                   [],
+                   ModProjType
+                     (ops_name ana (Sort sort),
+                      TypeVar (sort_to_string sort)))]})
+            other_sorts
+
+      val mutual_var_types =
+          List.map
+            (fn var_srt =>
+                {datatypes = [],
+                 aliases =
+                 [(sort_to_string var_srt ^ "Var",
+                   [],
+                   ModProjType ("Temp", TypeVar "t"))]})
+            (List.filter (#hasvar ana) mut_sorts)
+    in
+      (mutual_abt_types, mutual_sort_types @ mutual_var_types)
+    end
 end

@@ -1,24 +1,18 @@
 structure Abt :> ABT = struct
-  datatype ('t, 'oper) view
-    = Var of Temp.t
-    | Binding of Temp.t * 't
-    | Oper of 'oper
-
   datatype 'oper t
     = FV of Temp.t
     | BV of int
     | ABS of 'oper t
     | OPER of 'oper
 
+  datatype 'oper view
+    = Var of Temp.t
+    | Binding of Temp.t * 'oper t
+    | Oper of 'oper
+
   type 'a binding_modifier = Temp.t -> int -> 'a -> 'a
 
   exception Malformed
-
-  fun aequiv _ (FV x, FV y) = Temp.equal (x, y)
-    | aequiv _ (BV n, BV m) = (n = m)
-    | aequiv aequiv_oper (ABS t, ABS t') = aequiv aequiv_oper (t, t')
-    | aequiv aequiv_oper (OPER f, OPER f') = aequiv_oper (f, f')
-    | aequiv _ (_, _) = false
 
   fun bind bind_oper x i t =
       case t of
@@ -40,32 +34,13 @@ structure Abt :> ABT = struct
       | Binding (x, t) => ABS (bind bind_oper x 0 t)
       | Oper f => OPER f
 
-  exception Assertion_failure_name
-
   fun out unbind_oper t =
       case t of
-        BV _ => raise Assertion_failure_name
+        BV _ => raise Fail "Internal Abbot Error"
       | FV x => Var x
       | OPER f => Oper f
       | ABS t =>
         let val x = Temp.new "x"
         in Binding (x, unbind unbind_oper x 0 t)
         end
-
-  fun toString operToString e = (* ??? *)
-      case out (fn _ => fn _ => fn f => f) e of
-        Var x => Temp.toString x
-      | Oper f => operToString f
-      | Binding (x, e) =>
-        (Temp.toString x) ^ ". " ^ (toString operToString e)
-  and toStrings _ [] = ""
-    | toStrings operToString [e] = toString operToString e
-    | toStrings operToString (e :: es) =
-      (toString operToString e) ^ ", " ^ (toStrings operToString es)
-
-  fun map f v = (* use oper map ??? *)
-      case v of
-        Var x => Var x
-      | Binding (x, t) => Binding (x, f t)
-      | Oper h => Oper h
 end

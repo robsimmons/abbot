@@ -1,267 +1,482 @@
 structure Analysis :> sig
-  datatype ('sym, 'ast, 'srt) binding
-    = SortBinding of 'srt
-    | SymbolBinding of 'sym
-    | ProdBinding of ('sym, 'ast, 'srt) binding list
-    | ListBinding of ('sym, 'ast, 'srt) binding
-    | AppBinding of 'ast * ('sym, 'ast, 'srt) binding list
+  eqtype ext
 
-  datatype ('sym, 'ast, 'srt) arity
-    = SortArity of 'srt
-    | SymbolArity of 'sym
-    | ProdArity of ('sym, 'ast, 'srt) arity list
-    | ListArity of ('sym, 'ast, 'srt) arity
-    | AppArity of 'ast * ('sym, 'ast, 'srt) arity list
-    | BindingArity of ('sym, 'ast, 'srt) binding * ('sym, 'ast, 'srt) arity
-
-  datatype 'ast ast_arity
-    = Param of string
-    | ProdAstArity of 'ast ast_arity list
-    | AppAstArity of 'ast * 'ast ast_arity list
-    | ListAstArity of 'ast ast_arity
+  val ext_to_string : ext -> string
 
   eqtype symbol
 
   val sym_to_string : symbol -> string
 
-  eqtype ast
+  eqtype abt
 
-  val ast_to_string : ast -> string
+  val abt_to_string : abt -> string
 
   eqtype sort
 
   val sort_to_string : sort -> string
 
+  structure AbtArity : sig
+    datatype t
+      = Param of string (* paramaterized arity *)
+      | SymbolUse of symbol (* symbol use *)
+      | SortUse of sort (* sort use *)
+      | SymbolBinding of symbol (* symbol binding *)
+      | SortBinding of sort (* sort binding *)
+      | Prod of t list
+      | List of t
+      | AppExt of ext * t list
+      | AppAbt of abt * t list
+      | Dot of t * t (* Binds bindings on the left in the right. *)
+  end
+
+  structure SortArity : sig
+    datatype t
+      = SymbolUse of symbol (* symbol use *)
+      | SortUse of sort (* sort use *)
+      | SymbolBinding of symbol (* symbol binding *)
+      | SortBinding of sort (* sort binding *)
+      | Prod of t list
+      | List of t
+      | AppExt of ext * t list
+      | AppAbt of abt * t list
+      | Dot of t * t (* Binds bindings on the left in the right. *)
+  end
+
+  datatype abt_or_sort = Abt of abt | Sort of sort
+
+  val abt_or_sort_to_string : abt_or_sort -> string
+
   type ana = {
+    (* External abts and their arguements. *)
+    externals : (ext * string list) list,
+
     (* All symbols. *)
-    symbs : symbol list,
+    symbols : symbol list,
 
-    (* ??? Missing ast arity. *)
-    asts : (ast * (string list * (string * ast ast_arity option) list)) list,
+    (* All internal abts and sorts and their associated operations and aritys.
+     * They are grouped with their mutual dependencies and occur
+     * later in the outer list than their strict dependencies. *)
+    abts_and_sorts
+    : (abt * (string list * (string * AbtArity.t option) list),
+       sort * (string * SortArity.t option) list) Util.Sum2.t list list,
 
-    (* Whether the list ast structure needs to be included. *)
+    (* Whether the list abt structure needs to be included. *)
     haslist : bool,
 
-    (* All sorts and their associated operations and aritys.
-     * Sorts are grouped with their mutual dependencies and occur
-     * later in the outer list than their strict dependencies. *)
-    sorts : (sort * (string * (symbol, ast, sort) arity option) list) list list,
-
-    (* Sorts that the given sort refers to. *)
-    dependencies : sort -> sort list,
+    (* Argument strings for the given abt. *)
+    args : abt -> string list,
 
     (* Whether the given sort can be bound to a variable. *)
     hasvar : sort -> bool,
 
-    (* Returns all the mutually dependent sorts of a given sort,
-     * including itself *)
-    mutual : sort -> sort list,
+    (* Abts and sorts that the given abt or sort refers to. *)
+    dependencies : abt_or_sort -> abt list * sort list,
 
-    (* Returns true iff the given sorts are mutually dependent. *)
-    mutualwith : sort -> sort -> bool
+    (* Returns all the mutually dependent abts and sorts
+     * of a given abt or sort, including itself. *)
+    mutual : abt_or_sort -> abt list * sort list,
+
+    (* Returns true iff the given abts or sorts are mutually dependent. *)
+    mutualwith : abt_or_sort -> abt_or_sort -> bool
   }
 
-  val analyze : AbtSyntax.oper list StringTable.table
-                * string list
-                * (string list * AbtSyntax.ast_oper list) StringTable.table
+  val analyze : string list StringTable.table
+                * StringTable.Set.set
+                * (string list * AbbotSyntax.oper list) StringTable.table
+                * AbbotSyntax.oper list StringTable.table
                 -> ana
 end = struct
   open Util
   open StringTable
 
-  datatype ('sym, 'ast, 'srt) binding
-    = SortBinding of 'srt
-    | SymbolBinding of 'sym
-    | ProdBinding of ('sym, 'ast, 'srt) binding list
-    | ListBinding of ('sym, 'ast, 'srt) binding
-    | AppBinding of 'ast * ('sym, 'ast, 'srt) binding list
+  type ext = string
 
-  datatype ('sym, 'ast, 'srt) arity
-    = SortArity of 'srt
-    | SymbolArity of 'sym
-    | ProdArity of ('sym, 'ast, 'srt) arity list
-    | ListArity of ('sym, 'ast, 'srt) arity
-    | AppArity of 'ast * ('sym, 'ast, 'srt) arity list
-    | BindingArity of ('sym, 'ast, 'srt) binding * ('sym, 'ast, 'srt) arity
-
-  datatype 'ast ast_arity
-    = Param of string
-    | ProdAstArity of 'ast ast_arity list
-    | AppAstArity of 'ast * 'ast ast_arity list
-    | ListAstArity of 'ast ast_arity
+  fun ext_to_string x = x
 
   type symbol = string
 
   fun sym_to_string x = x
 
-  type ast = string
+  type abt = string
 
-  fun ast_to_string x = x
+  fun abt_to_string x = x
 
   type sort = string
 
   fun sort_to_string x = x
 
+  structure AbtArity = struct
+    datatype t
+      = Param of string (* paramaterized arity *)
+      | SymbolUse of symbol (* symbol use *)
+      | SortUse of sort (* sort use *)
+      | SymbolBinding of symbol (* symbol binding *)
+      | SortBinding of symbol (* sort binding *)
+      | Prod of t list
+      | List of t
+      | AppExt of ext * t list
+      | AppAbt of abt * t list
+      | Dot of t * t (* Binds bindings on the left in the right. *)
+  end
+
+  structure SortArity = struct
+    datatype t
+      = SymbolUse of symbol (* symbol use *)
+      | SortUse of sort (* sort use *)
+      | SymbolBinding of symbol (* symbol binding *)
+      | SortBinding of symbol (* sort binding *)
+      | Prod of t list
+      | List of t
+      | AppExt of ext * t list
+      | AppAbt of abt * t list
+      | Dot of t * t (* Binds bindings on the left in the right. *)
+  end
+
+  datatype abt_or_sort = Abt of abt | Sort of sort
+
+  fun abt_or_sort_to_string (Abt s | Sort s) = s
+
   type ana = {
-    symbs : symbol list,
-    asts : (ast * (string list * (string * ast ast_arity option) list)) list,
+    externals : (ext * string list) list,
+    symbols : symbol list,
+    abts_and_sorts
+    : (abt * (string list * (string * AbtArity.t option) list),
+       sort * (string * SortArity.t option) list) Util.Sum2.t list list,
     haslist : bool,
-    sorts : (sort * (string * (symbol, ast, sort) arity option) list) list list,
-    dependencies : sort -> sort list,
+    args : abt -> string list,
     hasvar : sort -> bool,
-    mutual : sort -> sort list,
-    mutualwith : sort -> sort -> bool
+    dependencies : abt_or_sort -> abt list * sort list,
+    mutual : abt_or_sort -> abt list * sort list,
+    mutualwith : abt_or_sort -> abt_or_sort -> bool
   }
 
-  fun convert_binding (sorts, symbs) binding =
-      case binding of
-          AbtSyntax.BindingVar name =>
-          (if List.exists (fn x => x = name) sorts
+  local open AbtArity in
+  fun convert_abt_arity (exts, symbs, abts, sorts) arity =
+      case arity of
+          AbbotSyntax.Param name => Param name
+        | AbbotSyntax.Use name =>
+          (if Set.find sorts name
+           then SortUse name
+           else if Set.find symbs name
+           then SymbolUse name
+           else if Set.find abts name
+           then AppAbt (name, [])
+           else if Set.find exts name
+           then AppExt (name, [])
+           else raise Fail "??? put legit error here")
+        | AbbotSyntax.Binding name =>
+          (if Set.find sorts name
            then SortBinding name
-           else if List.exists (fn x => x = name) symbs
+           else if Set.find symbs name
            then SymbolBinding name
-           else AppBinding (name, []))
-        | AbtSyntax.ProdBinding bindings =>
-          ProdBinding (List.map (convert_binding (sorts, symbs)) bindings)
-        | AbtSyntax.AppBinding ("list", [binding]) =>
-          ListBinding (convert_binding (sorts, symbs) binding)
-        | AbtSyntax.AppBinding (ast, bindings) =>
-          AppBinding (ast, List.map (convert_binding (sorts, symbs)) bindings)
+           else raise Fail (name ^ " is not a sort or symbol, so it cannot be bound"))
+        | AbbotSyntax.Prod aritys =>
+          Prod (List.map (convert_abt_arity (exts, symbs, abts, sorts)) aritys)
+        | AbbotSyntax.App ("list", [arity]) =>
+          List (convert_abt_arity (exts, symbs, abts, sorts) arity)
+        | AbbotSyntax.App (name, aritys) =>
+          (if Set.find abts name
+           then
+             AppAbt
+               (name,
+                List.map
+                  (convert_abt_arity (exts, symbs, abts, sorts))
+                  aritys)
+           else if Set.find exts name
+           then
+             AppExt
+               (name,
+                List.map
+                  (convert_abt_arity (exts, symbs, abts, sorts))
+                  aritys)
+           else raise Fail "??? put legit error here")
+        | AbbotSyntax.Dot (binding, arity) =>
+          Dot
+            (convert_abt_arity (exts, symbs, abts, sorts) binding,
+             convert_abt_arity (exts, symbs, abts, sorts) arity)
 
-  fun convert_arity (sorts, symbs) arity =
+  fun abt_arity_binds abts arity =
       case arity of
-          AbtSyntax.ArityVar name =>
-          (if List.exists (fn x => x = name) sorts
-           then SortArity name
-           else if List.exists (fn x => x = name) symbs
-           then SymbolArity name
-           else AppArity (name, []))
-        | AbtSyntax.ProdArity aritys =>
-          ProdArity (List.map (convert_arity (sorts, symbs)) aritys)
-        | AbtSyntax.AppArity ("list", [arity]) =>
-          ListArity (convert_arity (sorts, symbs) arity)
-        | AbtSyntax.AppArity (ast, aritys) =>
-          AppArity (ast, List.map (convert_arity (sorts, symbs)) aritys)
-        | AbtSyntax.BindingArity (binding, arity) =>
-          BindingArity
-            (convert_binding (sorts, symbs) binding,
-             convert_arity (sorts, symbs) arity)
+          (Param _ | SymbolUse _ | SortUse _) => false
+        | (SymbolBinding _ | SortBinding _) => true
+        | List arity => abt_arity_binds abts arity
+        | (Prod aritys | AppExt (_, aritys)) =>
+          List.exists (abt_arity_binds abts) aritys
+        | AppAbt (abt, aritys) =>
+          List.exists (abt_arity_binds abts) aritys
+          orelse
+          let val (args, opers) = valOf (find abts abt) in
+            List.exists
+              (fn (_, arity_opt) =>
+                  case arity_opt of
+                      NONE => false
+                    | SOME arity => abt_arity_binds abts arity)
+              opers
+          end
+        | Dot (_, arity) => abt_arity_binds abts arity
+  end
 
-  fun convert_ast_arity ast_arity =
-      case ast_arity of
-          AbtSyntax.Param str => Param str
-        | AbtSyntax.ProdAstArity ast_aritys =>
-          ProdAstArity (List.map convert_ast_arity ast_aritys)
-        | AbtSyntax.AppAstArity ("list", [ast_arity]) =>
-          ListAstArity (convert_ast_arity ast_arity)
-        | AbtSyntax.AppAstArity (ast, ast_aritys) =>
-          AppAstArity (ast, List.map convert_ast_arity ast_aritys)
-
-  fun sorts_in_binding binding =
-      case binding of
-          SortBinding srt => Set.singleton srt
-        | SymbolBinding sym => Set.empty ()
-        | ProdBinding bindings =>
-          List.foldl Set.union (Set.empty ())
-            (List.map sorts_in_binding bindings)
-        | ListBinding binding =>
-          sorts_in_binding binding
-        | AppBinding (ast, bindings) =>
-          List.foldl Set.union (Set.empty ())
-            (List.map sorts_in_binding bindings)
-
-  fun sorts_in_arity arity =
+  local open SortArity in
+  fun convert_sort_arity (exts, symbs, abts, sorts) arity =
       case arity of
-          SortArity srt => Set.singleton srt
-        | SymbolArity sym => Set.empty ()
-        | ProdArity aritys =>
+          AbbotSyntax.Param _ => raise Fail "???put legit error here"
+        | AbbotSyntax.Use name =>
+          (if Set.find sorts name
+           then SortUse name
+           else if Set.find symbs name
+           then SymbolUse name
+           else if Set.find exts name
+           then AppExt (name, [])
+           else if Set.find abts name
+           then AppAbt (name, [])
+           else raise Fail "??? put legit error here")
+        | AbbotSyntax.Binding name =>
+          (if Set.find sorts name
+           then SortBinding name
+           else if Set.find symbs name
+           then SymbolBinding name
+           else raise Fail "??? put legit error here2")
+        | AbbotSyntax.Prod aritys =>
+          Prod (List.map (convert_sort_arity (exts, symbs, abts, sorts)) aritys)
+        | AbbotSyntax.App ("list", [arity]) =>
+          List (convert_sort_arity (exts, symbs, abts, sorts) arity)
+        | AbbotSyntax.App (name, aritys) =>
+          (if Set.find exts name
+           then
+             AppExt
+               (name,
+                List.map
+                  (convert_sort_arity (exts, symbs, abts, sorts))
+                  aritys)
+           else if Set.find abts name
+           then
+             AppAbt
+               (name,
+                List.map
+                  (convert_sort_arity (exts, symbs, abts, sorts))
+                  aritys)
+           else raise Fail "??? put legit error here")
+        | AbbotSyntax.Dot (binding, arity) =>
+          Dot
+            (convert_sort_arity (exts, symbs, abts, sorts) binding,
+             convert_sort_arity (exts, symbs, abts, sorts) arity)
+
+  fun sort_arity_binds abts arity =
+      case arity of
+          (SymbolUse _ | SortUse _) => false
+        | (SymbolBinding _ | SortBinding _) => true
+        | List arity => sort_arity_binds abts arity
+        | (Prod aritys | AppExt (_, aritys)) =>
+          List.exists (sort_arity_binds abts) aritys
+        | AppAbt (abt, aritys) =>
+          List.exists (sort_arity_binds abts) aritys
+          orelse
+          let val (args, opers) = valOf (find abts abt) in
+            List.exists
+              (fn (_, arity_opt) =>
+                  case arity_opt of
+                      NONE => false
+                    | SOME arity => abt_arity_binds abts arity)
+              opers
+          end
+        | Dot (_, arity) => sort_arity_binds abts arity
+  end
+
+  local open AbtArity in
+  fun abt_arity_deps arity =
+      case arity of
+          (Param _ | SymbolUse _ | SymbolBinding _) =>
+          (Set.empty (), Set.empty ())
+        | (SortUse srt | SortBinding srt) => (Set.empty (), Set.singleton srt)
+        | Prod aritys =>
+          List.foldl
+            (fn ((abts1, sorts1), (abts2, sorts2)) =>
+                (Set.union (abts1, abts2), Set.union (sorts1, sorts2)))
+            (Set.empty (), Set.empty ())
+            (List.map abt_arity_deps aritys)
+        | List arity =>
+          abt_arity_deps arity
+        | AppExt (ext, aritys) =>
+          List.foldl
+            (fn ((abts1, sorts1), (abts2, sorts2)) =>
+                (Set.union (abts1, abts2), Set.union (sorts1, sorts2)))
+            (Set.empty (), Set.empty ())
+            (List.map abt_arity_deps aritys)
+        | AppAbt (abt, aritys) =>
+          List.foldl
+            (fn ((abts1, sorts1), (abts2, sorts2)) =>
+                (Set.union (abts1, abts2), Set.union (sorts1, sorts2)))
+            (Set.singleton abt, Set.empty ())
+            (List.map abt_arity_deps aritys)
+        | Dot (binding, arity) =>
+          let
+            val (abts1, sorts1) = abt_arity_deps binding
+            val (abts2, sorts2) = abt_arity_deps arity
+          in
+            (Set.union (abts1, abts2), Set.union (sorts1, sorts2))
+          end
+  end
+
+  local open SortArity in
+  fun sort_arity_deps arity =
+      case arity of
+          (SortUse srt | SortBinding srt) => (Set.empty (), Set.singleton srt)
+        | (SymbolUse _ | SymbolBinding _) => (Set.empty (), Set.empty ())
+        | Prod aritys =>
+          List.foldl
+            (fn ((abts1, sorts1), (abts2, sorts2)) =>
+                (Set.union (abts1, abts2), Set.union (sorts1, sorts2)))
+            (Set.empty (), Set.empty ())
+            (List.map sort_arity_deps aritys)
+        | List arity =>
+          sort_arity_deps arity
+        | AppExt (ext, aritys) =>
+          List.foldl
+            (fn ((abts1, sorts1), (abts2, sorts2)) =>
+                (Set.union (abts1, abts2), Set.union (sorts1, sorts2)))
+            (Set.empty (), Set.empty ())
+            (List.map sort_arity_deps aritys)
+        | AppAbt (abt, aritys) =>
+          List.foldl
+            (fn ((abts1, sorts1), (abts2, sorts2)) =>
+                (Set.union (abts1, abts2), Set.union (sorts1, sorts2)))
+            (Set.singleton abt, Set.empty ())
+            (List.map sort_arity_deps aritys)
+        | Dot (binding, arity) =>
+          let
+            val (abts1, sorts1) = sort_arity_deps binding
+            val (abts2, sorts2) = sort_arity_deps arity
+          in
+            (Set.union (abts1, abts2), Set.union (sorts1, sorts2))
+          end
+  end
+
+  local open AbtArity in
+  fun sorts_bound_in_abt_arity arity =
+      case arity of
+          (Param _ | SortUse _ | SymbolUse _ | SymbolBinding _) => Set.empty ()
+        | SortBinding srt => Set.singleton srt
+        | List arity =>
+          sorts_bound_in_abt_arity arity
+        | (Prod aritys | AppExt (_, aritys) | AppAbt (_, aritys)) =>
           List.foldl Set.union (Set.empty ())
-            (List.map sorts_in_arity aritys)
-        | ListArity arity =>
-          sorts_in_arity arity
-        | AppArity (ast, aritys) =>
-          List.foldl Set.union (Set.empty ())
-            (List.map sorts_in_arity aritys)
-        | BindingArity (binding, arity) =>
+            (List.map sorts_bound_in_abt_arity aritys)
+        | Dot (binding, arity) =>
           Set.union
-            (sorts_in_binding binding,
-             sorts_in_arity arity)
+            (sorts_bound_in_abt_arity binding, sorts_bound_in_abt_arity arity)
+  end
 
-  fun sorts_bound_in_arity arity =
+  local open SortArity in
+  fun sorts_bound_in_sort_arity arity =
       case arity of
-          SortArity srt => Set.empty ()
-        | SymbolArity sym => Set.empty ()
-        | ProdArity aritys =>
+          (SortUse _ | SymbolUse _ | SymbolBinding _) => Set.empty ()
+        | SortBinding srt => Set.singleton srt
+        | List arity =>
+          sorts_bound_in_sort_arity arity
+        | (Prod aritys | AppExt (_, aritys) | AppAbt (_, aritys)) =>
           List.foldl Set.union (Set.empty ())
-            (List.map sorts_bound_in_arity aritys)
-        | ListArity arity =>
-          sorts_bound_in_arity arity
-        | AppArity (ast, aritys) =>
-          List.foldl Set.union (Set.empty ())
-            (List.map sorts_bound_in_arity aritys)
-        | BindingArity (binding, arity) =>
+            (List.map sorts_bound_in_sort_arity aritys)
+        | Dot (binding, arity) =>
           Set.union
-            (sorts_in_binding binding,
-             sorts_bound_in_arity arity)
+            (sorts_bound_in_sort_arity binding, sorts_bound_in_sort_arity arity)
+  end
 
-  fun binding_haslist binding =
-      case binding of
-          (SortBinding _ | SymbolBinding _) => false
-        | ListBinding _ => true
-        | (ProdBinding bindings | AppBinding (_, bindings)) =>
-          List.exists binding_haslist bindings
-
-  fun arity_haslist arity =
+  local open AbtArity in
+  fun abt_arity_haslist arity =
       case arity of
-          (SortArity _ | SymbolArity _) => false
-        | ListArity _ => true
-        | (ProdArity aritys | AppArity (_, aritys)) =>
-          List.exists arity_haslist aritys
-        | BindingArity (binding, arity) =>
-          binding_haslist binding orelse arity_haslist arity
+          (Param _
+          | SortUse _
+          | SymbolUse _
+          | SortBinding _
+          | SymbolBinding _) => false
+        | List arity => true
+        | (Prod aritys | AppExt (_, aritys) | AppAbt (_, aritys)) =>
+          List.exists abt_arity_haslist aritys
+        | Dot (binding, arity) =>
+          abt_arity_haslist binding orelse abt_arity_haslist arity
+  end
 
-  fun ast_arity_haslist arity =
+  local open SortArity in
+  fun sort_arity_haslist arity =
       case arity of
-          Param _ => false
-        | ListAstArity _ => true
-        | (ProdAstArity aritys | AppAstArity (_, aritys)) =>
-          List.exists ast_arity_haslist aritys
+          (SortUse _
+          | SymbolUse _
+          | SortBinding _
+          | SymbolBinding _) => false
+        | List arity => true
+        | (Prod aritys | AppExt (_, aritys) | AppAbt (_, aritys)) =>
+          List.exists sort_arity_haslist aritys
+        | Dot (binding, arity) =>
+          sort_arity_haslist binding orelse sort_arity_haslist arity
+  end
 
-  fun analyze (sorts, symbs, asts) : ana =
+  fun analyze (exts, symbs, abts, sorts) : ana =
       let
-        val asts =
-            Seq.toList
-              (toSeq
-                 (map
-                    (fn (args, opers) =>
-                        (args,
-                         List.map
-                           (fn (oper, ast_arity_opt) =>
-                               (oper,
-                                (case ast_arity_opt of
-                                     NONE => NONE
-                                   | SOME ast_arity =>
-                                     SOME (convert_ast_arity ast_arity))))
-                           opers))
-                    asts))
+        fun string_to_abt_or_sort str =
+            case find abts str of
+                SOME _ => SOME (Abt str)
+              | NONE =>
+                (case find sorts str of
+                     SOME _ => SOME (Sort str)
+                   | NONE => NONE)
 
         val set_to_list = Seq.toList o Set.toSeq
 
+        val all_names = (domain exts, symbs, domain abts, domain sorts)
+
+        val abts =
+            map
+              (fn (args, opers) =>
+                  (args,
+                   List.map
+                     (fn (oper, arity_opt) =>
+                         (oper,
+                          (case arity_opt of
+                               NONE => NONE
+                             | SOME arity =>
+                               SOME (convert_abt_arity all_names arity))))
+                     opers))
+              abts
+
+        val args = #1 o valOf o find abts
+
         val sorts =
             map
-              (fn opers =>
-                  List.map
-                    (fn (oper, arity_opt) =>
-                        (oper,
-                         (case arity_opt of
-                              NONE => NONE
-                            | SOME arity =>
-                              SOME
-                                (convert_arity
-                                   (set_to_list (domain sorts), symbs)
-                                   arity))))
-                    opers)
+              (List.map
+                 (fn (oper, arity_opt) =>
+                     (oper,
+                      (case arity_opt of
+                           NONE => NONE
+                         | SOME arity =>
+                           let
+                             val arity' = convert_sort_arity all_names arity
+                           in
+                             if sort_arity_binds abts arity'
+                             then raise Fail "???put legit error here"
+                             else SOME arity'
+                           end))))
               sorts
+
+        val haslist =
+            List.exists
+              (fn (_, opers) =>
+                  List.exists
+                    (fn (oper, arity_opt) =>
+                        case arity_opt of
+                            NONE => false
+                          | SOME arity =>
+                            abt_arity_haslist arity)
+                    opers)
+              (Seq.toList (range abts))
+            orelse
+            List.exists
+              (List.exists
+                 (fn (_, arity_opt) =>
+                     case arity_opt of
+                         NONE => false
+                       | SOME arity =>
+                         sort_arity_haslist arity))
+              (Seq.toList (range sorts))
 
         local
           fun neighbors G F =
@@ -277,7 +492,20 @@ end = struct
                bfs G frontier' visited'
              end
 
-          val direct_dep_table =
+          val direct_abt_dep_table =
+              map
+                (fn (args, opers) =>
+                    List.foldl Set.union (Set.empty ())
+                      (List.map
+                         (fn (oper, arity_opt) =>
+                             case arity_opt of
+                                 NONE => Set.empty ()
+                               | SOME arity =>
+                                 Set.union (abt_arity_deps arity))
+                         opers))
+                abts
+
+          val direct_sort_dep_table =
               map
                 (fn opers =>
                     List.foldl Set.union (Set.empty ())
@@ -286,73 +514,155 @@ end = struct
                              case arity_opt of
                                  NONE => Set.empty ()
                                | SOME arity =>
-                                 sorts_in_arity arity)
+                                 Set.union (sort_arity_deps arity))
                          opers))
                 sorts
+
+          val direct_dep_table =
+              merge
+                (fn (_, _) => raise Fail "Found abt and sort with the same name.")
+                (direct_abt_dep_table, direct_sort_dep_table)
         in
-        val dep_table =
+        val merged_dep_table =
             mapk
               (fn (srt, _) =>
                   Set.insert
                     srt
                     (bfs direct_dep_table (Set.singleton srt) (Set.empty ())))
-              sorts
+              direct_dep_table
+
+        val dep_table =
+            map
+              (fn deps =>
+                  (Set.filter
+                     (fn str =>
+                         case string_to_abt_or_sort str of
+                             SOME (Abt _) => true
+                           | SOME (Sort _) => false
+                           | NONE => raise Fail "Internal Abbot Error")
+                     deps,
+                   Set.filter
+                     (fn str =>
+                         case string_to_abt_or_sort str of
+                             SOME (Abt _) => false
+                           | SOME (Sort _) => true
+                           | NONE => raise Fail "Internal Abbot Error")
+                     deps))
+              merged_dep_table
         end
 
-        val dependencies = set_to_list o valOf o find dep_table
+        fun dependencies (Abt str | Sort str) =
+            let val SOME (abts, sorts) = find dep_table str in
+              (set_to_list abts, set_to_list sorts)
+            end
 
         val hasvar_set =
-            reduce Set.union (Set.empty ())
-              (map
-                 (fn opers =>
-                     List.foldl Set.union (Set.empty ())
-                       (List.map
-                          (fn (_, arity_opt) =>
-                              case arity_opt of
-                                  NONE => Set.empty ()
-                                | SOME arity =>
-                                  sorts_bound_in_arity arity)
-                          opers))
-                 sorts)
+            Set.union
+              (reduce Set.union (Set.empty ())
+                 (map
+                    (fn (args, opers) =>
+                        List.foldl Set.union (Set.empty ())
+                          (List.map
+                             (fn (_, arity_opt) =>
+                                 case arity_opt of
+                                     NONE => Set.empty ()
+                                   | SOME arity =>
+                                     sorts_bound_in_abt_arity arity)
+                             opers))
+                         abts),
+               reduce Set.union (Set.empty ())
+                 (map
+                    (fn opers =>
+                        List.foldl Set.union (Set.empty ())
+                          (List.map
+                             (fn (_, arity_opt) =>
+                                 case arity_opt of
+                                     NONE => Set.empty ()
+                                   | SOME arity =>
+                                     sorts_bound_in_sort_arity arity)
+                             opers))
+                    sorts))
 
         val hasvar = Set.find hasvar_set
 
         val mutual_table =
             mapk
-              (fn (s, deps) =>
-                  Set.insert s
-                    (Set.filter
-                       (fn s' => Set.find (valOf (find dep_table s')) s)
-                       deps))
+              (fn (s, (abt_deps, sort_deps)) =>
+                  let
+                    val abts =
+                        Set.filter
+                          (fn s' => Set.find (valOf (find merged_dep_table s')) s)
+                          abt_deps
+
+                    val sorts =
+                        Set.filter
+                          (fn s' =>
+                              case find merged_dep_table s' of
+                                  NONE => raise Fail "bar"
+                                | SOME set => Set.find set s)
+                          sort_deps
+                  in
+                    case valOf (string_to_abt_or_sort s) of
+                        Abt abt =>
+                        (Set.insert abt abts, sorts)
+                      | Sort sort =>
+                        (abts, Set.insert sort sorts)
+                  end)
               dep_table
 
-        fun mutual' s =
+        fun mutual' (Abt s | Sort s) =
             valOf (find mutual_table s)
 
-        val mutual = set_to_list o mutual'
+        fun mutual abt_or_sort =
+            let val (abts, sorts) = mutual' abt_or_sort in
+              (set_to_list abts, set_to_list sorts)
+            end
 
         fun mutualwith s1 s2 =
-            Set.find (mutual' s1) s2
+            let val (abts, sorts) = mutual' s1 in
+              case s2 of
+                  Abt abt => Set.find abts abt
+                | Sort sort => Set.find sorts sort
+            end
 
-        val sorts =
+        local open Sum2 in
+        val abts_and_sorts =
             Seq.iter
               (fn (ls, s) =>
-                  if List.exists (List.exists (fn (x, _) => x = s)) ls
+                  if
+                    (case s of
+                         Abt abt =>
+                         List.exists
+                           (List.exists (fn In1 (x, _) => x = abt | _ => false))
+                           ls
+                       | Sort sort =>
+                         List.exists
+                           (List.exists (fn In2 (x, _) => x = sort | _ => false))
+                           ls)
                   then ls
                   else
-                    List.map (fn s' => (s', valOf (find sorts s'))) (mutual s)
-                    :: ls)
+                    let val (mut_abts, mut_sorts) = mutual s in
+                      (List.map
+                         (fn s' => In1 (s', valOf (find abts s')))
+                         mut_abts
+                       @ List.map
+                           (fn s' => In2 (s', valOf (find sorts s')))
+                           mut_sorts)
+                      :: ls
+                    end)
               []
-              (Set.toSeq (domain sorts))
+              (Seq.append
+                 (Seq.map Abt (Set.toSeq (domain abts)),
+                  Seq.map Sort (Set.toSeq (domain sorts))))
 
-        fun sort_group_compare ((l, _)::ls, (r, _)::rs) =
+        fun group_compare ((In1 (l, _) | In2 (l, _))::ls, (In1 (r, _) | In2 (r, _))::rs) =
             let
               val lgeqr =
-                  case find dep_table l of
+                  case find merged_dep_table l of
                       NONE => false
                     | SOME deps => Set.find deps r
               val rgeql =
-                  case find dep_table r of
+                  case find merged_dep_table r of
                       NONE => false
                     | SOME deps => Set.find deps l
             in
@@ -362,40 +672,18 @@ end = struct
               then LESS
               else EQUAL
             end
+        end
 
-        val sorts =
-            Seq.toList (Seq.sort sort_group_compare (Seq.fromList sorts))
-
-        val haslist =
-            List.exists
-              (fn (_, (_, opers)) =>
-                  List.exists
-                    (fn (oper, arity_opt) =>
-                        case arity_opt of
-                            NONE => false
-                          | SOME arity =>
-                            ast_arity_haslist arity)
-                    opers)
-              asts
-            orelse
-            List.exists
-              (List.exists
-                 (fn (_, opers) =>
-                     List.exists
-                       (fn (_, arity_opt) =>
-                           case arity_opt of
-                               NONE => false
-                             | SOME arity =>
-                               arity_haslist arity)
-                       opers))
-              sorts
+        val abts_and_sorts =
+            Seq.toList (Seq.sort group_compare (Seq.fromList (abts_and_sorts)))
       in
         {
-          symbs=symbs,
-          asts=asts,
+          externals = Seq.toList (toSeq exts),
+          symbols=set_to_list symbs,
+          abts_and_sorts=abts_and_sorts,
           haslist=haslist,
-          sorts=sorts,
           dependencies=dependencies,
+          args=args,
           hasvar=hasvar,
           mutual=mutual,
           mutualwith=mutualwith

@@ -1,22 +1,11 @@
-structure AbtSyntax = struct
-  (* allow functors that are pos in some args and negative in others??? *)
-  datatype binding
-    = BindingVar of string (* sort, symbol, or constant iterable *)
-    | ProdBinding of binding list
-    | AppBinding of string * binding list
-
+structure AbbotSyntax = struct
   datatype arity
-    = ArityVar of string (* sort, symbol, or constant mappable *)
-    | ProdArity of arity list
-    | AppArity of string * arity list
-    | BindingArity of binding * arity
+    = Param of string (* paramaterized arity *)
+    | Use of string (* sort, symbol, or constant mappable use *)
+    | Binding of string (* sort or symbol binding *)
+    | Prod of arity list
+    | App of string * arity list
+    | Dot of arity * arity (* Binds bindings on the left in the right. *)
 
   type oper = string * arity option
-
-  datatype ast_arity
-    = Param of string
-    | ProdAstArity of ast_arity list
-    | AppAstArity of string * ast_arity list
-
-  type ast_oper = string * ast_arity option
 end

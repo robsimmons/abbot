@@ -7,10 +7,33 @@ open Analysis
 open SmlSyntax
 open AbbotCore
 
+fun create_mutual_type_decls ana abt_or_sort =
+    List.map
+      (fn {aliases, datatypes} =>
+          TypeDecls
+            {datatypes = datatypes,
+             aliases =
+             List.map
+               (fn (name, args, _) =>
+                   (name, args, NONE))
+               aliases})
+      (op@ (create_mutual_types ana abt_or_sort))
+
+fun create_abt_structure_decl ana (abt, (args, opers)) =
+    StructureDecl
+      (Big (abt_to_string abt),
+       SigBody
+         (concatWith [BlankDecl]
+            [create_mutual_type_decls ana (Abt abt),
+             [TypeDecls
+                {datatypes=[abt_datatype ana (abt, (args, opers))],
+                 aliases=[]}],
+             [TypeDecls
+                {aliases=[("t", args, SOME (TypeVar (abt_to_string abt)))],
+                 datatypes=[]}]]))
+
 fun create_view_datatype_decl ana (srt, opers) =
     let
-      val args = List.map (fn srt => "'" ^ sort_to_string srt) (#mutual ana srt)
-
       val oper_branches =
           List.map
             (fn (oper, arity_opt) =>
@@ -18,7 +41,7 @@ fun create_view_datatype_decl ana (srt, opers) =
                  (case arity_opt of
                       NONE => NONE
                     | SOME arity =>
-                      SOME (arity_to_type ana srt false arity))))
+                      SOME (sort_arity_to_type ana false srt arity))))
             opers
 
       val body =
@@ -26,36 +49,20 @@ fun create_view_datatype_decl ana (srt, opers) =
           then ("Var", SOME (sort_to_var_type srt)) :: oper_branches
           else oper_branches
     in
-      TypeDecls {datatypes = [("view", args, body)], aliases = []}
+      TypeDecls {datatypes = [("view", [], body)], aliases = []}
     end
 
-fun create_sort_structure_decl (ana : ana) (srt, opers) =
+fun create_sort_structure_decl (ana : ana) (sort, opers) =
     let
-      val mutual_type_decls =
-          List.map
-            (fn srt =>
-                TypeDecls
-                  {datatypes = [],
-                   aliases = [(sort_to_string srt, [], NONE)]})
-            (#mutual ana srt)
-
-      val mutual_var_decls =
-          List.map
-            (fn var_srt =>
-                TypeDecls
-                  {datatypes = [],
-                   aliases = [(sort_to_string var_srt ^ "Var", [], NONE)]})
-            (List.filter (#hasvar ana) (#mutual ana srt))
-
       val var_structure_decl =
-          if #hasvar ana srt
+          if #hasvar ana sort
           then
             [StructureDecl
                ("Var",
                 WhereType
                   (SigVar "TEMP",
                    TypeVar "t",
-                   sort_to_var_type srt))]
+                   sort_to_var_type sort))]
           else []
 
       val convenient_contructors =
@@ -66,83 +73,73 @@ fun create_sort_structure_decl (ana : ana) (srt, opers) =
                       ValDecl
                         (oper ^ "'",
                          case arity_opt of
-                             NONE => sort_to_type true srt
+                             NONE => sort_to_type sort
                            | SOME arity =>
-                             Arrow
-                               (arity_to_type ana srt true arity,
-                                sort_to_type true srt)))
+                             ArrowType
+                               (sort_arity_to_type ana false sort arity,
+                                sort_to_type sort)))
                   opers
           in
-            if #hasvar ana srt
+            if #hasvar ana sort
             then
               ValDecl
                 ("Var'",
-                 Arrow
-                   (sort_to_var_type srt,
-                    sort_to_type true srt))
+                 ArrowType
+                   (sort_to_var_type sort,
+                    sort_to_type sort))
               :: oper_constructors
             else
               oper_constructors
           end
 
-      val map_type =
-          List.foldr
-            Arrow
-            (Arrow (polymorphic_view ana srt "1", polymorphic_view ana srt "2"))
-            (List.map
-               (fn srt =>
-                   Arrow
-                     (TypeVar ("'" ^ sort_to_string srt ^ "1"),
-                      TypeVar ("'" ^ sort_to_string srt ^ "2")))
-               (#mutual ana srt))
-
       val substitutions =
           List.map
-            (fn srt' =>
+            (fn sort' =>
                 ValDecl
-                  (if srt = srt'
+                  (if sort = sort'
                    then "subst"
-                   else "subst" ^ Big (sort_to_string srt'),
-                   Arrow
-                     ((if #mutualwith ana srt srt'
-                       then sort_to_type true srt'
-                       else TypeVar (Big (sort_to_string srt') ^ ".t")),
-                      Arrow
-                        ((if #mutualwith ana srt srt'
-                          then sort_to_var_type srt'
-                          else TypeVar (Big (sort_to_string srt') ^ ".Var.t")),
-                         Arrow (sort_to_type true srt, sort_to_type true srt)))))
-            (List.filter (#hasvar ana) (#dependencies ana srt))
+                   else "subst" ^ Big (sort_to_string sort'),
+                   ArrowType
+                     ((if #mutualwith ana (Sort sort) (Sort sort')
+                       then sort_to_type sort'
+                       else TypeVar (Big (sort_to_string sort') ^ ".t")),
+                      ArrowType
+                        ((if #mutualwith ana (Sort sort) (Sort sort')
+                          then sort_to_var_type sort'
+                          else TypeVar (Big (sort_to_string sort') ^ ".Var.t")),
+                         ArrowType (sort_to_type sort, sort_to_type sort)))))
+            (List.filter (#hasvar ana) (#2 (#dependencies ana (Sort sort))))
 
       val all_decls =
           List.concat
-            [mutual_type_decls,
+            [create_mutual_type_decls ana (Sort sort),
              [TypeDecls
                 {datatypes = [],
-                 aliases = [("t", [], SOME (sort_to_type true srt))]}],
-             mutual_var_decls,
-             [BlankDecl],
+                 aliases = [(sort_to_string sort, [], NONE)]},
+              TypeDecls
+                {datatypes = [],
+                 aliases = [("t", [], SOME (sort_to_type sort))]},
+              BlankDecl],
              var_structure_decl,
-             [BlankDecl],
-             [create_view_datatype_decl ana (srt, opers)],
-             [BlankDecl],
+             [BlankDecl,
+              create_view_datatype_decl ana (sort, opers),
+              BlankDecl],
              convenient_contructors,
              [BlankDecl,
               ValDecl
-                ("into", Arrow (concrete_view ana srt, sort_to_type true srt)),
+                ("into", ArrowType (TypeVar "view", sort_to_type sort)),
               ValDecl
-                ("out", Arrow (sort_to_type true srt, concrete_view ana srt)),
+                ("out", ArrowType (sort_to_type sort, TypeVar "view")),
               ValDecl
                 ("aequiv",
-                 Arrow
-                   (Prod [sort_to_type true srt, sort_to_type true srt],
+                 ArrowType
+                   (ProdType [sort_to_type sort, sort_to_type sort],
                     TypeVar "bool")),
               ValDecl
-                ("toString", Arrow (sort_to_type true srt, TypeVar "string"))(*,
-              ValDecl ("map", map_type) ??? *)],
+                ("toString", ArrowType (sort_to_type sort, TypeVar "string"))],
              (case substitutions of [] => [] | _ => BlankDecl :: substitutions)]
     in
-      StructureDecl (Big (sort_to_string srt), SigBody all_decls)
+      StructureDecl (Big (sort_to_string sort), SigBody all_decls)
     end
 
 fun create_sharing_decls mods field =
@@ -150,52 +147,72 @@ fun create_sharing_decls mods field =
         [x] => []
       | x::y::mods' =>
         SharingDecl
-          (ModProj (Big (sort_to_string x), TypeVar field),
-           ModProj (Big (sort_to_string y), TypeVar field))
+          (ModProjType (Big x, TypeVar field),
+           ModProjType (Big y, TypeVar field))
         :: create_sharing_decls (y::mods') field
 
-fun create_mutual_sort_structure_decls ana srts =
+fun create_mutual_abt_and_sort_structure_decls ana abts_and_sorts =
     let
-      val sort_structures = List.map (create_sort_structure_decl ana) srts
+      val abt_and_sort_structures =
+          List.map
+            (fn Sum2.In1 abt => create_abt_structure_decl ana abt
+            | Sum2.In2 sort => create_sort_structure_decl ana sort)
+            abts_and_sorts
+
+      val abt_and_sort_strings =
+          List.map
+            (fn Sum2.In1 (abt, _) => abt_to_string abt
+            | Sum2.In2 (sort, _) => sort_to_string sort)
+            abts_and_sorts
+
+      fun remove_data abt_or_sort =
+          case abt_or_sort of
+              Sum2.In1 (abt, _) => Abt abt
+            | Sum2.In2 (sort, _) => Sort sort
     in
-      case srts of
-          ([] | [_]) => sort_structures
-        | (srt, _)::_ =>
-          sort_structures
+      case abts_and_sorts of
+          ([] | [_]) => abt_and_sort_structures
+        | abt_or_sort :: _ =>
+          abt_and_sort_structures
           @ List.concat
               (List.map
-                 (create_sharing_decls (List.map #1 srts))
-                 (List.map (sort_to_string o #1) srts
+                 (create_sharing_decls abt_and_sort_strings)
+                 (abt_and_sort_strings
                   @ List.map
-                      (fn srt => sort_to_string srt ^ "Var")
-                      (List.filter (#hasvar ana) (#mutual ana srt))))
+                      (fn sort => sort_to_string sort ^ "Var")
+                      (List.filter (#hasvar ana) (#2 (#mutual ana (remove_data abt_or_sort))))))
     end
 
 fun doit_user sig_name (ana : ana) =
     let
       val symbols =
-          interleave BlankDecl
-            (List.map
-               (fn sym =>
-                   StructureDecl
-                     (Big (sym_to_string sym),
-                      SigVar "TEMP"))
-               (#symbs ana))
+          List.map
+            (fn sym =>
+                StructureDecl
+                  (Big (sym_to_string sym),
+                   SigVar "TEMP"))
+            (#symbols ana)
 
-      val asts =
-          interleave BlankDecl
-            (List.map
-               (fn (ast, (args, _)) => ast_decl ast args)
-               (#asts ana))
+      val exts =
+          List.map
+            (fn (ext, args) =>
+                StructureDecl
+                  (Big (ext_to_string ext),
+                   create_ext_signature args))
+            (#externals ana)
 
-      val sorts =
-          interleave BlankDecl
-            (List.concat
-               (List.map (create_mutual_sort_structure_decls ana) (#sorts ana)))
+      val abts_and_sorts =
+          List.concat
+            (List.map
+               (create_mutual_abt_and_sort_structure_decls ana)
+               (#abts_and_sorts ana))
     in
       Emit.emit
         [TLSignature
            (sig_name,
-            SigBody (symbols @ [BlankDecl] @ asts @ [BlankDecl] @ sorts))]
+            SigBody
+              (symbols
+               @ [BlankDecl]
+               @ interleave BlankDecl (exts @ abts_and_sorts)))]
     end
 end

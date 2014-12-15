@@ -36,22 +36,22 @@ end *)= struct
 
   fun precedence TYPE =
       case TYPE of
-          (TypeVar _ | ModProj _ | Prod [] | Prod [_]) => 0
-        | App _ => 1
-        | Prod _ => 2
-        | Arrow _ => 3
+          (TypeVar _ | ModProjType _ | ProdType [] | ProdType [_]) => 0
+        | AppType _ => 1
+        | ProdType _ => 2
+        | ArrowType _ => 3
 
   fun emit_type TYPE acc =
       case TYPE of
           TypeVar name => String name :: acc
-        | Arrow (TYPE1, TYPE2) =>
+        | ArrowType (TYPE1, TYPE2) =>
           if precedence TYPE1 > 2
           then
             emit_type TYPE2
               (String ") -> " :: emit_type TYPE1 (String "(" :: acc))
           else
             emit_type TYPE2 (String " -> " :: emit_type TYPE1 acc)
-        | Prod TYPES =>
+        | ProdType TYPES =>
           (case TYPES of
                [] => String "unit" :: acc
              | _ =>
@@ -65,7 +65,7 @@ end *)= struct
                      then String ")" :: emit_type TYPE (String " * (" :: acc)
                      else emit_type TYPE (String " * " :: acc))
                  acc TYPES)
-        | App (args, func) =>
+        | AppType (args, func) =>
           let
             fun emit_args args acc =
                 case args of
@@ -83,7 +83,7 @@ end *)= struct
           in
             emit_type func (emit_args args acc)
           end
-        | ModProj (mod_name, TYPE) =>
+        | ModProjType (mod_name, TYPE) =>
           emit_type TYPE (String (mod_name ^ ".") :: acc)
 
   fun emit_datatype mutual name args branches acc =
@@ -258,6 +258,15 @@ end *)= struct
           :: emit_cases
                (String "(fn " :: acc)
                cases
+        | IfExp (e, et, ef) =>
+          String ")"
+          :: emit_exp ef
+               (Newline None
+                :: String "else "
+                :: emit_exp et
+                     (Newline None
+                      :: String "then "
+                      :: emit_exp e (String "if " :: acc)))
 
   and emit_cases acc cases =
       foldlSuper
@@ -316,7 +325,9 @@ end *)= struct
           emit_exp EXP (String " = " :: emit_pat PAT (String "val " :: acc))
         | OpenDefn STRUCT =>
           emit_struct STRUCT (String "open " :: acc)
-        | FunDefn funs =>
+        | DatatypeCopy (name, TYPE) =>
+          emit_type TYPE (String ("datatype " ^ name ^ " = datatype ") :: acc)
+        | FunDefns funs =>
           let
             fun emit_args args acc =
                 foldlSuper

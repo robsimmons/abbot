@@ -1,52 +1,37 @@
-open AbtSyntax
+open AbbotSyntax
 open Util
-
-fun arity_to_binding binding =
-    case binding of
-        ArityVar str =>
-        BindingVar str
-      | ProdArity aritys =>
-        ProdBinding (List.map arity_to_binding aritys)
-      | AppArity (str, aritys) =>
-        AppBinding (str, List.map arity_to_binding aritys)
-      | BindingArity _ => raise Fail "Variables can't be bound in other variables"
 
 %%
 
-%term EOF | ABT | AST | EQUAL | BAR | LPAREN | RPAREN | COMMA | SYMBOL | DOT | Name of string | STAR | TICK | OF
+%term EOF | SORT | ABT | EQUAL | BAR | LPAREN | RPAREN | COMMA | SYMBOL | DOT | STAR | TICK | OF | BINDING
+    | Name of string
 
 %nonterm start
-         of AbtSyntax.oper list StringTable.table
-         * string list
-         * (string list * AbtSyntax.ast_oper list) StringTable.table
+         of string list StringTable.table
+         * StringTable.Set.set
+         * (string list * AbbotSyntax.oper list) StringTable.table
+         * AbbotSyntax.oper list StringTable.table
        | decls
-         of AbtSyntax.oper list StringTable.table
-         * string list
-         * (string list * AbtSyntax.ast_oper list) StringTable.table
-       | decl of (string * AbtSyntax.oper list,
+         of string list StringTable.table
+         * StringTable.Set.set
+         * (string list * AbbotSyntax.oper list) StringTable.table
+         * AbbotSyntax.oper list StringTable.table
+       | decl of (string * string list,
                   string,
-                  string * (string list * AbtSyntax.ast_oper list))
-                  Util.Sum3.t
-       | abt_decl of string * AbtSyntax.oper list
-       | cases of AbtSyntax.oper list
-       | oper of AbtSyntax.oper
-       | arity of AbtSyntax.arity
-       | simple_arity of AbtSyntax.arity
-       | aritys of AbtSyntax.arity list
-       | prod_arity of AbtSyntax.arity list
-       | binding of AbtSyntax.binding
-       | bindings of AbtSyntax.binding list
-       | prod_binding of AbtSyntax.binding list
+                  string * (string list * AbbotSyntax.oper list),
+                  string * AbbotSyntax.oper list)
+                  Util.Sum4.t
        | symbol_decl of string
-       | ast_decl of string * (string list * AbtSyntax.ast_oper list)
-       | ast_arg of string list
-       | ast_args of string list
-       | ast_cases of AbtSyntax.ast_oper list
-       | ast_oper of AbtSyntax.ast_oper
-       | ast_arity of AbtSyntax.ast_arity
-       | simple_ast_arity of AbtSyntax.ast_arity
-       | ast_aritys of AbtSyntax.ast_arity list
-       | prod_ast_arity of AbtSyntax.ast_arity list
+       | abt_decl of string * (string list * AbbotSyntax.oper list option)
+       | abt_arg of string list
+       | abt_args of string list
+       | sort_decl of string * AbbotSyntax.oper list
+       | cases of AbbotSyntax.oper list
+       | oper of AbbotSyntax.oper
+       | arity of AbbotSyntax.arity
+       | simple_arity of AbbotSyntax.arity
+       | aritys of AbbotSyntax.arity list
+       | prod_arity of AbbotSyntax.arity list
 
 %nonassoc COMMA
 %nonassoc STAR
@@ -64,33 +49,57 @@ fun arity_to_binding binding =
 
 start: decls (decls)
 
-decls: (* empty *) ((StringTable.empty (), [], StringTable.empty ()))
+decls: (* empty *) ((StringTable.empty (), StringTable.Set.empty (), StringTable.empty (), StringTable.empty ()))
      | decl decls (let
-                    val (sorts, symbs, asts) = decls
+                    val (exts, symbs, abts, sorts) = decls
                   in
                     case decl of
-                        Sum3.In1 sort =>
+                        Sum4.In1 ext =>
                         (StringTable.insert
-                           (fn _ => raise Fail "Duplicate sort defined.")
-                           sort sorts,
-                         symbs,
-                         asts)
-                      | Sum3.In2 symb =>
-                        (sorts, symb::symbs, asts)
-                      | Sum3.In3 ast =>
-                        (sorts,
+                           (fn _ => raise Fail "Duplicate abt defined.")
+                           ext exts,
+                        symbs,
+                        abts,
+                        sorts)
+                      | Sum4.In2 symb =>
+                        (exts, StringTable.Set.insert symb symbs, abts, sorts)
+                      | Sum4.In3 abt =>
+                        (exts,
                          symbs,
                          StringTable.insert
-                           (fn _ => raise Fail "Duplicate ast defined.")
-                           ast asts)
+                           (fn _ => raise Fail "Duplicate abt defined.")
+                           abt abts,
+                         sorts)
+                      | Sum4.In4 sort =>
+                        (exts,
+                         symbs,
+                         abts,
+                         StringTable.insert
+                           (fn _ => raise Fail "Duplicate sort defined.")
+                           sort sorts)
                   end)
 
-decl: abt_decl (Sum3.In1 abt_decl)
-    | symbol_decl (Sum3.In2 symbol_decl)
-    | ast_decl (Sum3.In3 ast_decl)
+decl: symbol_decl (Sum4.In2 symbol_decl)
+    | abt_decl (case abt_decl of
+                    (abt, (args, NONE)) => Sum4.In1 (abt, args)
+                  | (abt, (args, SOME opers)) => Sum4.In3 (abt, (args, opers)))
+    | sort_decl (Sum4.In4 sort_decl)
 
-abt_decl: ABT Name EQUAL cases ((Name, cases))
-        | ABT Name EQUAL BAR cases ((Name, cases))
+symbol_decl: SYMBOL Name (Name)
+
+abt_decl: ABT abt_arg Name ((Name, (abt_arg, NONE)))
+        | ABT abt_arg Name EQUAL cases ((Name, (abt_arg, SOME cases)))
+        | ABT abt_arg Name EQUAL BAR cases ((Name, (abt_arg, SOME cases)))
+
+abt_arg: (* empty *) ([])
+       | TICK Name ([Name])
+       | LPAREN abt_args RPAREN (abt_args)
+
+abt_args: TICK Name ([Name])
+        | TICK Name COMMA abt_args (Name :: abt_args)
+
+sort_decl: SORT Name EQUAL cases ((Name, cases))
+         | SORT Name EQUAL BAR cases ((Name, cases))
 
 cases: oper ([oper])
      | oper BAR cases (oper :: cases)
@@ -99,54 +108,17 @@ oper: Name ((Name, NONE))
     | Name OF arity ((Name, SOME arity))
 
 arity: simple_arity (simple_arity)
-     | prod_arity (ProdArity prod_arity)
-     | arity DOT arity (BindingArity (arity_to_binding arity1, arity2))
+     | prod_arity (Prod prod_arity)
+     | arity DOT arity (Dot (arity1, arity2))
 
-simple_arity: Name (ArityVar Name)
-            | simple_arity Name (AppArity (Name, [simple_arity]))
-            | LPAREN aritys RPAREN Name (AppArity (Name, aritys))
+simple_arity: Name (Use Name)
+            | Name BINDING (Binding Name)
+            | simple_arity Name (App (Name, [simple_arity]))
+            | LPAREN aritys RPAREN Name (App (Name, aritys))
             | LPAREN arity RPAREN (arity)
-            | simple_arity DOT simple_arity
-                (BindingArity (arity_to_binding simple_arity1, simple_arity2))
 
 aritys: arity COMMA arity ([arity1, arity2])
       | arity COMMA aritys (arity :: aritys)
 
 prod_arity: simple_arity STAR simple_arity ([simple_arity1, simple_arity2])
           | simple_arity STAR prod_arity (simple_arity :: prod_arity)
-
-symbol_decl: SYMBOL Name (Name)
-
-ast_decl: AST ast_arg Name ((Name, (ast_arg, [])))
-        | AST ast_arg Name EQUAL ast_cases ((Name, (ast_arg, ast_cases)))
-        | AST ast_arg Name EQUAL BAR ast_cases ((Name, (ast_arg, ast_cases)))
-
-ast_arg: (* empty *) ([])
-       | TICK Name ([Name])
-       | LPAREN ast_args RPAREN (ast_args)
-
-ast_args: TICK Name ([Name])
-        | TICK Name COMMA ast_args (Name :: ast_args)
-
-ast_cases: ast_oper ([ast_oper])
-         | ast_oper BAR ast_cases (ast_oper :: ast_cases)
-
-ast_oper: Name ((Name, NONE))
-        | Name OF ast_arity ((Name, SOME ast_arity))
-
-ast_arity: simple_ast_arity (simple_ast_arity)
-         | prod_ast_arity (ProdAstArity prod_ast_arity)
-
-simple_ast_arity: Name (AppAstArity (Name, []))
-                | TICK Name (Param Name)
-                | simple_ast_arity Name (AppAstArity (Name, [simple_ast_arity]))
-                | LPAREN ast_aritys RPAREN Name (AppAstArity (Name, ast_aritys))
-                | LPAREN ast_arity RPAREN (ast_arity)
-
-ast_aritys: ast_arity COMMA ast_arity ([ast_arity1, ast_arity2])
-          | ast_arity COMMA ast_aritys (ast_arity :: ast_aritys)
-
-prod_ast_arity: simple_ast_arity STAR simple_ast_arity
-                ([simple_ast_arity1, simple_ast_arity2])
-              | simple_ast_arity STAR prod_ast_arity
-                (simple_ast_arity :: prod_ast_arity)
