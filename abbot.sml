@@ -21,8 +21,7 @@ structure Abbot = struct
               let
                 val tail :: _ =
                     List.rev
-                      (String.tokens (fn #"/" => true | _ => false))
-                      toFile
+                      (String.tokens (fn #"/" => true | _ => false) toFile)
 
                 val parts =
                     String.tokens
