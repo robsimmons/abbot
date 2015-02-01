@@ -2,10 +2,16 @@ structure Abbot = struct
   fun genFromFile
         (fromFile : string,
          namePartsOpt : string list option,
+         toDirOpt : string option,
          toFileOpt : string option) =
     let
       val () = print "Parsing...\n"
       val parse_data = Parse.parsefile fromFile
+
+      val toDir =
+          case toDirOpt of
+              NONE => ???
+            | SOME toDir => toDir
 
       val toFile =
           case toFileOpt of
@@ -19,36 +25,52 @@ structure Abbot = struct
                String.concat (List.map AbbotCore.Big parts))
             | NONE =>
               let
-                val tail :: _ =
-                    List.rev
-                      (String.tokens (fn #"/" => true | _ => false) toFile)
-
                 val parts =
                     String.tokens
                       (fn (#"." | #"-" | #"_") => true | _ => false)
                       tail
               in
-                (String.concatWith "_" (List.map AbbotCore.BIG parts) ^ "_ABT",
-                 String.concat (List.map AbbotCore.Big parts) ^ "Abt")
+                (String.concatWith "_" (List.map AbbotCore.BIG parts),
+                 String.concat (List.map AbbotCore.Big parts))
               end
 
       val () = print "Analysis...\n"
       val ana = Analysis.analyze parse_data
 
       val () = print "Generating signature...\n"
-      val stream = TextIO.openOut (toFile ^ ".sig")
+      val stream = TextIO.openOut (toDir ^ "/" ^ toFile ^ ".sig")
       val _ = Util.write stream (fn () => AbbotUser.doit_user sigName ana)
       val _ = Util.flush ()
       val _ = TextIO.closeOut stream
-      val _ = use (toFile ^ ".sig")
 
       val () = print "Generating structure...\n"
-      val stream = TextIO.openOut (toFile ^ ".sml")
+      val stream = TextIO.openOut (toDir ^ "/" ^ toFile ^ ".sml")
       val _ = Util.write stream
-                         (fn () => AbbotImpl.doit_impl sigName structName ana)
+                (fn () => AbbotImpl.doit_impl sigName structName ana)
       val _ = Util.flush ()
       val _ = TextIO.closeOut stream
-      val _ = use (toFile ^ ".sml")
+
+      val () = print "Pulling in support code...\n"
+      val stream = TextIO.openOut (toDir ^ "/abt.cm")
+      val _ =
+          Util.write stream
+            (fn () =>
+              emit
+                ["Group\n"
+                 ^ "  signature " ^ sigName ^ "\n"
+                 ^ "  structure " ^ structName ^ "\n"
+                 ^ "is\n"
+                 ^ "  $/basis.cm\n"
+                 ^ "  temp.sig\n"
+                 ^ "  temp.sml\n"
+                 ^ "  symbol.sig\n"
+                 ^ "  symbol.sml\n"
+                 ^ "  abt.sig\n"
+                 ^ "  abt.sml\n"
+                 ^ "  " ^ toFile ^ ".sig\n"
+                 ^ "  " ^ toFile ^ ".sml\n"])
+      val _ = Util.flush ()
+      val _ = TextIO.closeOut stream
     in
       ()
     end
