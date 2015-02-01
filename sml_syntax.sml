@@ -7,7 +7,6 @@ struct
     | AppType of TYPE list * TYPE
     | ModProjType of STRUCT * string
 
-
   and SIG
     = SigVar of string
     | SigBody of decl list

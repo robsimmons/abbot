@@ -19,7 +19,7 @@ fun create_mutual_type_decls ana abt_or_sort =
                aliases})
       (op@ (create_mutual_types ana abt_or_sort))
 
-fun create_abt_structure_decl ana (abt, (args, opers)) =
+ fun create_abt_structure_decl ana (abt, (args, opers)) =
     StructureDecl
       (Big (abt_to_string abt),
        SigBody
@@ -30,7 +30,21 @@ fun create_abt_structure_decl ana (abt, (args, opers)) =
                  aliases=[]}],
              [TypeDecls
                 {aliases=[("t", args, SOME (TypeVar (abt_to_string abt)))],
-                 datatypes=[]}]]))
+                 datatypes=[]}],
+             [ValDecl
+                ("aequiv",
+                 List.foldr
+                   (fn (arg, acc) => ArrowType (TypeVar (arg ^ "_aequiv"), acc))
+                   (ArrowType
+                      (ProdType
+                         [AppType
+                            (List.map (fn arg => TypeVar ("'" ^ arg)) args,
+                             TypeVar "t"),
+                          AppType
+                            (List.map (fn arg => TypeVar ("'" ^ arg)) args,
+                             TypeVar "t")],
+                       TypeVar "bool"))
+                   args)]]))
 
 fun create_view_datatype_decl ana (srt, opers) =
     let
