@@ -46,7 +46,7 @@ fun create_view_datatype_decl ana (srt, opers) =
 
       val body =
           if #hasvar ana srt
-          then ("Var", SOME (sort_to_var_type srt)) :: oper_branches
+          then ("Var", SOME (TypeVar (sort_to_var_type srt))) :: oper_branches
           else oper_branches
     in
       TypeDecls {datatypes = [("view", [], body)], aliases = []}
@@ -62,7 +62,7 @@ fun create_sort_structure_decl (ana : ana) (sort, opers) =
                 WhereType
                   (SigVar "TEMP",
                    TypeVar "t",
-                   sort_to_var_type sort))]
+                   TypeVar (sort_to_var_type sort)))]
           else []
 
       val convenient_contructors =
@@ -85,7 +85,7 @@ fun create_sort_structure_decl (ana : ana) (sort, opers) =
               ValDecl
                 ("Var'",
                  ArrowType
-                   (sort_to_var_type sort,
+                   (TypeVar (sort_to_var_type sort),
                     sort_to_type sort))
               :: oper_constructors
             else
@@ -105,7 +105,7 @@ fun create_sort_structure_decl (ana : ana) (sort, opers) =
                        else TypeVar (Big (sort_to_string sort') ^ ".t")),
                       ArrowType
                         ((if #mutualwith ana (Sort sort) (Sort sort')
-                          then sort_to_var_type sort'
+                          then TypeVar (sort_to_var_type sort')
                           else TypeVar (Big (sort_to_string sort') ^ ".Var.t")),
                          ArrowType (sort_to_type sort, sort_to_type sort)))))
             (List.filter (#hasvar ana) (#2 (#dependencies ana (Sort sort))))
@@ -147,8 +147,8 @@ fun create_sharing_decls mods field =
         [x] => []
       | x::y::mods' =>
         SharingDecl
-          (ModProjType (Big x, TypeVar field),
-           ModProjType (Big y, TypeVar field))
+          (ModProjType (StructVar (Big x), field),
+           ModProjType (StructVar (Big y), field))
         :: create_sharing_decls (y::mods') field
 
 fun create_mutual_abt_and_sort_structure_decls ana abts_and_sorts =

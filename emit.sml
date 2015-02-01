@@ -1,8 +1,8 @@
 (* ??? sean mclaughlin formatter *)
 
-structure Emit(* :> sig
-  val emit : AbstractSML.toplevel_defn list -> unit
-end *)= struct
+structure Emit :> sig
+  val emit : SmlSyntax.toplevel_defn list -> unit
+end = struct
   open Util
   infixr 0 >>
   open SmlSyntax
@@ -83,10 +83,10 @@ end *)= struct
           in
             emit_type func (emit_args args acc)
           end
-        | ModProjType (mod_name, TYPE) =>
-          emit_type TYPE (String (mod_name ^ ".") :: acc)
+        | ModProjType (STRUCT, field) =>
+          String ("." ^ field) :: emit_struct STRUCT acc
 
-  fun emit_datatype mutual name args branches acc =
+  and emit_datatype mutual name args branches acc =
       Newline Decr
       :: foldlSuper
            (fn ((cons_name, type_opt), acc) =>
@@ -109,7 +109,7 @@ end *)= struct
             :: acc)
            branches
 
-  fun emit_decl d acc =
+  and emit_decl d acc =
       case d of
           BlankDecl => Newline None :: acc
         | StructureDecl (name, SIG) =>
@@ -175,7 +175,7 @@ end *)= struct
              :: emit_type TYPE1
                   (String " where type " :: emit_sig SIG acc))
 
-  fun emit_pat PAT acc =
+  and emit_pat PAT acc =
       case PAT of
           Wild => String "_" :: acc
         | VarPat name => String name :: acc
@@ -206,7 +206,7 @@ end *)= struct
           String ")"
           :: emit_pat PAT2 (String " :: " :: emit_pat PAT1 (String "(" :: acc))
 
-  fun emit_exp EXP acc =
+  and emit_exp EXP acc =
       case EXP of
           ExpVar name => String name :: acc
         | TupleExp exps =>
@@ -242,6 +242,8 @@ end *)= struct
                (fn (EXP, acc) => emit_exp EXP acc)
                (fn (EXP, acc) => emit_exp EXP (String " " :: acc))
                (String "(" :: acc) exps
+        | IntExp i =>
+          String (Int.toString i) :: acc
         | StringExp str =>
           String ("\"" ^ str ^ "\"") :: acc
         | LetExp (defns, EXP) =>
@@ -261,12 +263,12 @@ end *)= struct
         | IfExp (e, et, ef) =>
           String ")"
           :: emit_exp ef
-               (Newline None
-                :: String "else "
+               (String "else "
+                :: Newline None
                 :: emit_exp et
-                     (Newline None
-                      :: String "then "
-                      :: emit_exp e (String "if " :: acc)))
+                     (String "then "
+                      :: Newline None
+                      :: emit_exp e (String "(if " :: acc)))
 
   and emit_cases acc cases =
       foldlSuper

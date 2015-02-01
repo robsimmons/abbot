@@ -72,6 +72,9 @@ structure Analysis :> sig
     (* Abts and sorts that the given abt or sort refers to. *)
     dependencies : abt_or_sort -> abt list * sort list,
 
+    (* Returns true iff the first abt or sort given depends on the second. *)
+    dependson : abt_or_sort -> abt_or_sort -> bool,
+
     (* Returns all the mutually dependent abts and sorts
      * of a given abt or sort, including itself. *)
     mutual : abt_or_sort -> abt list * sort list,
@@ -146,6 +149,7 @@ end = struct
     args : abt -> string list,
     hasvar : sort -> bool,
     dependencies : abt_or_sort -> abt list * sort list,
+    dependson : abt_or_sort -> abt_or_sort -> bool,
     mutual : abt_or_sort -> abt list * sort list,
     mutualwith : abt_or_sort -> abt_or_sort -> bool
   }
@@ -163,13 +167,13 @@ end = struct
            then AppAbt (name, [])
            else if Set.find exts name
            then AppExt (name, [])
-           else raise Fail "??? put legit error here")
+           else raise Fail (name ^ " is not a defined symbol, abt, or sort.")) (*???location*)
         | AbbotSyntax.Binding name =>
           (if Set.find sorts name
            then SortBinding name
            else if Set.find symbs name
            then SymbolBinding name
-           else raise Fail (name ^ " is not a sort or symbol, so it cannot be bound"))
+           else raise Fail (name ^ " is not a sort or symbol, so it cannot be bound.")) (*???location*)
         | AbbotSyntax.Prod aritys =>
           Prod (List.map (convert_abt_arity (exts, symbs, abts, sorts)) aritys)
         | AbbotSyntax.App ("list", [arity]) =>
@@ -189,37 +193,41 @@ end = struct
                 List.map
                   (convert_abt_arity (exts, symbs, abts, sorts))
                   aritys)
-           else raise Fail "??? put legit error here")
+           else raise Fail (name ^ " is not a defined abt.")) (*???location*)
         | AbbotSyntax.Dot (binding, arity) =>
           Dot
             (convert_abt_arity (exts, symbs, abts, sorts) binding,
              convert_abt_arity (exts, symbs, abts, sorts) arity)
 
-  fun abt_arity_binds abts arity =
+  val depth = ref 0
+
+  fun abt_arity_binds abt abts arity =
       case arity of
           (Param _ | SymbolUse _ | SortUse _) => false
         | (SymbolBinding _ | SortBinding _) => true
-        | List arity => abt_arity_binds abts arity
+        | List arity => abt_arity_binds abt abts arity
         | (Prod aritys | AppExt (_, aritys)) =>
-          List.exists (abt_arity_binds abts) aritys
-        | AppAbt (abt, aritys) =>
-          List.exists (abt_arity_binds abts) aritys
+          List.exists (abt_arity_binds abt abts) aritys
+        | AppAbt (abt', aritys) =>
+          List.exists (abt_arity_binds abt abts) aritys
           orelse
-          let val (args, opers) = valOf (find abts abt) in
+          if abt = abt' then false else (* ???This will diverge under mutual dependence *)
+          let val (args, opers) = valOf (find abts abt') in
             List.exists
               (fn (_, arity_opt) =>
                   case arity_opt of
                       NONE => false
-                    | SOME arity => abt_arity_binds abts arity)
+                    | SOME arity => abt_arity_binds abt' abts arity)
               opers
           end
-        | Dot (_, arity) => abt_arity_binds abts arity
+        | Dot (_, arity) => abt_arity_binds abt abts arity
   end
 
   local open SortArity in
   fun convert_sort_arity (exts, symbs, abts, sorts) arity =
       case arity of
-          AbbotSyntax.Param _ => raise Fail "???put legit error here"
+          AbbotSyntax.Param _ =>
+          raise Fail "Sorts may not have parameters." (*???location, also this might be a bad error message*)
         | AbbotSyntax.Use name =>
           (if Set.find sorts name
            then SortUse name
@@ -229,13 +237,13 @@ end = struct
            then AppExt (name, [])
            else if Set.find abts name
            then AppAbt (name, [])
-           else raise Fail "??? put legit error here")
+           else raise Fail (name ^ " is not a defined symbol, abt, or sort.")) (*???location*)
         | AbbotSyntax.Binding name =>
           (if Set.find sorts name
            then SortBinding name
            else if Set.find symbs name
            then SymbolBinding name
-           else raise Fail "??? put legit error here2")
+           else raise Fail (name ^ " is not a sort or symbol, so it cannot be bound.")) (*???location*)
         | AbbotSyntax.Prod aritys =>
           Prod (List.map (convert_sort_arity (exts, symbs, abts, sorts)) aritys)
         | AbbotSyntax.App ("list", [arity]) =>
@@ -255,7 +263,7 @@ end = struct
                 List.map
                   (convert_sort_arity (exts, symbs, abts, sorts))
                   aritys)
-           else raise Fail "??? put legit error here")
+           else raise Fail (name ^ " is not a defined abt.")) (*???location*)
         | AbbotSyntax.Dot (binding, arity) =>
           Dot
             (convert_sort_arity (exts, symbs, abts, sorts) binding,
@@ -276,7 +284,7 @@ end = struct
               (fn (_, arity_opt) =>
                   case arity_opt of
                       NONE => false
-                    | SOME arity => abt_arity_binds abts arity)
+                    | SOME arity => abt_arity_binds abt abts arity)
               opers
           end
         | Dot (_, arity) => sort_arity_binds abts arity
@@ -452,7 +460,7 @@ end = struct
                              val arity' = convert_sort_arity all_names arity
                            in
                              if sort_arity_binds abts arity'
-                             then raise Fail "???put legit error here"
+                             then raise Fail "All bindings must come before a dot" (*???location*)
                              else SOME arity'
                            end))))
               sorts
@@ -526,9 +534,7 @@ end = struct
         val merged_dep_table =
             mapk
               (fn (srt, _) =>
-                  Set.insert
-                    srt
-                    (bfs direct_dep_table (Set.singleton srt) (Set.empty ())))
+                  bfs direct_dep_table (Set.singleton srt) (Set.singleton srt))
               direct_dep_table
 
         val dep_table =
@@ -550,6 +556,13 @@ end = struct
                      deps))
               merged_dep_table
         end
+
+        fun dependson (Abt str | Sort str) abt_or_sort =
+            let val SOME (abts, sorts) = find dep_table str in
+              case abt_or_sort of
+                  Abt abt => Set.find abts abt
+                | Sort sort => Set.find sorts sort
+            end
 
         fun dependencies (Abt str | Sort str) =
             let val SOME (abts, sorts) = find dep_table str in
@@ -683,6 +696,7 @@ end = struct
           abts_and_sorts=abts_and_sorts,
           haslist=haslist,
           dependencies=dependencies,
+          dependson=dependson,
           args=args,
           hasvar=hasvar,
           mutual=mutual,

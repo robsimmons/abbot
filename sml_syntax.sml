@@ -5,11 +5,10 @@ struct
     | ArrowType of TYPE * TYPE
     | ProdType of TYPE list
     | AppType of TYPE list * TYPE
-    | ModProjType of string * TYPE
+    | ModProjType of STRUCT * string
 
-  type data_cases = (string * TYPE option) list
 
-  datatype SIG
+  and SIG
     = SigVar of string
     | SigBody of decl list
     | WhereType of SIG * TYPE * TYPE
@@ -23,7 +22,7 @@ struct
     | ValDecl of string * TYPE
     | SharingDecl of TYPE * TYPE
 
-  datatype PAT
+  and PAT
     = Wild
     | VarPat of string
     | TuplePat of PAT list
@@ -32,11 +31,12 @@ struct
     | AscribedPat of PAT * TYPE
     | ConsPat of PAT * PAT
 
-  datatype EXP
+  and EXP
     = ExpVar of string
     | TupleExp of EXP list
     | CaseExp of EXP * (PAT * EXP) list
     | SeqExp of EXP list
+    | IntExp of int
     | StringExp of string
     | ListExp of EXP list
     | LetExp of defn list * EXP
@@ -58,6 +58,8 @@ struct
     | FunDefns of (string * PAT list * TYPE option * EXP) list
     | OpenDefn of STRUCT
     | DatatypeCopy of string * TYPE
+
+  withtype data_cases = (string * TYPE option) list
 
   datatype toplevel_defn
     = TLSignature of string * SIG

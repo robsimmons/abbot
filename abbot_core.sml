@@ -18,7 +18,7 @@ fun sort_to_type s =
     TypeVar (sort_to_string s)
 
 fun sort_to_var_type s =
-    TypeVar (sort_to_string s ^ "Var")
+    sort_to_string s ^ "Var"
 
 fun sym_to_type s =
     TypeVar (sym_to_string s)
@@ -53,7 +53,7 @@ fun create_abt_and_sort_fun
                 | SymbolBinding sym => sym_bindingf sym
                 | SortBinding sort => sort_bindingf sort
                 | Prod aritys => prodf (List.map abt_fun aritys)
-                | List arity => abt_fun arity
+                | List arity => listf (abt_fun arity)
                 | AppExt (ext, aritys) =>
                   extf (ext, List.map abt_fun aritys)
                 | AppAbt (abt, aritys) =>
@@ -72,7 +72,7 @@ fun create_abt_and_sort_fun
              | SymbolBinding sym => sym_bindingf sym
              | SortBinding sort => sort_bindingf sort
              | Prod aritys => prodf (List.map sort_fun aritys)
-             | List arity => sort_fun arity
+             | List arity => listf (sort_fun arity)
              | AppExt (ext, aritys) =>
                extf (ext, List.map sort_fun aritys)
              | AppAbt (abt, aritys) =>
@@ -90,29 +90,35 @@ fun arity_to_type (ana : ana) internal abt_or_sort =
           if internal
           then
             AppType
-              ([ModProjType ("Symbol", TypeVar "t")],
-               ModProjType ("Abt", TypeVar "t"))
-          else ModProjType (Big (sym_to_string sym), TypeVar "t"),
+              ([ModProjType (StructVar "Symbol", "t")],
+               ModProjType (StructVar "Abt", "t"))
+          else ModProjType (StructVar (Big (sym_to_string sym)), "t"),
        sort_usef =
        fn srt =>
           if #mutualwith ana abt_or_sort (Sort srt)
           then sort_to_type srt
-          else ModProjType (Big (sort_to_string srt), TypeVar "t"),
+          else ModProjType (StructVar (Big (sort_to_string srt)), "t"),
        sym_bindingf =
        fn sym =>
           if internal
-          then ModProjType ("Temp", TypeVar "t")
-          else ModProjType (Big (sym_to_string sym), TypeVar "t"),
+          then TypeVar "string"
+          else ModProjType (StructVar (Big (sym_to_string sym)), "t"),
        sort_bindingf =
        fn srt =>
-          if #mutualwith ana abt_or_sort (Sort srt)
-          then sort_to_var_type srt
-          else ModProjType (Big (sort_to_string srt), sort_to_var_type srt),
+          if internal
+          then TypeVar "string"
+          else if #mutualwith ana abt_or_sort (Sort srt)
+          then TypeVar (sort_to_var_type srt)
+          else
+            ModProjType
+              (StructVar (Big (sort_to_string srt)),
+               sort_to_var_type srt),
        prodf = ProdType,
        listf = fn typ => AppType ([typ], TypeVar "list"),
        extf =
        fn (ext, typs) =>
-          AppType (typs, ModProjType (Big (ext_to_string ext), TypeVar "t")),
+          AppType
+            (typs, ModProjType (StructVar (Big (ext_to_string ext)), "t")),
        abtf =
        fn (abt, typs) =>
           AppType
@@ -122,10 +128,10 @@ fun arity_to_type (ana : ana) internal abt_or_sort =
              else if internal
              then
                ModProjType
-                 (ops_name ana (Abt abt),
-                  TypeVar (abt_to_string abt))
+                 (StructVar (ops_name ana (Abt abt)),
+                  abt_to_string abt)
              else
-               ModProjType (Big (abt_to_string abt), TypeVar "t")),
+               ModProjType (StructVar (Big (abt_to_string abt)), "t")),
        dotf =
        fn (binding_typ, arity_typ) =>
           ProdType [binding_typ, arity_typ]}
@@ -215,8 +221,8 @@ fun create_mutual_types (ana : ana) abt_or_sort =
                  [(sort_to_string sort,
                    [],
                    ModProjType
-                     (ops_name ana (Sort sort),
-                      TypeVar (sort_to_string sort)))]})
+                     (StructVar (ops_name ana (Sort sort)),
+                      sort_to_string sort))]})
             other_sorts
 
       val mutual_var_types =
@@ -226,7 +232,7 @@ fun create_mutual_types (ana : ana) abt_or_sort =
                  aliases =
                  [(sort_to_string var_srt ^ "Var",
                    [],
-                   ModProjType ("Temp", TypeVar "t"))]})
+                   ModProjType (StructVar "Temp", "t"))]})
             (List.filter (#hasvar ana) mut_sorts)
     in
       (mutual_abt_types, mutual_sort_types @ mutual_var_types)

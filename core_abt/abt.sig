@@ -18,4 +18,6 @@ sig
   val unbind : 'oper binding_modifier -> 'oper t binding_modifier
   val into : 'oper binding_modifier -> 'oper view -> 'oper t
   val out : 'oper binding_modifier -> 'oper t -> 'oper view
+
+  val aequiv : ('oper * 'oper -> bool) -> 'oper t * 'oper t -> bool
 end

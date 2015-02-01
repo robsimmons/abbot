@@ -2,5 +2,7 @@ Group is
    $/basis.cm
    temp.sig
    temp.sml
+   symbol.sig
+   symbol.sml
    abt.sig
    abt.sml
