@@ -23,7 +23,7 @@ structure Abbot = struct
                 val parts =
                     String.tokens
                       (fn (#"." | #"-" | #"_") => true | _ => false)
-                      tail
+                      toFile
               in
                 (String.concatWith "_" (List.map AbbotCore.BIG parts),
                  String.concat (List.map AbbotCore.Big parts))
@@ -50,7 +50,7 @@ structure Abbot = struct
       val _ =
           Util.write stream
             (fn () =>
-              emit
+              Util.emit
                 ["Group\n"
                  ^ "  signature " ^ sigName ^ "\n"
                  ^ "  structure " ^ structName ^ "\n"
