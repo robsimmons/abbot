@@ -2,16 +2,11 @@ structure Abbot = struct
   fun genFromFile
         (fromFile : string,
          namePartsOpt : string list option,
-         toDirOpt : string option,
+         toDir : string,
          toFileOpt : string option) =
     let
       val () = print "Parsing...\n"
       val parse_data = Parse.parsefile fromFile
-
-      val toDir =
-          case toDirOpt of
-              NONE => ???
-            | SOME toDir => toDir
 
       val toFile =
           case toFileOpt of
