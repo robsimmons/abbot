@@ -163,6 +163,209 @@ val create_symbol_structures =
              NONE,
              StructVar "Temp"))
 
+
+fun internal_oper abt_or_sort oper =
+    Big (abt_or_sort_to_string abt_or_sort) ^ "'" ^ oper
+
+local
+  fun aequiv_code (ana : ana) abt_or_sort internal_abt =
+      let
+        val index =
+            let val index = ref 0 in
+              (fn str =>
+                  (index := !index + 1;
+                   str ^ "'" ^ Int.toString (!index)))
+            end
+      in
+        create_abt_and_sort_fun
+          {sym_usef =
+           fn sym =>
+              let
+                val str1 = index (sym_to_string sym)
+                val str2 = index (sym_to_string sym)
+              in
+                (VarPat str1,
+                 VarPat str2,
+                 SeqExp
+                   [ExpVar (Big (sym_to_string sym) ^ ".equal"),
+                    TupleExp [ExpVar str1, ExpVar str2]])
+              end,
+           sort_usef =
+           fn sort =>
+              let
+                val str1 = index (sort_to_string sort)
+                val str2 = index (sort_to_string sort)
+
+                val oper_aequiv =
+                    if #mutualwith ana abt_or_sort (Sort sort)
+                    then
+                      SeqExp
+                        [ExpVar "Abt.aequiv",
+                         ExpVar (sort_to_string sort ^ "_oper_aequiv")]
+                    else ExpVar (Big (sort_to_string sort) ^ ".aequiv")
+              in
+                (VarPat str1,
+                 VarPat str2,
+                 SeqExp
+                   [oper_aequiv,
+                    TupleExp [ExpVar str1, ExpVar str2]])
+              end,
+           sym_bindingf =
+           fn sym => (Wild, Wild, ExpVar "true"),
+           sort_bindingf =
+           fn sort => (Wild, Wild, ExpVar "true"),
+           prodf =
+           fn patexps =>
+              let
+                val (pats1, pats2, exps) =
+                    unzip3 patexps
+              in
+                (TuplePat pats1,
+                 TuplePat pats2,
+                 SeqExp (interleave (ExpVar "andalso") exps))
+              end,
+           listf =
+           fn (pat1, pat2, exp) =>
+              let
+                val str1 = index "list"
+                val str2 = index "list"
+              in
+                (VarPat str1,
+                 VarPat str2,
+                 SeqExp
+                   [ExpVar "ListPair.all",
+                    LamExp [(TuplePat [pat1, pat2], exp)],
+                    TupleExp [ExpVar str1, ExpVar str2]])
+              end,
+           extf =
+           fn (ext, patexps) =>
+              let
+                val str1 = index (ext_to_string ext)
+                val str2 = index (ext_to_string ext)
+              in
+                (VarPat str1,
+                 VarPat str2,
+                 SeqExp
+                   (ExpVar (Big (ext_to_string ext) ^ ".equal")
+                    :: List.map
+                         (fn (pat1, pat2, exp) =>
+                             LamExp [(TuplePat [pat1, pat2], exp)])
+                         patexps
+                    @ [TupleExp [ExpVar str1, ExpVar str2]]))
+              end,
+           abtf =
+           fn (abt, patexps) =>
+              let
+                val str1 = index (abt_to_string abt)
+                val str2 = index (abt_to_string abt)
+                val aequiv_str =
+                    if internal_abt
+                    then "internal_aequiv"
+                    else "aequiv"
+              in
+                (VarPat str1,
+                 VarPat str2,
+                 if #mutualwith ana abt_or_sort (Abt abt)
+                 then
+                   SeqExp
+                     [ExpVar (abt_to_string abt ^ "_" ^ aequiv_str),
+                      TupleExp [ExpVar str1, ExpVar str2]]
+                 else
+                   SeqExp
+                     [ExpVar (Big (abt_to_string abt) ^ "." ^ aequiv_str),
+                      TupleExp [ExpVar str1, ExpVar str2]])
+              end,
+           dotf =
+           fn ((patl1, patr1, exp1), (patl2, patr2, exp2)) =>
+              (TuplePat [patl1, patl2],
+               TuplePat [patr1, patr2],
+               SeqExp [exp1, ExpVar "andalso", exp2])}
+      end
+
+  fun paramf str = str ^ "_aequiv"
+in
+fun abt_aequiv ana internal (abt, (args, opers)) =
+    (abt_to_string abt ^
+     (if internal
+      then "_internal_aequiv"
+      else "_aequiv"),
+     List.map (VarPat o paramf) args
+     @ [TuplePat
+          [VarPat (abt_to_string abt ^ "1"),
+           VarPat (abt_to_string abt ^ "2")]],
+     NONE,
+     CaseExp
+       (TupleExp
+          [ExpVar (abt_to_string abt ^ "1"),
+           ExpVar (abt_to_string abt ^ "2")],
+        List.map
+          (fn (oper, arity_opt) =>
+              let
+                val oper' =
+                    if internal
+                    then internal_oper (Abt abt) oper
+                    else oper
+              in
+                case arity_opt of
+                    NONE =>
+                    (TuplePat [VarPat oper', VarPat oper'],
+                     ExpVar "true")
+                  | SOME arity =>
+                    let
+                      val (pat1, pat2, exp) =
+                          #1 (aequiv_code ana (Abt abt) internal)
+                             (fn str =>
+                                 (VarPat (str ^ "1"),
+                                  VarPat (str ^ "2"),
+                                  SeqExp
+                                    [ExpVar (paramf str),
+                                     TupleExp
+                                       [ExpVar (str ^ "1"),
+                                        ExpVar (str ^ "2")]]))
+                             arity
+                    in
+                      (TuplePat
+                         [InjPat (oper', pat1),
+                          InjPat (oper', pat2)],
+                       exp)
+                    end
+              end)
+          opers
+        @ [(Wild, ExpVar "false")]))
+
+fun sort_aequiv ana (sort, opers) =
+    (sort_to_string sort ^ "_oper_aequiv",
+     [TuplePat
+        [VarPat (sort_to_string sort ^ "1"),
+         VarPat (sort_to_string sort ^ "2")]],
+     NONE,
+     CaseExp
+       (TupleExp
+          [ExpVar (sort_to_string sort ^ "1"),
+           ExpVar (sort_to_string sort ^ "2")],
+        List.map
+          (fn (oper, arity_opt) =>
+              case arity_opt of
+                  NONE =>
+                  (TuplePat
+                     [VarPat (internal_oper (Sort sort) oper),
+                      VarPat (internal_oper (Sort sort) oper)],
+                   ExpVar "true")
+                | SOME arity =>
+                  let
+                    val (pat1, pat2, exp) =
+                        #2 (aequiv_code ana (Sort sort) true) arity
+                  in
+                    (TuplePat
+                       [InjPat (internal_oper (Sort sort) oper, pat1),
+                        InjPat (internal_oper (Sort sort) oper, pat2)],
+                     exp)
+                  end)
+          opers
+        @ [(Wild, ExpVar "false")]))
+end
+
+
 fun create_mutual_ops (ana : ana) (abts, sorts) =
     let
 (*??? should actually use this or similar.
@@ -211,9 +414,6 @@ fun create_mutual_ops (ana : ana) (abts, sorts) =
                    ([TypeVar (sort_to_string sort ^ "_oper")],
                     ModProjType (StructVar "Abt", "t"))))
             sorts
-
-      fun internal_oper abt_or_sort oper =
-          Big (abt_or_sort_to_string abt_or_sort) ^ "'" ^ oper
 
       local
         val args = ["x", "i"]
@@ -321,193 +521,6 @@ fun create_mutual_ops (ana : ana) (abts, sorts) =
       fun sort_rec name (sort, opers) =
           #2 (recs name (Sort sort)) (sort, opers)
       end
-
-
-      local
-        fun aequiv_code abt_or_sort =
-            let
-              val index =
-                  let val index = ref 0 in
-                    (fn str =>
-                        (index := !index + 1;
-                         str ^ "'" ^ Int.toString (!index)))
-                  end
-            in
-              create_abt_and_sort_fun
-                {sym_usef =
-                 fn sym =>
-                    let
-                      val str1 = index (sym_to_string sym)
-                      val str2 = index (sym_to_string sym)
-                    in
-                      (VarPat str1,
-                       VarPat str2,
-                       SeqExp
-                         [ExpVar (Big (sym_to_string sym) ^ ".equal"),
-                          TupleExp [ExpVar str1, ExpVar str2]])
-                    end,
-                 sort_usef =
-                 fn sort =>
-                    let
-                      val str1 = index (sort_to_string sort)
-                      val str2 = index (sort_to_string sort)
-
-                      val oper_aequiv =
-                          if #mutualwith ana abt_or_sort (Sort sort)
-                          then
-                            SeqExp
-                              [ExpVar "Abt.aequiv",
-                               ExpVar (sort_to_string sort ^ "_oper_aequiv")]
-                          else ExpVar (Big (sort_to_string sort) ^ ".aequiv")
-                    in
-                      (VarPat str1,
-                       VarPat str2,
-                       SeqExp
-                         [oper_aequiv,
-                          TupleExp [ExpVar str1, ExpVar str2]])
-                    end,
-                 sym_bindingf =
-                 fn sym => (Wild, Wild, ExpVar "true"),
-                 sort_bindingf =
-                 fn sort => (Wild, Wild, ExpVar "true"),
-                 prodf =
-                 fn patexps =>
-                    let
-                      val (pats1, pats2, exps) =
-                          unzip3 patexps
-                    in
-                      (TuplePat pats1,
-                       TuplePat pats2,
-                       SeqExp (interleave (ExpVar "andalso") exps))
-                    end,
-                 listf =
-                 fn (pat1, pat2, exp) =>
-                    let
-                      val str1 = index "list"
-                      val str2 = index "list"
-                    in
-                      (VarPat str1,
-                       VarPat str2,
-                       SeqExp
-                         [ExpVar "ListPair.all",
-                          LamExp [(TuplePat [pat1, pat2], exp)],
-                          TupleExp [ExpVar str1, ExpVar str2]])
-                    end,
-                 extf =
-                 fn (ext, patexps) =>
-                    let
-                      val str1 = index (ext_to_string ext)
-                      val str2 = index (ext_to_string ext)
-                    in
-                      (VarPat str1,
-                       VarPat str2,
-                       SeqExp
-                         (ExpVar (Big (ext_to_string ext) ^ ".equal")
-                          :: List.map
-                               (fn (pat1, pat2, exp) =>
-                                   LamExp [(TuplePat [pat1, pat2], exp)])
-                               patexps
-                          @ [TupleExp [ExpVar str1, ExpVar str2]]))
-                    end,
-                 abtf =
-                 fn (abt, patexps) =>
-                    let
-                      val str1 = index (abt_to_string abt)
-                      val str2 = index (abt_to_string abt)
-                    in
-                      (VarPat str1,
-                       VarPat str2,
-                       if #mutualwith ana abt_or_sort (Abt abt)
-                       then
-                         SeqExp
-                           [ExpVar (abt_to_string abt ^ "_aequiv"),
-                            TupleExp [ExpVar str1, ExpVar str2]]
-                       else
-                         SeqExp
-                           [ExpVar (Big (abt_to_string abt) ^ ".aequiv"),
-                            TupleExp [ExpVar str1, ExpVar str2]])
-                    end,
-                 dotf =
-                 fn ((patl1, patr1, exp1), (patl2, patr2, exp2)) =>
-                    (TuplePat [patl1, patl2],
-                     TuplePat [patr1, patr2],
-                     SeqExp [exp1, ExpVar "andalso", exp2])}
-            end
-
-        fun paramf str = str ^ "_aequiv"
-      in
-      fun abt_aequiv (abt, (args, opers)) =
-          (abt_to_string abt ^ "_aequiv",
-           List.map (VarPat o paramf) args
-           @ [TuplePat
-                [VarPat (abt_to_string abt ^ "1"),
-                 VarPat (abt_to_string abt ^ "2")]],
-           NONE,
-           CaseExp
-             (TupleExp
-                [ExpVar (abt_to_string abt ^ "1"),
-                 ExpVar (abt_to_string abt ^ "2")],
-              List.map
-                (fn (oper, arity_opt) =>
-                    case arity_opt of
-                        NONE =>
-                        (TuplePat
-                           [VarPat (internal_oper (Abt abt) oper),
-                            VarPat (internal_oper (Abt abt) oper)],
-                         ExpVar "true")
-                      | SOME arity =>
-                        let
-                          val (pat1, pat2, exp) =
-                              #1 (aequiv_code (Abt abt))
-                                 (fn str =>
-                                     (VarPat (str ^ "1"),
-                                      VarPat (str ^ "2"),
-                                      SeqExp
-                                        [ExpVar (paramf str),
-                                         TupleExp
-                                           [ExpVar (str ^ "1"),
-                                            ExpVar (str ^ "2")]]))
-                                 arity
-                        in
-                          (TuplePat
-                             [InjPat (internal_oper (Abt abt) oper, pat1),
-                              InjPat (internal_oper (Abt abt) oper, pat2)],
-                           exp)
-                        end)
-                opers
-               @ [(Wild, ExpVar "false")]))
-
-      fun sort_aequiv (sort, opers) =
-          (sort_to_string sort ^ "_oper_aequiv",
-           [TuplePat
-              [VarPat (sort_to_string sort ^ "1"),
-               VarPat (sort_to_string sort ^ "2")]],
-           NONE,
-           CaseExp
-             (TupleExp
-                [ExpVar (sort_to_string sort ^ "1"),
-                 ExpVar (sort_to_string sort ^ "2")],
-              List.map
-                (fn (oper, arity_opt) =>
-                    case arity_opt of
-                        NONE =>
-                        (TuplePat
-                           [VarPat (internal_oper (Sort sort) oper),
-                            VarPat (internal_oper (Sort sort) oper)],
-                         ExpVar "true")
-                      | SOME arity =>
-                        let
-                          val (pat1, pat2, exp) =
-                              #2 (aequiv_code (Sort sort)) arity
-                        in
-                          (TuplePat
-                             [InjPat (internal_oper (Sort sort) oper, pat1),
-                              InjPat (internal_oper (Sort sort) oper, pat2)],
-                           exp)
-                        end)
-                opers
-              @ [(Wild, ExpVar "false")]))
-      end
     in
       StructureDefn
         (String.concat
@@ -529,8 +542,8 @@ fun create_mutual_ops (ana : ana) (abts, sorts) =
                 @ List.map (sort_rec "unbind") sorts),
              BlankDefn,
              FunDefns
-               (List.map abt_aequiv abts
-                @ List.map sort_aequiv sorts)]))
+               (List.map (abt_aequiv ana true) abts
+                @ List.map (sort_aequiv ana) sorts)]))
     end
 
 (* Code duplication??? *)
@@ -1056,16 +1069,6 @@ fun create_sort_structure_defn (ana : ana) (sort, opers) =
                        ^ "." ^ sort_to_string sort ^ "_oper_unbind"),
                     ExpVar (sort_to_string sort)]])]
 
-      val aequiv_code =
-          FunDefns
-            [("aequiv",
-              [TuplePat [VarPat "l", VarPat "r"]],
-              NONE,
-              SeqExp
-                [ExpVar "raise",
-                 ExpVar "Fail",
-                 StringExp "Unimpl"])]
-
       val all_defns =
           List.concat
             [List.map TypeDefns (op@ (create_mutual_types ana (Sort sort))),
@@ -1308,7 +1311,8 @@ fun create_mutual_utils (ana : ana) (abts, sorts) =
                           (#2 (#dependencies ana (Sort sort)))))
                  sorts)
     in
-      [FunDefns (abt_toStrings @ sort_toStrings),
+      [FunDefns (List.map (abt_aequiv ana false) abts),
+       FunDefns (abt_toStrings @ sort_toStrings),
        FunDefns substitutions]
     end
 
@@ -1320,29 +1324,35 @@ fun create_structure_with_utils ana (abt_or_sort, deps) =
          StructBody
            (OpenDefn (StructVar (Big name))
             :: ValDefn (VarPat "toString", ExpVar (name ^ "_toString"))
-            :: ValDefn
-                 (VarPat "aequiv",
-                  (case abt_or_sort of
-                       Abt _ =>
-                       ExpVar
-                         (ops_name ana abt_or_sort ^ "." ^ name ^ "_aequiv")
-                     | Sort _ =>
-                       SeqExp
-                         [ExpVar "Abt.aequiv",
-                          ExpVar
-                            (ops_name ana abt_or_sort ^ "." ^ name ^ "_oper_aequiv")]))
-            :: List.map
-                 (fn sort' =>
-                     let
-                       val subst_name =
-                           if abt_or_sort = Sort sort'
-                           then "subst"
-                           else "subst" ^ Big (sort_to_string sort')
-                     in
-                       ValDefn
-                         (VarPat subst_name, ExpVar (name ^ "_" ^ subst_name))
-                     end)
-                 deps))
+            :: (case abt_or_sort of
+                 Abt abt =>
+                 [ValDefn
+                    (VarPat "internal_aequiv",
+                     ExpVar
+                       (ops_name ana abt_or_sort ^ "." ^ name ^ "_internal_aequiv")),
+                  ValDefn
+                    (VarPat "aequiv",
+                     ExpVar
+                       (name ^ "_aequiv"))]
+               | Sort _ =>
+                 [ValDefn
+                    (VarPat "aequiv",
+                     SeqExp
+                       [ExpVar "Abt.aequiv",
+                        ExpVar
+                          (ops_name ana abt_or_sort ^ "." ^ name ^ "_oper_aequiv")])])
+            @ List.map
+                (fn sort' =>
+                    let
+                      val subst_name =
+                          if abt_or_sort = Sort sort'
+                          then "subst"
+                          else "subst" ^ Big (sort_to_string sort')
+                    in
+                      ValDefn
+                        (VarPat subst_name, ExpVar (name ^ "_" ^ subst_name))
+                    end)
+                deps))
     end
 
 fun doit_impl sig_name struct_name (ana : ana) =
