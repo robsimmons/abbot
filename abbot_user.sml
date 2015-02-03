@@ -19,7 +19,7 @@ fun create_mutual_type_decls ana abt_or_sort =
                aliases})
       (op@ (create_mutual_types ana abt_or_sort))
 
- fun create_abt_structure_decl ana (abt, (args, opers)) =
+fun create_abt_structure_decl ana (abt, (args, opers)) =
     StructureDecl
       (Big (abt_to_string abt),
        SigBody
@@ -34,16 +34,36 @@ fun create_mutual_type_decls ana abt_or_sort =
              [ValDecl
                 ("aequiv",
                  List.foldr
-                   (fn (arg, acc) => ArrowType (TypeVar (arg ^ "_aequiv"), acc))
+                   (fn (arg, acc) =>
+                       ArrowType
+                         (ArrowType
+                            (ProdType
+                               [TypeVar ("'" ^ arg ^ "1"),
+                                TypeVar ("'" ^ arg ^ "2")],
+                             TypeVar "bool"),
+                          acc))
                    (ArrowType
                       (ProdType
                          [AppType
-                            (List.map (fn arg => TypeVar ("'" ^ arg)) args,
+                            (List.map (fn arg => TypeVar ("'" ^ arg ^ "1")) args,
                              TypeVar "t"),
                           AppType
-                            (List.map (fn arg => TypeVar ("'" ^ arg)) args,
+                            (List.map (fn arg => TypeVar ("'" ^ arg ^ "2")) args,
                              TypeVar "t")],
                        TypeVar "bool"))
+                   args)],
+             [ValDecl
+                ("toString",
+                 List.foldr
+                   (fn (arg, acc) =>
+                       ArrowType
+                         (ArrowType (TypeVar ("'" ^ arg), TypeVar "string"),
+                          acc))
+                   (ArrowType
+                      (AppType
+                         (List.map (fn arg => TypeVar ("'" ^ arg)) args,
+                          TypeVar "t"),
+                       TypeVar "string"))
                    args)]]))
 
 fun create_view_datatype_decl ana (srt, opers) =
