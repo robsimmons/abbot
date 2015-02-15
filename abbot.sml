@@ -58,8 +58,6 @@ structure Abbot = struct
                  ^ "  $/basis.cm\n"
                  ^ "  temp.sig\n"
                  ^ "  temp.sml\n"
-                 ^ "  symbol.sig\n"
-                 ^ "  symbol.sml\n"
                  ^ "  abt.sig\n"
                  ^ "  abt.sml\n"
                  ^ "  " ^ toFile ^ ".sig\n"
