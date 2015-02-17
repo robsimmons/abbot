@@ -1236,7 +1236,9 @@ fun create_mutual_utils (ana : ana) (abts, sorts) =
                listf = fn l => l,
                extf =
                fn (ext, exp, patexps) =>
-                  ExpVar "raise Fail \"Unimpl\"",
+                  (case patexps of
+                    [] => exp
+                  | _ => ExpVar "(raise Fail \"Unimpl\")"),
                abtf =
                fn abt =>
                   if #dependson ana (Abt abt) (Sort sort)
