@@ -492,7 +492,7 @@ fun create_mutual_ops (ana : ana) (abts, sorts) =
                      (internal_oper abt_or_sort oper),
                    exp]
 
-        fun ident l = l (* make these more global ??? *)
+        fun ident l = l (* make this more global ??? *)
 
         fun recs name abt_or_sort =
             create_recursors
@@ -1176,11 +1176,11 @@ fun create_mutual_utils (ana : ana) (abts, sorts) =
                     NONE => StringExp oper
                   | SOME exp =>
                     SeqExp
-                      [StringExp oper,
+                      [StringExp ("(" ^ oper ^ " "),
                        ExpVar "^",
-                       StringExp " ",
+                       exp,
                        ExpVar "^",
-                       exp]}
+                       StringExp ")"]}
 
       val abt_toStrings =
           List.map
