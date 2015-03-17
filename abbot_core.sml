@@ -90,7 +90,7 @@ fun arity_to_type (ana : ana) internal abt_or_sort =
           if internal
           then
             AppType
-              ([ModProjType (StructVar "Symbol", "t")],
+              ([TypeVar "unit"],
                ModProjType (StructVar "Abt", "t"))
           else ModProjType (StructVar (Big (sym_to_string sym)), "t"),
        sort_usef =
