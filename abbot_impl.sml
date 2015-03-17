@@ -188,7 +188,7 @@ local
                  VarPat str2,
                  SeqExp
                    [ExpVar "Abt.aequiv",
-                    LamExp ([Wild], ExpVar "true"),
+                    LamExp [(Wild, ExpVar "true")],
                     TupleExp [ExpVar str1, ExpVar str2]])
               end,
            sort_usef =
