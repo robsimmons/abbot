@@ -1196,15 +1196,19 @@ fun create_mutual_utils (ana : ana) (abts, sorts) =
                   val (name, args, typ, CaseExp (exp, cases)) = (* This is ugly ??? *)
                       #2 (toString_code (Sort sort)) (sort, opers)
                 in
-                  if #hasvar ana sort
-                  then
-                    (name, args, typ,
-                     CaseExp
-                       (SeqExp [ExpVar (Big (sort_to_string sort) ^ ".out"), exp],
-                        (InjPat (Big (sort_to_string sort) ^ ".Var", VarPat "x"),
-                         SeqExp [ExpVar (Big (sort_to_string sort) ^ ".Var.toString"), ExpVar "x"])
-                        :: cases))
-                  else (name, args, typ, CaseExp (exp, cases))
+                  (name, args, typ,
+                   CaseExp
+                     (SeqExp [ExpVar (Big (sort_to_string sort) ^ ".out"), exp],
+                      if #hasvar ana sort
+                      then
+                        (InjPat
+                           (Big (sort_to_string sort) ^ ".Var", VarPat "x"),
+                         SeqExp
+                           [ExpVar
+                              (Big (sort_to_string sort) ^ ".Var.toString"),
+                            ExpVar "x"])
+                        :: cases
+                      else cases))
                 end)
             sorts
 
@@ -1293,21 +1297,31 @@ fun create_mutual_utils (ana : ana) (abts, sorts) =
                                  #2 (subst_code (Sort sort) sort') (sort, opers)
                            in
                              (name, args, typ_opt,
-                              if #hasvar ana sort
-                              then
-                                CaseExp
-                                  (SeqExp [ExpVar (Big (sort_to_string sort) ^ ".out"), exp],
-                                   (InjPat (Big (sort_to_string sort) ^ ".Var", VarPat "y"),
-                                    IfExp
-                                      (SeqExp
-                                         [ExpVar (Big (sort_to_string sort) ^ ".Var.equal"),
-                                          TupleExp [ExpVar "x", ExpVar "y"]],
-                                       ExpVar "t",
-                                       SeqExp
-                                         [ExpVar (Big (sort_to_string sort) ^ ".Var'"),
-                                          ExpVar "y"]))
-                                   :: cases)
-                              else CaseExp (exp, cases))
+                              CaseExp
+                                (SeqExp
+                                   [ExpVar (Big (sort_to_string sort) ^ ".out"),
+                                    exp],
+                                 if #hasvar ana sort
+                                 then
+                                   if sort = sort'
+                                   then
+                                     (InjPat (Big (sort_to_string sort) ^ ".Var", VarPat "y"),
+                                      IfExp
+                                        (SeqExp
+                                           [ExpVar (Big (sort_to_string sort) ^ ".Var.equal"),
+                                            TupleExp [ExpVar "x", ExpVar "y"]],
+                                         ExpVar "t",
+                                         SeqExp
+                                           [ExpVar (Big (sort_to_string sort) ^ ".Var'"),
+                                            ExpVar "y"]))
+                                     :: cases
+                                   else
+                                     (InjPat (Big (sort_to_string sort) ^ ".Var", VarPat "y"),
+                                   SeqExp
+                                     [ExpVar (Big (sort_to_string sort) ^ ".Var'"),
+                                      ExpVar "y"])
+                                     :: cases
+                                 else cases))
                            end)
                        (List.filter
                           (#hasvar ana)
