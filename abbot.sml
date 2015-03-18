@@ -55,7 +55,7 @@ structure Abbot = struct
                  ^ "  signature " ^ sigName ^ "\n"
                  ^ "  structure " ^ structName ^ "\n"
                  ^ "is\n"
-                 ^ "  $/basis.cm\n"
+                 ^ "  ../cmlib/cmlib.cm\n"
                  ^ "  temp.sig\n"
                  ^ "  temp.sml\n"
                  ^ "  abt.sig\n"
