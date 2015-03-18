@@ -4,8 +4,6 @@ struct
 
   val counter = ref 0
 
-  val default = ("default", 0)
-
   fun hash (_, id) = id
 
   fun new s = (s, (counter := !counter + 1; !counter))
@@ -17,4 +15,13 @@ struct
   fun toString (s, id) = s ^ "@" ^ (Int.toString id)
 
   fun toUserString (s, id) = s
+
+  structure Dict =
+  RedBlackDict
+    (structure Key =
+     struct
+     type t = t
+     val eq = equal
+     val compare = compare
+     end)
 end

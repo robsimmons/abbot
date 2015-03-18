@@ -14,12 +14,11 @@ sig
   (* Provides a string representation of the globally unique temp. *)
   val toString : t -> string
 
-  (* Default value (shouldn't be used, but necessary to match ELEMENT sig. *)
-  val default : t
-
   (* Provides a hash representation of the temp. *)
   val hash : t -> int
 
   (* Provides the string used to create the temp. *)
   val toUserString : t -> string
+
+  structure Dict : DICT where type key = t
 end
