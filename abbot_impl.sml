@@ -223,7 +223,7 @@ local
               in
                 (TuplePat pats1,
                  TuplePat pats2,
-                 SeqExp (interleave (ExpVar "andalso") exps))
+                 SeqExp (interleave BoolAnd exps))
               end,
            listf =
            fn (pat1, pat2, exp) =>
@@ -280,7 +280,7 @@ local
            fn ((patl1, patr1, exp1), (patl2, patr2, exp2)) =>
               (TuplePat [patl1, patl2],
                TuplePat [patr1, patr2],
-               SeqExp [exp1, ExpVar "andalso", exp2])}
+               SeqExp [exp1, BoolAnd, exp2])}
       end
 
   fun paramf str = str ^ "_aequiv"
@@ -1243,7 +1243,11 @@ fun create_mutual_utils (ana : ana) (abts, sorts) =
                fn (ext, exp, patexps) =>
                   (case patexps of
                     [] => exp
-                  | _ => ExpVar "(raise Fail \"Unimpl\")"),
+                  | _ =>
+                    SeqExp
+                      (ExpVar (Big ext ^ ".map")
+                       :: List.map (fn patexp => LamExp [patexp]) patexps
+                       @ [exp]),
                abtf =
                fn abt =>
                   if #dependson ana (Abt abt) (Sort sort)

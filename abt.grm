@@ -112,6 +112,7 @@ arity: simple_arity (simple_arity)
      | arity DOT arity (Dot (arity1, arity2))
 
 simple_arity: Name (Use Name)
+            | TICK Name (Param Name)
             | Name BINDING (Binding Name)
             | simple_arity Name (App (Name, [simple_arity]))
             | LPAREN aritys RPAREN Name (App (Name, aritys))

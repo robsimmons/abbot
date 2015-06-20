@@ -269,6 +269,8 @@ end = struct
                      (String "then "
                       :: Newline None
                       :: emit_exp e (String "(if " :: acc)))
+        | BoolAnd =>
+          String "andalso" :: acc
 
   and emit_cases acc cases =
       foldlSuper

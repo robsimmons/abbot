@@ -41,6 +41,7 @@ struct
     | LetExp of defn list * EXP
     | LamExp of (PAT * EXP) list
     | IfExp of EXP * EXP * EXP
+    | BoolAnd
 
   and STRUCT
     = StructVar of string
