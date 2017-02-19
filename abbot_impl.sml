@@ -234,7 +234,7 @@ local
                 (VarPat str1,
                  VarPat str2,
                  SeqExp
-                   [ExpVar "ListPair.all",
+                   [ExpVar "ListPair.allEq",
                     LamExp [(TuplePat [pat1, pat2], exp)],
                     TupleExp [ExpVar str1, ExpVar str2]])
               end,
