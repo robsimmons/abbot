@@ -1245,9 +1245,9 @@ fun create_mutual_utils (ana : ana) (abts, sorts) =
                     [] => exp
                   | _ =>
                     SeqExp
-                      (ExpVar (Big ext ^ ".map")
+                      (ExpVar (Big (ext_to_string ext) ^ ".map")
                        :: List.map (fn patexp => LamExp [patexp]) patexps
-                       @ [exp]),
+                       @ [exp])),
                abtf =
                fn abt =>
                   if #dependson ana (Abt abt) (Sort sort)
