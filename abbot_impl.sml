@@ -234,7 +234,7 @@ local
                 (VarPat str1,
                  VarPat str2,
                  SeqExp
-                   [ExpVar "ListPair.all",
+                   [ExpVar "ListPair.allEq",
                     LamExp [(TuplePat [pat1, pat2], exp)],
                     TupleExp [ExpVar str1, ExpVar str2]])
               end,
@@ -1245,9 +1245,9 @@ fun create_mutual_utils (ana : ana) (abts, sorts) =
                     [] => exp
                   | _ =>
                     SeqExp
-                      (ExpVar (Big ext ^ ".map")
+                      (ExpVar (Big (ext_to_string ext) ^ ".map")
                        :: List.map (fn patexp => LamExp [patexp]) patexps
-                       @ [exp]),
+                       @ [exp])),
                abtf =
                fn abt =>
                   if #dependson ana (Abt abt) (Sort sort)
