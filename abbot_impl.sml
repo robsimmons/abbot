@@ -183,13 +183,20 @@ local
               let
                 val str1 = index (sym_to_string sym)
                 val str2 = index (sym_to_string sym)
+                val aequiv =
+                  if internal_abt then
+                    SeqExp
+                     [ExpVar "Abt.aequiv",
+                      LamExp [(Wild, ExpVar "true")],
+                      TupleExp [ExpVar str1, ExpVar str2]]
+                  else
+                    SeqExp
+                     [ExpVar (Big (sym_to_string sym) ^ ".equal"),
+                      TupleExp [ExpVar str1, ExpVar str2]]
               in
                 (VarPat str1,
                  VarPat str2,
-                 SeqExp
-                   [ExpVar "Abt.aequiv",
-                    LamExp [(Wild, ExpVar "true")],
-                    TupleExp [ExpVar str1, ExpVar str2]])
+                 aequiv)
               end,
            sort_usef =
            fn sort =>
