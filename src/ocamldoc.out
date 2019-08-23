@@ -1,0 +1,19 @@
+digraph G {
+  size="10,7.5";
+  ratio="fill";
+  rotate=90;
+  fontsize="12pt";
+  rankdir = TB ;
+"Layout" [style=filled, color=darkturquoise];
+"Layout" -> "Core";
+"Parse_tree" [style=filled, color=darkturquoise];
+"Parse_tree" -> "Core";
+"Runtime_ocaml" [style=filled, color=darkturquoise];
+"Runtime_ocaml" -> "Ppxlib";
+"Runtime_ocaml" -> "Core";
+"Runtime_sml" [style=filled, color=darkturquoise];
+"Runtime_sml" -> "Ppxlib";
+"Runtime_sml" -> "Core";
+"Typed" [style=filled, color=darkturquoise];
+"Typed" -> "Core";
+}

@@ -1,0 +1,35 @@
+symbol assign
+abt side
+
+abt tp =
+ | Nat
+ | Parr of tp * tp
+ | Unit
+ | Prod of tp * tp
+ | Void
+ | Sum of tp * tp
+ | Cmd of tp
+
+sort exp =
+ | Z
+ | S of exp
+ | Ifz of exp * exp * (exp binding . exp)
+ | Lam of exp binding * tp . exp
+ | Ap of exp * exp
+ | Let of exp binding * exp . exp
+ | Fix of exp binding * tp . exp
+ | Triv
+ | Pair of exp * exp
+ | Pr of side * exp
+(* | MatchPair of exp * (exp binding . exp binding . exp)*)
+ | Abort of tp * exp
+ | In of tp * tp * side * exp
+ | Case of exp * (exp binding . exp) * (exp binding . exp)
+ | Cmd of cmd
+
+abt cmd =
+ | Bnd of exp binding * exp . cmd
+ | Ret of exp
+ | Dcl of assign binding * exp . cmd
+ | Get of assign
+ | Set of assign * exp

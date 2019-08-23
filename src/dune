@@ -1,0 +1,14 @@
+(library
+ (name abbot)
+ (public_name abbot)
+ (inline_tests)
+ (preprocess (pps ppx_jane ppxlib.metaquot))
+ (libraries
+  core
+  ocamlgraph
+  ppxlib))
+
+(ocamllex lexer)
+(menhir
+ (flags -v --comment --strict) ;; --trace
+ (modules parser))

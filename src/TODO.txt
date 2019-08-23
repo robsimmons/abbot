@@ -1,0 +1,24 @@
+This is a list of potential improvements and features that are not necessary for correctness, in no
+particular order.
+- Allow flattened tuples and in-line records in ocaml. This requires changing the parser and asts to
+  match ocaml more closely, as well as changing the convenient constructors to be curried and have
+  labeled arguments in the ocaml case.
+- Convenient constructors for constructors with no arguments currently take a unit argument to work
+  around recursive module termination issues in ocaml. We could fix this for the sml case and or
+  find a workaround in the ocaml case.
+- Improve some of the internal naming. In particular, "Use" is pretty bad.
+- Optimize the work we do for simple abts in the case where they contain only other simple abts, by
+  changing the apply_renaming function to be the identity.
+- Optimize substitution to use explicit substitutions.
+- Improve the layout engine.
+  - We need a way to say to not include the space before/after a thing.
+    - Maybe just for atoms?
+    - Probably just within a particular list.
+  - We need a way to change the token we emit depending on whether the list is split into
+    lines. For example, it would be nice to use parens only for 1-line expressions and use begin end
+    for multi-line expressions in ocaml.
+  - We should consider including extra blank lines between items, possibly to a depth
+    specified by the user.
+- Improve the layout of the internals.
+- Support parameters for all the different abts, rather than just simple abts. Consider whether it
+  makes any sense for symbols or sorts to have parameters.

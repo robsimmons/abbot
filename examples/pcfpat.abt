@@ -1,0 +1,29 @@
+abt side =
+ | L
+ | R
+
+sort tp =
+ | Parr of tp * tp
+ | Unit
+ | Prod of tp * tp
+ | Void
+ | Sum of tp * tp
+ | Rec of tp . tp
+
+abt pat =
+ | Var of exp binding
+ | Tuple of exp * exp
+ | In of side * exp
+ | Fold of exp
+
+abt cases =
+ | Nil
+ | Cons of (pat . exp) * cases
+
+sort exp =
+ | Lam of exp binding * tp . exp
+ | Ap of exp * exp
+ | Tuple of exp * exp
+ | In of side * exp
+ | Fold of exp
+ | Match of exp * cases

@@ -1,0 +1,94 @@
+abt 'a unification_var
+
+abt kind =
+| Typ
+| Sing of typ
+| Arrow of (typ binding * kind) . kind
+
+sort typ =
+| UVar of typ unification_var
+| Modl_proj of modl * string
+| Fun of (typ binding * kind) . typ
+| Ap of typ * typ
+
+| Arrow of typ * typ
+| Forall of (typ binding * kind) . typ
+| Record of typ string_map
+| Sum of typ list
+| Number
+| Char
+| String
+
+abt decl =
+| Typ of typ binding * kind
+| Tag of typ * typ option
+| Val of typ
+| Modl of modl binding * sigture
+
+abt decls =
+| End
+| Cons of (string * decl) . decls
+
+abt sigture =
+| Arrow of (modl binding * sigture) . sigture
+| Proj_arrow of (modl binding * sigture) . sigture
+| Body of decls
+| Rec of modl binding . sigture
+
+sort tag =
+| Modl_proj of modl * string
+| In of int * int
+| Destr of term
+
+abt pat =
+| Wild
+| Var of term binding
+| Record of pat string_map
+| Tag of tag * pat option
+| Number of int64
+| String of string
+| Ascribe of pat * typ
+
+sort term =
+| Modl_proj of modl * string
+| Fun of (pat list * typ option) . term
+| Typ_fun of (typ binding * kind) . term
+| Ap of term * term
+| Typ_ap of term * typ
+| Record of term string_map
+| In of int * int * term
+| Match of term * (pat . term) list
+| Number of int64
+| Char of char
+| String of string
+| Built_in of string * typ
+| Let of defn . term
+| Ascribe of term * typ
+
+abt defn =
+| Typ of typ binding * typ
+| Tag of tag binding * tag
+| Val of pat * term
+| Modl of modl binding * modl
+
+abt defns =
+| End
+| Cons of (string * defn) . defns
+
+abt modl_field =
+| Typ of typ
+| Tag of tag
+| Val of term
+| Modl of modl
+
+sort modl =
+| Modl_proj of modl * string
+| Fun of (modl binding * sigture) . modl
+| Proj_fun of (modl binding * sigture) . modl
+| Ap of modl * modl
+| Proj_ap of modl * modl
+| Ascribe of modl * sigture
+| Rec of (modl binding * sigture) . modl
+| Body of (string * modl_field) list
+| Dep_body of defns
+| Let of defn . modl

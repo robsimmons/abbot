@@ -1,0 +1,26 @@
+abt label
+abt 'a labelMap
+
+abt 'a mylist =
+  | Nil
+  | Cons of 'a * 'a mylist
+
+sort tp =
+ | Parr of tp * tp
+ | Prod of tp labelMap
+ | Sum of tp labelMap
+ | Rec of tp . tp
+
+abt pat =
+ | Var of exp binding
+ | Tuple of exp labelMap
+ | In of label * exp
+ | Fold of exp
+
+sort exp =
+ | Lam of exp binding * tp . exp
+ | Ap of exp * exp
+ | Tuple of exp labelMap
+ | In of label * exp
+ | Fold of exp
+ | Match of exp * (pat . exp) mylist

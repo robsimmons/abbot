@@ -1,0 +1,20 @@
+opam-version: "1.2"
+maintainer: "Bill Duff <wduff11@gmail.com>"
+authors: [ "Bill Duff <wduff11@gmail.com>" "Rob Simmons" ]
+homepage: "https://github.com/robsimmons/abbot"
+bug-reports: "https://github.com/robsimmons/abbot/issues"
+dev-repo: "git@github.com:robsimmons/abbot.git"
+build: [
+  ["dune" "build" "-p" name "-j" jobs]
+]
+build-test: [["dune" "runtest" "-p" name "-j" jobs]]
+depends: [
+  "core"
+  "dune"
+  "ppx_jane"
+]
+descr: "
+Abbot is a tool for generating ocaml and sml code for \"abstract binding
+trees\", which are abstract syntax trees with logic to keep track of variable
+binding.
+"

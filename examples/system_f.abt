@@ -1,0 +1,9 @@
+sort typ =
+| Arrow of typ * typ
+| Forall of typ binding . typ
+
+sort term =
+| Fun of (term binding * typ) . term
+| Ap of term * term
+| TypFun of typ binding . term
+| TypAp of term * typ

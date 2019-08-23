@@ -1,0 +1,8 @@
+(executable
+ (name main)
+ (package abbot)
+ (public_name abbot)
+ (preprocess (pps ppx_jane))
+ (libraries
+  core
+  abbot))
