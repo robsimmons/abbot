@@ -1,8 +1,0 @@
-Group
-  signature BSTREE
-  functor MkTreap
-is
-  ../210basis.cm
-  signatures.cm
-
-  ../structures/MkTreap.sml

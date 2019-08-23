@@ -1,8 +1,0 @@
-Group
-  signature PRIMITIVES
-  structure Primitives
-is
-  ../210basis.cm
-  signatures.cm
-
-  ../structures/Primitives.sml
