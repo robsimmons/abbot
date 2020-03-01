@@ -1,4 +1,3 @@
-
 open! Core
 open Ppxlib
 open Ast_helper
@@ -894,7 +893,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
   [ [%stri open! Core]
   ; [%stri open! Abbot_runtime]
   ; [%stri [@@@warning "-27-32"]]
-  ; Str.open_ (Opn.mk ~override:Override (lident (module_name ^ "_intf")))
+  ; Str.open_ (Opn.mk ~override:Override (Mod.ident (lident (module_name ^ "_intf"))))
   ]
   @
   (match external_abts with

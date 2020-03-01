@@ -61,7 +61,7 @@ let layout_tuple fields =
 
 let rec layout_core_type
           ~outer_precedence
-          ({ ptyp_desc; ptyp_attributes = _; ptyp_loc = _ } : core_type)
+          ({ ptyp_desc; ptyp_attributes = _; ptyp_loc = _; ptyp_loc_stack = _ } : core_type)
   =
   match ptyp_desc with
   | Ptyp_any -> atom "_"
@@ -207,11 +207,16 @@ let layout_constant constant =
     end
 ;;
 
-let layout_attributes ~depth attributes =
+let layout_attributes ~depth (attributes : attributes) =
   list
-    (List.map attributes ~f:(fun (name, payload) ->
-       match payload with
-       | PStr [ { pstr_desc = Pstr_eval ({ pexp_desc; pexp_attributes = []; pexp_loc = _ }, []); pstr_loc = _ } ] ->
+    (List.map attributes ~f:(fun { attr_name; attr_payload; attr_loc = _ } ->
+       match attr_payload with
+       | PStr
+           [ { pstr_desc =
+                 Pstr_eval ({ pexp_desc; pexp_attributes = []; pexp_loc = _; pexp_loc_stack = _ }, [])
+             ; pstr_loc = _
+             }
+           ] ->
          let payload_layout =
            match pexp_desc with
            | Pexp_ident lident -> atom (string_of_lident lident)
@@ -220,7 +225,7 @@ let layout_attributes ~depth attributes =
              list
                (List.intersperse ~sep:(No_indent, comma)
                   (List.map exprs ~f:(function
-                     | { pexp_desc = Pexp_ident lident; pexp_attributes = []; pexp_loc = _ } ->
+                     | { pexp_desc = Pexp_ident lident; pexp_attributes = []; pexp_loc = _; pexp_loc_stack = _ } ->
                        (Indent, atom (string_of_lident lident))
                      | _ ->
                        raise_s [%message "unsupported attribute"])))
@@ -230,7 +235,7 @@ let layout_attributes ~depth attributes =
          in
          (No_indent,
           list
-            [ (No_indent, atom ("[" ^ String.init depth ~f:(const '@') ^ name.txt))
+            [ (No_indent, atom ("[" ^ String.init depth ~f:(const '@') ^ attr_name.txt))
             ; (Indent, payload_layout)
             ; (No_indent, atom ~magnet_left:true "]")
             ])
@@ -392,7 +397,7 @@ let layout_type_decl
                ((No_indent, lparen)
                 :: List.intersperse ~sep:(No_indent, comma)
                      (List.map ptype_params
-                        ~f:(fun ({ ptyp_desc; ptyp_attributes = _; ptyp_loc = _ }, variance) ->
+                        ~f:(fun ({ ptyp_desc; ptyp_attributes = _; ptyp_loc = _; ptyp_loc_stack = _ }, variance) ->
                              let variance_string =
                                match variance with
                                | Invariant -> ""
@@ -476,9 +481,9 @@ let layout_type_decls lang rec_flag type_decls =
          @ layout_type_decls' lang ~first_start_keyword:"withtype" type_alias_decls)
 ;;
 
-let layout_open
+let layout_open_desc
       lang
-      ({ popen_lid; popen_override; popen_attributes = _; popen_loc = _ } : open_description)
+      ({ popen_expr; popen_override; popen_attributes = _; popen_loc = _ } : open_description)
   =
   match lang with
   | `Sml -> raise_s [%message "open is not supported in sml."]
@@ -488,7 +493,7 @@ let layout_open
       | Override -> "open!"
       | Fresh -> "open"
     in
-    list [ (No_indent, atom open_keyword); (Indent, atom (string_of_lident popen_lid)) ]
+    list [ (No_indent, atom open_keyword); (Indent, atom (string_of_lident popen_expr)) ]
 ;;
 
 let layout_constraint ?(sep = ":") value typ =
@@ -703,14 +708,14 @@ and layout_signature_item lang ({ psig_desc; psig_loc = _ } : signature_item) =
   | Psig_modtype module_type_decl ->
     layout_module_type_decl lang module_type_decl
   | Psig_open open_description ->
-    layout_open lang open_description
+    layout_open_desc lang open_description
   | Psig_include { pincl_mod; pincl_attributes = _; pincl_loc = _ } ->
     list [ (No_indent, atom "include"); (Indent, layout_module_type lang pincl_mod) ]
   | Psig_extension (extension, _) ->
     begin
       match extension with
       | ({ txt = "sharing_type"; loc = _ },
-         PTyp { ptyp_desc = Ptyp_tuple [ type1; type2 ]; ptyp_attributes = _; ptyp_loc = _ })
+         PTyp { ptyp_desc = Ptyp_tuple [ type1; type2 ]; ptyp_attributes = _; ptyp_loc = _; ptyp_loc_stack = _ })
         ->
         list
           [ (No_indent, atom "sharing type")
@@ -729,6 +734,8 @@ and layout_signature_item lang ({ psig_desc; psig_loc = _ } : signature_item) =
   | Psig_class _
   | Psig_class_type _
   | Psig_attribute _
+  | Psig_typesubst _
+  | Psig_modsubst _
     ->
     raise_s [%message "unsupported signature item"]
 
@@ -747,7 +754,7 @@ let layout_arg arg_label arg =
     list [ (No_indent, atom ("?" ^ label ^ ":")); (Indent, arg) ]
 ;;
 
-let rec layout_pattern lang ~outer_precedence { ppat_desc; ppat_attributes = _; ppat_loc = _ } =
+let rec layout_pattern lang ~outer_precedence { ppat_desc; ppat_attributes = _; ppat_loc = _; ppat_loc_stack = _ } =
   match ppat_desc with
   | Ppat_any -> atom "_"
   | Ppat_var name -> atom name.txt
@@ -859,7 +866,7 @@ let rec try_to_get_list_elements expr =
 (* CR wduff: Are the precedence rules right for sml? *)
 (* CR wduff: Fix the way parens work here. Remove superfluous ones, add needed ones, and maybe use
    begin ... end for multi line stuff in the ocaml case. *)
-let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = _; pexp_loc = _ } =
+let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = _; pexp_loc = _; pexp_loc_stack = _ } =
   match pexp_desc with
   | Pexp_ident lident -> atom (string_of_lident lident)
   | Pexp_constant constant -> layout_constant constant
@@ -1294,6 +1301,7 @@ let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = 
   | Pexp_object _
   | Pexp_pack _
   | Pexp_open _
+  | Pexp_letop _
   | Pexp_unreachable
     ->
     raise_s [%message "unsupported expression"]
@@ -1304,7 +1312,7 @@ and layout_value_binding
       ~is_first_in_group
       { pvb_pat; pvb_expr; pvb_attributes = _; pvb_loc = _ }
   =
-  let rec strip_function_args (({ pexp_desc; pexp_attributes = _; pexp_loc = _ } as expr) : expression) =
+  let rec strip_function_args (({ pexp_desc; pexp_attributes = _; pexp_loc = _; pexp_loc_stack = _ } as expr) : expression) =
     match pexp_desc with
     | Pexp_fun (arg_label, default_opt, arg_pat, body) ->
       begin
@@ -1547,8 +1555,8 @@ and layout_structure_item lang ({ pstr_desc; pstr_loc = _ } : structure_item) =
     end
   | Pstr_modtype module_type_decl ->
     layout_module_type_decl lang module_type_decl
-  | Pstr_open open_description ->
-    layout_open lang open_description
+  | Pstr_open open_declaration ->
+    layout_open_decl lang open_declaration
   | Pstr_include { pincl_mod; pincl_attributes = _; pincl_loc = _ } ->
     list
       [ (No_indent,
@@ -1574,4 +1582,19 @@ and layout_structure lang structure =
   list
     (List.map structure ~f:(fun structure_item ->
        (No_indent, layout_structure_item lang structure_item)))
+
+and layout_open_decl
+      lang
+      ({ popen_expr; popen_override; popen_attributes = _; popen_loc = _ } : open_declaration)
+  =
+  match lang with
+  | `Sml -> raise_s [%message "open is not supported in sml."]
+  | `Ocaml ->
+    let open_keyword =
+      match popen_override with
+      | Override -> "open!"
+      | Fresh -> "open"
+    in
+    list [ (No_indent, atom open_keyword); (Indent, layout_module lang popen_expr) ]
+;;
 ;;

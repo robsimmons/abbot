@@ -139,9 +139,8 @@ let rec exposed_type_of_abt
         ]
 ;;
 
-let deriving_sexp_attribute : attribute =
-  (ident "deriving",
-   PStr [ Str.eval (eident "sexp_of") ])
+let deriving_sexp_attribute =
+  Attr.mk (ident "deriving") (PStr [ Str.eval (eident "sexp_of") ])
 ;;
 
 (* CR wduff: Simpify this away. *)
