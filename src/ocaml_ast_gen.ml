@@ -175,6 +175,13 @@ let sort_type defns =
   ]
 ;;
 
+let string_of_arg ~arg_count =
+  match arg_count with
+  | 0 -> (fun _ _ -> assert false)
+  | 1 -> (fun prefix _ -> prefix)
+  | _ -> (fun prefix i -> prefix ^ Int.to_string (i + 1))
+;;
+
 let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure =
   let external_abt_signatures =
     let arg_counts =
@@ -183,7 +190,7 @@ let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure 
       |> Set.to_list
     in
     List.map arg_counts ~f:(fun arg_count ->
-      let args = List.init arg_count ~f:(fun i -> sprintf "a%d" i) in
+      let string_of_arg = string_of_arg ~arg_count in
       Str.modtype
         (Mtd.mk
            (ident (sprintf "External_abt%d" arg_count))
@@ -192,7 +199,9 @@ let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure 
                 ([ Sig.type_ Recursive
                      [ Type.mk
                          (ident "t")
-                         ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+                         ~params:
+                           (List.init arg_count ~f:(fun arg ->
+                              (Typ.var (string_of_arg "a" arg), Invariant)))
                          ~attrs:[deriving_sexp_attribute]
                      ]
                  ]
@@ -205,27 +214,29 @@ let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure 
                            (Typ.arrow Nolabel
                               (Typ.constr
                                  (lident "t")
-                                 (List.map args ~f:(fun arg -> Typ.var (arg ^ "1"))))
+                                 (List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "a" arg))))
                               (Typ.arrow (Labelled "init")
                                  (Typ.var "acc")
-                                 (List.fold_right args
-                                    ~f:(fun arg acc ->
-                                      Typ.arrow (Labelled ("f_" ^ arg))
-                                        (Typ.arrow Nolabel
-                                           (Typ.var "acc")
-                                           (Typ.arrow Nolabel
-                                              (Typ.var (arg ^ "1"))
-                                              (Typ.tuple
-                                                 [ Typ.var "acc"
-                                                 ; Typ.var (arg ^ "2")
-                                                 ])))
-                                        acc)
+                                 (List.init arg_count ~f:(fun arg ->
+                                    (Labelled (string_of_arg "f" arg),
+                                     Typ.arrow Nolabel
+                                       (Typ.var "acc")
+                                       (Typ.arrow Nolabel
+                                          (Typ.var (string_of_arg "a" arg))
+                                          (Typ.tuple
+                                             [ Typ.var "acc"
+                                             ; Typ.var (string_of_arg "b" arg)
+                                             ]))))
+                                  |> List.fold_right
+                                    ~f:(fun (arg_label, arg_type) acc ->
+                                         Typ.arrow arg_label arg_type acc)
                                     ~init:
                                       (Typ.tuple
                                          [ Typ.var "acc"
                                          ; Typ.constr
                                              (lident "t")
-                                             (List.map args ~f:(fun arg -> Typ.var (arg ^ "2")))
+                                             (List.init arg_count ~f:(fun arg ->
+                                                Typ.var (string_of_arg "b" arg)))
                                          ])))))
                     ])))))
   in
@@ -296,7 +307,6 @@ let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure 
                      (Md.mk
                         (ident "Make")
                         (List.fold_right external_abts
-                           (* CR wduff: Add a bunch of with module = ... here. *)
                            ~f:(fun (name, arg_count) acc ->
                              Mty.functor_
                                (ident (String.capitalize name))
@@ -319,92 +329,107 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
   let refer_to_via_module = const true in
   let external_abt_modl_defns =
     List.map external_abts ~f:(fun (name, arg_count) ->
-      let args = List.init arg_count ~f:(fun i -> sprintf "a%d" i) in
-      let module_expr =
-        Mod.structure
-          [ Str.type_ Recursive
-              [ Type.mk (ident "t")
-                  ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
-                  ~manifest:(type_t ~via_module:true ~args:(List.map args ~f:Typ.var) name)
-                  ~attrs:[deriving_sexp_attribute]
-              ]
-          ; [%stri
-            let apply_renaming =
-              [%e
-                (match args with
-                 | [] -> [%expr fun _ acc t -> (acc, t)]
-                 | _::_ ->
-                   List.fold_right args
-                     ~f:(fun arg acc ->
-                       Exp.fun_ Nolabel None (Pat.var (ident ("apply_renaming_" ^ arg))) acc)
-                     ~init:
-                       [%expr
-                         fun renaming acc
-                           (t :
-                              [%t
+      let string_of_arg = string_of_arg ~arg_count in
+      let type_defn =
+        let args =
+          List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "a" arg))
+        in
+        Str.type_ Recursive
+          [ Type.mk (ident "t")
+              ~params:(List.map args ~f:(fun arg_var -> (arg_var, Invariant)))
+              ~manifest:(type_t ~via_module:true ~args name)
+              ~attrs:[deriving_sexp_attribute]
+          ]
+      in
+      let apply_renaming_defn =
+        let apply_renaming_of_arg = string_of_arg "apply_renaming" in
+        [%stri
+          let apply_renaming =
+            [%e
+               (* CR wduff: Checking for 0 here is a dumb way to deal with the unused variable
+                  issue, because an phantom type argument could also cause that. *)
+              (match arg_count with
+               | 0 -> [%expr fun _ acc t -> (acc, t)]
+               | _ ->
+                 List.fold_right (List.init arg_count ~f:Fn.id)
+                   ~f:(fun arg acc ->
+                     Exp.fun_ Nolabel None (Pat.var (ident (apply_renaming_of_arg arg))) acc)
+                   ~init:
+                     [%expr
+                       fun renaming acc
+                         (t :
+                            [%t
+                              Typ.constr
+                                (lident "t")
+                                (List.init arg_count ~f:(fun arg -> Typ.var (sprintf "a%d" arg)))])
+                         ->
+                           ([%e
+                             Exp.apply
+                               (eident (String.capitalize name ^ ".fold_map"))
+                               ((Nolabel, eident "t")
+                                ::
+                                (Labelled "init", eident "acc")
+                                ::
+                                List.init arg_count ~f:(fun arg ->
+                                  (Labelled (string_of_arg "f" arg),
+                                   Exp.apply
+                                     (eident (apply_renaming_of_arg arg))
+                                     [ (Nolabel, eident "renaming") ])))]
+                            : 'acc
+                              * [%t
                                 Typ.constr
                                   (lident "t")
-                                  (List.map args ~f:(fun arg -> Typ.var (arg ^ "1")))])
-                           ->
-                             ([%e
+                                  (List.init arg_count ~f:(fun arg -> Typ.var (sprintf "b%d" arg)))])])]]
+      in
+      let subst_defn =
+        let subst_of_arg = string_of_arg "subst" in
+        [%stri
+          let subst =
+            [%e
+              (match arg_count with
+               | 0 -> [%expr fun _ _ _ t -> t]
+               | _ ->
+                 List.fold_right (List.init arg_count ~f:Fn.id)
+                   ~f:(fun arg acc ->
+                     Exp.fun_ Nolabel None (Pat.var (ident (subst_of_arg arg))) acc)
+                   ~init:
+                     [%expr
+                       fun sort value var
+                         (t :
+                            [%t
+                              Typ.constr
+                                (lident "t")
+                                (List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "a" arg)))])
+                         ->
+                           let
+                             ((),
+                              (t
+                               : [%t
+                                 Typ.constr
+                                   (lident "t")
+                                   (List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "b" arg)))]))
+                             =
+                             [%e
                                Exp.apply
                                  (eident (String.capitalize name ^ ".fold_map"))
                                  ((Nolabel, eident "t")
                                   ::
-                                  (Labelled "init", eident "acc")
+                                  (Labelled "init", [%expr ()])
                                   ::
-                                  List.map args ~f:(fun arg ->
-                                    (* CR wduff: Special case the 1 case. *)
-                                    (Labelled ("f_" ^ arg),
-                                     Exp.apply
-                                       (eident ("apply_renaming_" ^ arg))
-                                       [ (Nolabel, eident "renaming") ])))]
-                              : 'acc
-                                * [%t
-                                  Typ.constr
-                                    (lident "t")
-                                    (List.map args ~f:(fun arg -> Typ.var (arg ^ "2")))])])]]
-          ; [%stri
-            let subst =
-              [%e
-                (match args with
-                 | [] -> [%expr fun _ _ _ t -> t]
-                 | _::_ ->
-                   List.fold_right args
-                     ~f:(fun arg acc ->
-                       Exp.fun_ Nolabel None (Pat.var (ident ("subst_" ^ arg))) acc)
-                     ~init:
-                       [%expr
-                         fun sort value var
-                           (t :
-                              [%t
-                                Typ.constr
-                                  (lident "t")
-                                  (List.map args ~f:(fun arg -> Typ.var (arg ^ "1")))])
-                           ->
-                             let
-                               ((),
-                                (t
-                                 : [%t
-                                   Typ.constr
-                                     (lident "t")
-                                     (List.map args ~f:(fun arg -> Typ.var (arg ^ "2")))]))
-                               =
-                               [%e
-                                 Exp.apply
-                                   (eident (String.capitalize name ^ ".fold_map"))
-                                   ((Nolabel, eident "t")
-                                    ::
-                                    (Labelled "init", [%expr ()])
-                                    ::
-                                    List.map args ~f:(fun arg ->
-                                      (* CR wduff: Special case the 1 case. *)
-                                      (Labelled ("f_" ^ arg),
-                                       [%expr
-                                         fun () [%p pvar arg] ->
-                                           ((), [%e eident ("subst_" ^ arg)] sort value var [%e eident arg])])))]
-                             in
-                             t])]]
+                                  List.init arg_count ~f:(fun arg ->
+                                    let arg_var = string_of_arg "arg" arg in
+                                    (Labelled (string_of_arg "f" arg),
+                                     [%expr
+                                       fun () [%p pvar arg_var] ->
+                                         ((), [%e eident (subst_of_arg arg)] sort value var [%e eident arg_var])])))]
+                           in
+                           t])]]
+      in
+      let module_expr =
+        Mod.structure
+          [ type_defn
+          ; apply_renaming_defn
+          ; subst_defn
           ]
       in
       Str.module_ (Mb.mk (ident (String.capitalize name)) module_expr))

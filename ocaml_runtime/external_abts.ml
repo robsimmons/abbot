@@ -16,8 +16,6 @@ module type S1 = sig
   val subst : ('sort -> 'value -> 'var -> 'a -> 'a) -> 'sort -> 'value -> 'var -> 'a t -> 'a t
 end
 
-(* CR wduff: Consider exposing these functors and call them in the generated code for non-builtin
-   external abts, for the arities we support. *)
 module Make0 (T : sig type t [@@deriving sexp_of] end) = struct
   type t = T.t [@@deriving sexp_of]
 

@@ -1,6 +1,5 @@
 open! Core
 
-(* CR wduff: Should we handle product as if it were an infix built-in? *)
 type t =
   | Unit
   | Int

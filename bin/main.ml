@@ -29,8 +29,6 @@ let main ~input_file ~output_file ~language_specific ~max_line_length () =
   in
   let output_interface_file =
     match output_language with
-    (* CR wduff: This used to be .mli, but it has changed to _intf.ml. Do the collision checks need
-       to be updated? *)
     | `Ocaml -> output_file ^ "_intf.ml"
     | `Sml -> output_file ^ ".sig"
   in
@@ -39,10 +37,16 @@ let main ~input_file ~output_file ~language_specific ~max_line_length () =
     | `Ocaml -> output_file ^ ".ml"
     | `Sml -> output_file ^ ".sml"
   in
+  let output_mli_file =
+    match output_language with
+    | `Sml -> None
+    | `Ocaml -> Some (output_file ^ ".mli")
+  in
   begin
     match
       String.equal input_file output_interface_file
       || String.equal input_file output_implementation_file
+      || Option.equal String.equal (Some input_file) output_mli_file
     with
     | false -> ()
     | true ->
@@ -55,16 +59,16 @@ let main ~input_file ~output_file ~language_specific ~max_line_length () =
   end;
   Out_channel.with_file output_interface_file ~f:(fun out_channel ->
     Ast_layout.layout_structure output_language output_interface_ast
-    |> Layout.to_string ~max_length:max_line_length
+    |> Layout.to_string ~max_line_length
     |> Out_channel.output_string out_channel);
   Out_channel.with_file output_implementation_file ~f:(fun out_channel ->
     Ast_layout.layout_structure output_language output_implementation_ast
-    |> Layout.to_string ~max_length:max_line_length
+    |> Layout.to_string ~max_line_length
     |> Out_channel.output_string out_channel);
-  match output_language with
-  | `Sml -> ()
-  | `Ocaml ->
-    Out_channel.with_file (output_file ^ ".mli") ~f:(fun out_channel ->
+  match output_mli_file with
+  | None -> ()
+  | Some output_mli_file ->
+    Out_channel.with_file output_mli_file ~f:(fun out_channel ->
       let module_name = String.capitalize output_file in
       Out_channel.output_string out_channel
         (sprintf "include %s_intf.%s" module_name module_name))
