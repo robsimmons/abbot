@@ -1,7 +1,5 @@
 abt label
 abt 'a labelMap
-(* CR wduff: Fix the sml stuff so this isn't necessary. *)
-abt 'a list1
 
 sort tp =
  | Parr of tp * tp
@@ -21,4 +19,4 @@ sort exp =
  | Tuple of exp labelMap
  | In of label * exp
  | Fold of exp
- | Match of exp * (pat . exp) list1
+ | Match of exp * (pat . exp) list

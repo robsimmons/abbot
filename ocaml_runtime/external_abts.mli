@@ -1,7 +1,5 @@
 open! Core
 
-(* CR wduff: Add this to the sml runtime as well. *)
-
 module type S0 = sig
   type t [@@deriving sexp_of]
 
