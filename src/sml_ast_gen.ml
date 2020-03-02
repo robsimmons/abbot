@@ -343,8 +343,7 @@ let gen_interface (context : Context.t) (defns : Defn.t list) : Ppxlib.Parsetree
            ])
     ]
   in
-  [ Str.modtype Runtime_sml.temp_intf
-  ; Str.modtype
+  [ Str.modtype
       (Mtd.mk (ident (String.uppercase context.structure_name))
          ~typ:
            (Mty.signature
@@ -424,6 +423,7 @@ end
 (* CR wduff: Make defns a hash_queue or something else that allows lookup but preserves ordering? *)
 let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Parsetree.structure =
   let refer_to_via_module = const false in
+  let lang = `Sml in
   let external_abts = Queue.create () in
   let symbols = Queue.create () in
   let (simple_abts : (string * string list * [ `Simple ] Cases.t) Queue.t) = Queue.create () in
@@ -582,7 +582,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                     (Pcstr_tuple
                        (Option.to_list
                           (Option.map abt
-                             ~f:(internal_type_of_abt ~refer_to_via_module))))))))
+                             ~f:(internal_type_of_abt ~refer_to_via_module ~lang))))))))
     @
     List.map closed_abts ~f:(fun (name, cases) ->
       Type.mk
@@ -596,7 +596,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                     (Pcstr_tuple
                        (Option.to_list
                           (Option.map abt
-                             ~f:(internal_type_of_abt ~refer_to_via_module))))))))
+                             ~f:(internal_type_of_abt ~refer_to_via_module ~lang))))))))
     @
     List.map sorts ~f:(fun (name, cases) ->
       Type.mk
@@ -610,7 +610,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                     (Pcstr_tuple
                        (Option.to_list
                           (Option.map abt
-                             ~f:(internal_type_of_abt ~refer_to_via_module))))))))
+                             ~f:(internal_type_of_abt ~refer_to_via_module ~lang))))))))
   in
   let type_alias_defns =
     List.map external_abts ~f:(fun (name, args) ->
@@ -726,6 +726,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                   (out_code_for_open_cases
                      ~make_internal_constructor_name:(global_constructor_name ~name)
                      ~refer_to_simple_and_open_abts_via_module:false
+                     ~lang
                      cases))))
         |> Str.value Recursive
       in
@@ -818,6 +819,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                         (out_code_for_closed_cases
                            ~make_internal_constructor_name:(global_constructor_name ~name)
                            ~refer_to_simple_and_open_abts_via_module:false
+                           ~lang
                            cases)
                     ]
                 ]
@@ -886,7 +888,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
               ; [%stri
                 let out (t : t) : view =
                   match t with
-                  | Internal_sort.Var (Internal_var.Bound_var _) -> failwith "Internal Abbot error."
+                  | Internal_sort.Var (Internal_var.Bound_var _) -> [%e internal_error_expr ~lang]
                   | Internal_sort.Var (Internal_var.Free_var var) -> Var var
                   | Internal_sort.Oper (renaming, oper) ->
                     [%e
@@ -895,6 +897,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                           (out_code_for_closed_cases
                              ~make_internal_constructor_name:(global_constructor_name ~name)
                              ~refer_to_simple_and_open_abts_via_module:false
+                             ~lang
                              cases)
                     ]
               ]
@@ -1180,9 +1183,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
             ~init:
               (Mod.constraint_
                  (Mod.structure
-                    (Runtime_sml.structure
-                     @
-                     [ [%stri type ('a, 'b) bind = 'a * 'b] ]
+                    ([ [%stri type ('a, 'b) bind = 'a * 'b] ]
                      @
                      external_simple_abts_with_apply_renaming
                      @

@@ -64,19 +64,19 @@ let type_var ~via_module string =
 ;;
 
 let rec internal_type_of_abt
-  : type a. refer_to_via_module:(string -> bool) -> a Abt.t -> core_type =
-  fun ~refer_to_via_module abt ->
+  : type a. refer_to_via_module:(string -> bool) -> lang:[ `Ocaml | `Sml ] -> a Abt.t -> core_type =
+  fun ~refer_to_via_module ~lang abt ->
     match abt with
     | Arg_use name ->
       Typ.var name
     | Builtin_abt_use (builtin_abt, args) ->
       Typ.constr
         (lident (Builtin_abt.module_name builtin_abt ^ ".t"))
-        (List.map args ~f:(internal_type_of_abt ~refer_to_via_module))
+        (List.map args ~f:(internal_type_of_abt ~refer_to_via_module ~lang))
     | Simple_abt_use (name, args) ->
       type_t
         ~via_module:(refer_to_via_module name)
-        ~args:(List.map args ~f:(internal_type_of_abt ~refer_to_via_module))
+        ~args:(List.map args ~f:(internal_type_of_abt ~refer_to_via_module ~lang))
         name
     | Closed_abt_use name | Sort_use name ->
       type_t ~via_module:(refer_to_via_module name) name
@@ -85,15 +85,17 @@ let rec internal_type_of_abt
     | Open_abt_use name ->
       type_internal ~via_module:(refer_to_via_module name) name
     | Prod abts ->
-      Typ.tuple (List.map abts ~f:(internal_type_of_abt ~refer_to_via_module))
-    | Symbol_binding _ ->
-      [%type: string compare_ignore]
-    | Sort_binding _ ->
-      [%type: string compare_ignore]
+      Typ.tuple (List.map abts ~f:(internal_type_of_abt ~refer_to_via_module ~lang))
+    | Symbol_binding _ | Sort_binding _ ->
+      begin
+        match lang with
+        | `Ocaml -> [%type: string compare_ignore]
+        | `Sml -> [%type: string]
+      end
     | Bind (lhs, rhs) ->
       Typ.constr (lident "bind")
-        [ internal_type_of_abt ~refer_to_via_module lhs
-        ; internal_type_of_abt ~refer_to_via_module rhs
+        [ internal_type_of_abt ~refer_to_via_module ~lang lhs
+        ; internal_type_of_abt ~refer_to_via_module ~lang rhs
         ]
 ;;
 
@@ -247,6 +249,13 @@ end = struct
     Hashtbl.set t ~key:name ~data:(int + 1);
     sprintf "%s%d" name int
 end
+
+let internal_error_expr ~lang =
+  let message = [%expr "Internal Abbot error occurred. Please report this bug."] in
+  match lang with
+  | `Ocaml -> [%expr failwith [%e message]]
+  | `Sml -> [%expr raise (Fail [%e message])]
+;;
 
 (* CR wduff: Can some of these functions be merged now that we have a GADT? Does that actually make
    the code better? *)
@@ -691,7 +700,7 @@ let rec into_code_for_closed_abt ~refer_to_simple_and_open_abts_via_module uniqu
         ]))
 ;;
 
-let rec out_code_for_open_abt ~refer_to_simple_and_open_abts_via_module uniquifier renaming (abt : [ `Open ] Abt.t) =
+let rec out_code_for_open_abt ~refer_to_simple_and_open_abts_via_module ~lang uniquifier renaming (abt : [ `Open ] Abt.t) =
   match abt with
   | Builtin_abt_use (builtin_abt, args) ->
     (* CR wduff: This duplicates a lot of code with [Simple_abt_use]. *)
@@ -701,27 +710,28 @@ let rec out_code_for_open_abt ~refer_to_simple_and_open_abts_via_module uniquifi
        (Exp.apply
           (eident (Builtin_abt.module_name builtin_abt ^ ".apply_renaming"))
           (List.map args ~f:(fun arg ->
-             let (pat, expr) =
-               out_code_for_open_abt
-                 ~refer_to_simple_and_open_abts_via_module
-                 (Uniquifier.create ())
-                 (eident "renaming")
-                 arg
-             in
-             (Nolabel,
-              Exp.fun_ Nolabel None
-                (Pat.var (ident "renaming"))
-                (Exp.fun_ Nolabel None
-                   (Pat.var (ident "acc"))
-                   (Exp.fun_ Nolabel None pat
-                      (match expr with
-                       | `Pair (vars_expr, abt_expr) ->
-                         [%expr ([%e vars_expr] @ acc, [%e abt_expr])]
-                       | `Expr expr ->
-                         [%expr
-                           let (vars, [%p Pat.var (ident name')]) = [%e expr] in
-                           (vars @ acc, [%e eident name'])
-                         ])))))
+               let (pat, expr) =
+                 out_code_for_open_abt
+                   ~refer_to_simple_and_open_abts_via_module
+                   ~lang
+                   (Uniquifier.create ())
+                   (eident "renaming")
+                   arg
+               in
+               (Nolabel,
+                Exp.fun_ Nolabel None
+                  (Pat.var (ident "renaming"))
+                  (Exp.fun_ Nolabel None
+                     (Pat.var (ident "acc"))
+                     (Exp.fun_ Nolabel None pat
+                        (match expr with
+                         | `Pair (vars_expr, abt_expr) ->
+                           [%expr ([%e vars_expr] @ acc, [%e abt_expr])]
+                         | `Expr expr ->
+                           [%expr
+                             let (vars, [%p Pat.var (ident name')]) = [%e expr] in
+                             (vars @ acc, [%e eident name'])
+                           ])))))
            @
            [ (Nolabel, renaming)
            ; (Nolabel, Exp.construct (lident "[]") None)
@@ -737,27 +747,28 @@ let rec out_code_for_open_abt ~refer_to_simple_and_open_abts_via_module uniquifi
               | true -> String.capitalize name ^ ".apply_renaming"
               | false -> name ^ "_apply_renaming"))
           (List.map args ~f:(fun arg ->
-             let (pat, expr) =
-               out_code_for_open_abt
-                 ~refer_to_simple_and_open_abts_via_module
-                 (Uniquifier.create ())
-                 (eident "renaming")
-                 arg
-             in
-             (Nolabel,
-              Exp.fun_ Nolabel None
-                (Pat.var (ident "renaming"))
-                (Exp.fun_ Nolabel None
-                   (Pat.var (ident "acc"))
-                   (Exp.fun_ Nolabel None pat
-                      (match expr with
-                       | `Pair (vars_expr, abt_expr) ->
-                         [%expr ([%e vars_expr] @ acc, [%e abt_expr])]
-                       | `Expr expr ->
-                         [%expr
-                           let (vars, [%p Pat.var (ident name')]) = [%e expr] in
-                           (vars @ acc, [%e eident name'])
-                         ])))))
+               let (pat, expr) =
+                 out_code_for_open_abt
+                   ~lang
+                   ~refer_to_simple_and_open_abts_via_module
+                   (Uniquifier.create ())
+                   (eident "renaming")
+                   arg
+               in
+               (Nolabel,
+                Exp.fun_ Nolabel None
+                  (Pat.var (ident "renaming"))
+                  (Exp.fun_ Nolabel None
+                     (Pat.var (ident "acc"))
+                     (Exp.fun_ Nolabel None pat
+                        (match expr with
+                         | `Pair (vars_expr, abt_expr) ->
+                           [%expr ([%e vars_expr] @ acc, [%e abt_expr])]
+                         | `Expr expr ->
+                           [%expr
+                             let (vars, [%p Pat.var (ident name')]) = [%e expr] in
+                             (vars @ acc, [%e eident name'])
+                           ])))))
            @
            [ (Nolabel, renaming)
            ; (Nolabel, Exp.construct (lident "[]") None)
@@ -789,29 +800,29 @@ let rec out_code_for_open_abt ~refer_to_simple_and_open_abts_via_module uniquifi
         [%expr
           match Renaming.apply [%e renaming] [%e eident name] with
           | Internal_var.Free_var var -> var
-          | Internal_var.Bound_var _ -> failwith "Internal Abbot error."]))
+          | Internal_var.Bound_var _ -> [%e internal_error_expr ~lang]]))
   | Sort_use name ->
     let name = Uniquifier.uniquify uniquifier name in
     (pvar name,
      `Pair ([%expr []], [%expr Internal_sort.apply_renaming [%e renaming] [%e eident name]]))
   | Prod abts ->
     let (pats, exprs) =
-      List.map abts ~f:(out_code_for_open_abt ~refer_to_simple_and_open_abts_via_module uniquifier renaming)
+      List.map abts ~f:(out_code_for_open_abt ~refer_to_simple_and_open_abts_via_module ~lang uniquifier renaming)
       |> List.unzip
     in
     (* CR wduff: The names in here need to be uniquified. *)
     let (lets, vars_exprs, abt_exprs) =
       List.mapi exprs ~f:(fun i expr ->
-        match expr with
-        | `Pair (vars_expr, abt_expr) ->
-          (None, vars_expr, abt_expr)
-        | `Expr expr ->
-          let vars_var = sprintf "vars_%d" i in
-          (* CR wduff: Is "external" the right name? Why? *)
-          let abt_var = sprintf "external_%d" i in
-          let let_pat = [%pat? ([%p pvar vars_var], [%p pvar abt_var])] in
-          let let_expr = expr in
-          (Some (let_pat, let_expr), eident vars_var, eident abt_var))
+          match expr with
+          | `Pair (vars_expr, abt_expr) ->
+            (None, vars_expr, abt_expr)
+          | `Expr expr ->
+            let vars_var = sprintf "vars_%d" i in
+            (* CR wduff: Is "external" the right name? Why? *)
+            let abt_var = sprintf "external_%d" i in
+            let let_pat = [%pat? ([%p pvar vars_var], [%p pvar abt_var])] in
+            let let_expr = expr in
+            (Some (let_pat, let_expr), eident vars_var, eident abt_var))
       |> unzip3
     in
     let lets = List.filter_opt lets in
@@ -819,7 +830,7 @@ let rec out_code_for_open_abt ~refer_to_simple_and_open_abts_via_module uniquifi
       List.fold_right vars_exprs
         ~init:[%expr []]
         ~f:(fun vars_expr acc ->
-          [%expr [%e vars_expr] @ [%e acc] ])
+            [%expr [%e vars_expr] @ [%e acc] ])
     in
     let abt_expr = Exp.tuple abt_exprs in
     (Pat.tuple pats,
@@ -831,7 +842,7 @@ let rec out_code_for_open_abt ~refer_to_simple_and_open_abts_via_module uniquifi
           (List.fold_right lets
              ~init:[%expr ([%e vars_expr], [%e abt_expr])]
              ~f:(fun (let_pat, let_expr) acc ->
-               [%expr let [%p let_pat] = [%e let_expr] in [%e acc]]))))
+                 [%expr let [%p let_pat] = [%e let_expr] in [%e acc]]))))
   | Symbol_binding name ->
     let bound_name = Uniquifier.uniquify uniquifier ("bound_" ^ name ^ "_name") in
     let name' = Uniquifier.uniquify uniquifier name in
@@ -854,6 +865,7 @@ let rec out_code_for_open_abt ~refer_to_simple_and_open_abts_via_module uniquifi
 
 let rec out_code_for_closed_abt
           ~refer_to_simple_and_open_abts_via_module
+          ~lang
           uniquifier
           renaming
           (abt : [ `Closed ] Abt.t) =
@@ -870,6 +882,7 @@ let rec out_code_for_closed_abt
               (List.map args ~f:(fun arg ->
                  let (pat, expr) =
                    out_code_for_closed_abt
+                     ~lang
                      ~refer_to_simple_and_open_abts_via_module
                      (Uniquifier.create ())
                      (eident "renaming")
@@ -902,6 +915,7 @@ let rec out_code_for_closed_abt
               (List.map args ~f:(fun arg ->
                  let (pat, expr) =
                    out_code_for_closed_abt
+                     ~lang
                      ~refer_to_simple_and_open_abts_via_module
                      (Uniquifier.create ())
                      (eident "renaming")
@@ -934,7 +948,7 @@ let rec out_code_for_closed_abt
      [%expr
        match Renaming.apply [%e renaming] [%e eident name] with
        | Internal_var.Free_var var -> var
-       | Internal_var.Bound_var _ -> failwith "Internal Abbot error."
+       | Internal_var.Bound_var _ -> [%e internal_error_expr ~lang]
      ])
   | Sort_use name ->
     let name = Uniquifier.uniquify uniquifier name in
@@ -943,6 +957,7 @@ let rec out_code_for_closed_abt
     let (pats, exprs) =
       List.map abts
         ~f:(out_code_for_closed_abt
+              ~lang
               ~refer_to_simple_and_open_abts_via_module
               uniquifier
               renaming)
@@ -951,7 +966,7 @@ let rec out_code_for_closed_abt
     (Pat.tuple pats, Exp.tuple exprs)
   | Bind (lhs, rhs) ->
     let (lhs_pat, lhs_expr) =
-      out_code_for_open_abt ~refer_to_simple_and_open_abts_via_module uniquifier renaming lhs
+      out_code_for_open_abt ~refer_to_simple_and_open_abts_via_module ~lang uniquifier renaming lhs
     in
     let (rhs_pat, rhs_expr) =
       apply_renaming_code_for_closed_abt
@@ -1098,6 +1113,7 @@ let into_code_for_closed_cases
 let out_code_for_open_cases
       ~make_internal_constructor_name
       ~refer_to_simple_and_open_abts_via_module
+      ~lang
       cases
   =
   List.map cases ~f:(fun (constructor_name, abt) ->
@@ -1114,6 +1130,7 @@ let out_code_for_open_cases
       let (pat, expr) =
         out_code_for_open_abt
           ~refer_to_simple_and_open_abts_via_module
+          ~lang
           (Uniquifier.create ())
           [%expr renaming]
           abt
@@ -1150,6 +1167,7 @@ let out_code_for_open_cases
 let out_code_for_closed_cases
       ~make_internal_constructor_name
       ~refer_to_simple_and_open_abts_via_module
+      ~lang
       cases
   =
   List.map cases ~f:(fun (constructor_name, abt) ->
@@ -1163,6 +1181,7 @@ let out_code_for_closed_cases
       let (pat, expr) =
         out_code_for_closed_abt
           ~refer_to_simple_and_open_abts_via_module
+          ~lang
           (Uniquifier.create ())
           (* CR wduff: This should be an argument. *)
           [%expr renaming]

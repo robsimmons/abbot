@@ -110,7 +110,8 @@
 
 (alias
  (name install)
- (action (bash "echo \"\" | sml *.{sig,sml}"))
+ (action (bash "echo \"\" | sml ../sml_runtime/abbot_runtime.cm *.{sig,sml}"))
  (deps
+  (glob_files "../sml_runtime/*")
   (glob_files "*.sig")
   (glob_files "*.sml")))

@@ -326,6 +326,7 @@ let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure 
 
 let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.structure =
   let refer_to_via_module = const true in
+  let lang = `Ocaml in
   let external_abt_modl_defns =
     List.map external_abts ~f:(fun (name, arg_count) ->
       let string_of_arg = string_of_arg ~arg_count in
@@ -562,7 +563,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                                  (Pcstr_tuple
                                     (Option.to_list
                                        (Option.map abt
-                                          ~f:(internal_type_of_abt ~refer_to_via_module)))))))
+                                          ~f:(internal_type_of_abt ~refer_to_via_module ~lang)))))))
                  ]
              ; [%stri type internal = oper With_renaming.t]
              ; Str.type_ Recursive
@@ -604,6 +605,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                        (out_code_for_open_cases
                           ~make_internal_constructor_name:(fun ~constructor_name -> constructor_name)
                           ~refer_to_simple_and_open_abts_via_module:true
+                          ~lang
                           cases)
                    ]
              ]
@@ -647,7 +649,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                                  (Pcstr_tuple
                                     (Option.to_list
                                        (Option.map abt
-                                          ~f:(internal_type_of_abt ~refer_to_via_module)))))))
+                                          ~f:(internal_type_of_abt ~refer_to_via_module ~lang)))))))
                  ]
              ; [%stri type t = oper With_renaming.t]
              ; Str.type_ Recursive
@@ -688,7 +690,8 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                      [%expr (oper : oper)]
                      (out_code_for_closed_cases
                         ~make_internal_constructor_name:(fun ~constructor_name -> constructor_name)
-                          ~refer_to_simple_and_open_abts_via_module:true
+                        ~refer_to_simple_and_open_abts_via_module:true
+                        ~lang
                         cases)
                  ]
              ]
@@ -751,7 +754,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                                  (Pcstr_tuple
                                     (Option.to_list
                                        (Option.map abt
-                                          ~f:(internal_type_of_abt ~refer_to_via_module)))))))
+                                          ~f:(internal_type_of_abt ~refer_to_via_module ~lang)))))))
                  ]
              ; [%stri type t = oper Internal_sort.t]
              ; Str.type_ Recursive
@@ -804,6 +807,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                        (out_code_for_closed_cases
                           ~make_internal_constructor_name:(fun ~constructor_name -> constructor_name)
                           ~refer_to_simple_and_open_abts_via_module:true
+                          ~lang
                           cases)
                    ]
              ]

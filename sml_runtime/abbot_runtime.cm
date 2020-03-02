@@ -1,0 +1,25 @@
+Library
+  signature INTERNAL_SORT
+  structure Internal_sort
+  signature INTERNAL_VAR
+  structure Internal_var
+  signature RENAMING
+  structure Renaming
+  signature TEMP
+  structure Temp
+  signature WITH_RENAMING
+  structure With_renaming
+  structure Failwith
+is
+  $SMLNJ-BASIS/basis.cm
+  failwith.sml
+  internal_sort.sig
+  internal_sort.sml
+  internal_var.sig
+  internal_var.sml
+  renaming.sig
+  renaming.sml
+  temp.sig
+  temp.sml
+  with_renaming.sig
+  with_renaming.sml
