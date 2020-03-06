@@ -352,6 +352,20 @@ let layout_variant_type_decl lang ~without_definition ~fits_on_line constructors
              end))))
 ;;
 
+let layout_type_parameter ({ ptyp_desc; ptyp_attributes = _; ptyp_loc = _; ptyp_loc_stack = _ }, variance) =
+  let variance_string =
+    match variance with
+    | Invariant -> ""
+    | Covariant -> "+"
+    | Contravariant -> "-"
+  in
+  match ptyp_desc with
+  | Ptyp_any -> atom (variance_string ^ "_")
+  | Ptyp_var name -> atom (variance_string ^ "'" ^ name)
+  | _ ->
+    raise_s [%message "unsupported type parameter"]
+;;
+
 let layout_type_decl
       lang
       ~start_keyword
@@ -390,27 +404,10 @@ let layout_type_decl
     let name_and_params =
       match ptype_params with
       | [] -> atom ptype_name.txt
+      | [param] -> list [ (Indent, layout_type_parameter param); (No_indent, atom ptype_name.txt)]
       | _::_ ->
         list
-          [ (Indent,
-             list
-               ((No_indent, lparen)
-                :: List.intersperse ~sep:(No_indent, comma)
-                     (List.map ptype_params
-                        ~f:(fun ({ ptyp_desc; ptyp_attributes = _; ptyp_loc = _; ptyp_loc_stack = _ }, variance) ->
-                             let variance_string =
-                               match variance with
-                               | Invariant -> ""
-                               | Covariant -> "+"
-                               | Contravariant -> "-"
-                             in
-                             (Indent,
-                              match ptyp_desc with
-                              | Ptyp_any -> atom (variance_string ^ "_")
-                              | Ptyp_var name -> atom (variance_string ^ "'" ^ name)
-                              | _ ->
-                                raise_s [%message "unsupported type parameter"])))
-                @ [ (No_indent, rparen) ]))
+          [ (Indent, layout_tuple (List.map ptype_params ~f:(layout_type_parameter)))
           ; (No_indent, atom ptype_name.txt)
           ]
     in
@@ -615,15 +612,24 @@ and layout_module_type_decl lang { pmtd_name; pmtd_type; pmtd_attributes = _; pm
   match pmtd_type with
   | None -> list [ (No_indent, atom (module_type_keyword lang)); (Indent, atom pmtd_name.txt) ]
   | Some module_type ->
-    list
-      [ (No_indent,
-         list
-           [ (No_indent, atom (module_type_keyword lang))
-           ; (Indent, atom pmtd_name.txt)
-           ; (No_indent, atom "=")
-           ])
-      ; (Indent, layout_module_type lang module_type)
+    let start =
+      [ (No_indent, atom (module_type_keyword lang))
+      ; (Indent, atom pmtd_name.txt)
+      ; (No_indent, atom "=")
       ]
+    in
+    match module_type.pmty_desc with
+    | Pmty_signature signature ->
+      list
+        [ (No_indent, list (start @ [ (No_indent, atom "sig") ]))
+        ; (Indent, layout_signature lang signature)
+        ; (No_indent, atom "end")
+        ]
+    | _ ->
+      list
+        [ (No_indent, list start)
+        ; (Indent, layout_module_type lang module_type)
+        ]
 
 and layout_module_arg lang arg_name arg_type =
   match arg_type with
@@ -745,13 +751,35 @@ and layout_signature lang signature =
        (No_indent, layout_signature_item lang signature_item)))
 ;;
 
-let layout_arg arg_label arg =
+let can_pun_pattern string { ppat_desc; _ } =
+  match ppat_desc with
+  | Ppat_var { txt = string'; loc = _ } -> String.equal string string'
+  | _ -> false
+;;
+
+let can_pun_expression string { pexp_desc; _ } =
+  match pexp_desc with
+  | Pexp_ident { txt = (Lident string'); loc = _ } -> String.equal string string'
+  | _ -> false
+;;
+
+let layout_arg ~layout ~can_pun arg_label arg =
   match arg_label with
-  | Nolabel -> arg
+  | Nolabel -> layout arg
   | Labelled label ->
-    list [ (No_indent, atom ("~" ^ label ^ ":")); (Indent, arg) ]
+    begin
+      match can_pun label arg with
+      | true -> atom ("~" ^ label)
+      | false ->
+        list [ (No_indent, atom ~magnet_right:true ("~" ^ label ^ ":")); (Indent, layout arg) ]
+    end
   | Optional label ->
-    list [ (No_indent, atom ("?" ^ label ^ ":")); (Indent, arg) ]
+    begin
+      match can_pun label arg with
+      | true -> atom ("?" ^ label)
+      | false ->
+        list [ (No_indent, atom ~magnet_right:true ("?" ^ label ^ ":")); (Indent, layout arg) ]
+    end
 ;;
 
 let rec layout_pattern lang ~outer_precedence { ppat_desc; ppat_attributes = _; ppat_loc = _; ppat_loc_stack = _ } =
@@ -922,10 +950,10 @@ let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = 
                     layout_expression lang ~outer_precedence:`Let_body body) ]
                  @
                  (match (lang, include_parens) with
-                    | (`Ocaml, false) -> []
-                    | (`Ocaml, true) -> [ (No_indent, rparen) ]
-                    | (`Sml, false) -> [ (No_indent, atom "end") ]
-                    | (`Sml, true) -> [ (No_indent, atom "end)") ])))
+                  | (`Ocaml, false) -> []
+                  | (`Ocaml, true) -> [ (No_indent, rparen) ]
+                  | (`Sml, false) -> [ (No_indent, atom "end") ]
+                  | (`Sml, true) -> [ (No_indent, atom "end)") ])))
            ])
     end
   | Pexp_function cases ->
@@ -955,32 +983,52 @@ let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = 
            :: List.mapi cases ~f:(fun i case ->
              (No_indent, layout_match_case lang ~first_case:(Int.equal i 0) case)))
     end
-  | Pexp_fun (arg_label, default_opt, arg_pat, body) ->
+  | Pexp_fun (arg_label, default_opt, arg_pat, expr) ->
+    let rec strip_other_args expr =
+      match expr.pexp_desc with
+      | Pexp_fun (arg_label, default_opt, arg_pat, expr) ->
+        let (other_args, body) = strip_other_args expr in
+        ((arg_label, default_opt, arg_pat) :: other_args, body)
+      | _ -> ([], expr)
+    in
+    let (other_args, body) =
+      match lang with
+      | `Ocaml -> strip_other_args expr
+      | `Sml -> ([], expr)
+    in
+    let args = (arg_label, default_opt, arg_pat) :: other_args in
     begin
-      match default_opt with
-      | Some _ ->
-        raise_s [%message "unsupported expression"]
-      | None ->
-        (* CR wduff: Drop parens sometimes? Maybe if it is the entire expression or something? *)
-        list
-          [ (No_indent,
-             list
-               [ (No_indent,
-                  atom
-                    (match lang with
-                     | `Ocaml -> "(fun"
-                     | `Sml -> "(fn"))
-               ; (Indent,
-                  layout_arg arg_label (layout_pattern lang ~outer_precedence:`Fun_arg arg_pat))
-               ; (No_indent,
-                  atom
-                    (match lang with
-                     | `Ocaml -> "->"
-                     | `Sml -> "=>"))
-               ])
-          ; (Indent, layout_expression lang ~outer_precedence:`Fun_body body)
-          ; (No_indent, rparen)
-          ]
+      (* CR wduff: Drop parens sometimes? Maybe if it is the entire expression or something? *)
+      list
+        [ (No_indent,
+           list
+             [ (No_indent,
+                atom
+                  (match lang with
+                   | `Ocaml -> "(fun"
+                   | `Sml -> "(fn"))
+             ; (Indent,
+                list
+                  (List.map args ~f:(fun (arg_label, default_opt, arg_pat) ->
+                     match default_opt with
+                     | Some _ ->
+                       raise_s [%message "unsupported expression"]
+                     | None ->
+                       (No_indent,
+                        layout_arg
+                          ~layout:(layout_pattern lang ~outer_precedence:`Fun_arg)
+                          ~can_pun:can_pun_pattern
+                          arg_label
+                          arg_pat))))
+             ; (No_indent,
+                atom
+                  (match lang with
+                   | `Ocaml -> "->"
+                   | `Sml -> "=>"))
+             ])
+        ; (Indent, layout_expression lang ~outer_precedence:`Fun_body body)
+        ; (No_indent, rparen)
+        ]
     end
   | Pexp_newtype (type_name, body) ->
     begin
@@ -1048,7 +1096,12 @@ let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = 
            [ (No_indent, layout_expression lang ~outer_precedence:`Fun func) ]
            @
            List.map args ~f:(fun (arg_label, arg) ->
-             (Indent, layout_arg arg_label (layout_expression lang ~outer_precedence:`Fun_arg arg)))
+             (Indent,
+              layout_arg
+                ~layout:(layout_expression lang ~outer_precedence:`Fun_arg)
+                ~can_pun:can_pun_expression
+                arg_label
+                arg))
            @
            (match include_parens with
             | false -> []
@@ -1086,13 +1139,21 @@ let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = 
                  | true -> [ (No_indent, lparen) ])
                @
                [ (No_indent,
-                   layout_arg arg_label (layout_expression lang ~outer_precedence:`Infix_arg arg))
+                  layout_arg
+                    ~layout:(layout_expression lang ~outer_precedence:`Infix_arg)
+                    ~can_pun:can_pun_expression
+                    arg_label
+                    arg)
                ; (No_indent, atom oper)
                ]
                @
                List.map args ~f:(fun (arg_label, arg) ->
                  (Indent,
-                  layout_arg arg_label (layout_expression lang ~outer_precedence:`Infix_arg arg)))
+                  layout_arg
+                    ~layout:(layout_expression lang ~outer_precedence:`Infix_arg)
+                    ~can_pun:can_pun_expression
+                    arg_label
+                    arg))
                @
                (match include_parens with
                 | false -> []
@@ -1210,8 +1271,8 @@ let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = 
           in
           list
             ((match include_parens with
-                | false -> []
-                | true -> [ (No_indent, lparen) ])
+               | false -> []
+               | true -> [ (No_indent, lparen) ])
              @
              [ (No_indent, atom constructor)
              ; (Indent, layout_expression lang ~outer_precedence:`Fun_arg arg)
@@ -1272,8 +1333,8 @@ let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = 
        ]
        @
        (match include_parens with
-         | false -> []
-         | true -> [ (No_indent, rparen) ]))
+        | false -> []
+        | true -> [ (No_indent, rparen) ]))
   | Pexp_constraint (expr, core_type) ->
     layout_constraint
       (layout_expression lang ~outer_precedence:`Constrained expr)
@@ -1321,7 +1382,12 @@ and layout_value_binding
           raise_s [%message "unsupported expression"]
         | None ->
           let (args, body) = strip_function_args body in
-          (layout_arg arg_label (layout_pattern lang ~outer_precedence:`Fun_arg arg_pat) :: args,
+          (layout_arg
+             ~layout:(layout_pattern lang ~outer_precedence:`Fun_arg)
+             ~can_pun:can_pun_pattern
+             arg_label
+             arg_pat
+           :: args,
            body)
       end
     | _ -> ([], expr)
@@ -1347,30 +1413,30 @@ and layout_value_binding
     | _ -> (None, body)
   in
   list
-     [ (No_indent,
-        list
-          [ (No_indent,
-             list
-               ((No_indent,
-                 list
-                   [ (No_indent, atom start_keyword)
-                   ; (Indent, layout_pattern lang ~outer_precedence:`None pvb_pat)
-                   ])
+    [ (No_indent,
+       list
+         [ (No_indent,
+            list
+              ((No_indent,
+                list
+                  [ (No_indent, atom start_keyword)
+                  ; (Indent, layout_pattern lang ~outer_precedence:`None pvb_pat)
+                  ])
                ::
                List.map args ~f:(fun arg ->
                  (Indent, list [ (Indent, arg)]))))
-          ; (Indent,
-             (match result_type with
-              | None -> atom "="
-              | Some result_type ->
-                list
-                  [ (No_indent, atom ":")
-                  ; (Indent, layout_core_type ~outer_precedence:`None result_type)
-                  ; (No_indent, atom "=")
-                  ]))
-          ])
-       ; (Indent, layout_expression lang ~outer_precedence:`None body)
-     ]
+         ; (Indent,
+            (match result_type with
+             | None -> atom "="
+             | Some result_type ->
+               list
+                 [ (No_indent, atom ":")
+                 ; (Indent, layout_core_type ~outer_precedence:`None result_type)
+                 ; (No_indent, atom "=")
+                 ]))
+         ])
+    ; (Indent, layout_expression lang ~outer_precedence:`None body)
+    ]
 
 and layout_extension lang ~depth (name, payload) =
   let (separator, payload_layout) =
@@ -1596,5 +1662,4 @@ and layout_open_decl
       | Fresh -> "open"
     in
     list [ (No_indent, atom open_keyword); (Indent, layout_module lang popen_expr) ]
-;;
 ;;

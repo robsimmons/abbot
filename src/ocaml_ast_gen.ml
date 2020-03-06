@@ -227,16 +227,16 @@ let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure 
                                              ; Typ.var (string_of_arg "b" arg)
                                              ]))))
                                   |> List.fold_right
-                                    ~f:(fun (arg_label, arg_type) acc ->
+                                       ~f:(fun (arg_label, arg_type) acc ->
                                          Typ.arrow arg_label arg_type acc)
-                                    ~init:
-                                      (Typ.tuple
-                                         [ Typ.var "acc"
-                                         ; Typ.constr
-                                             (lident "t")
-                                             (List.init arg_count ~f:(fun arg ->
-                                                Typ.var (string_of_arg "b" arg)))
-                                         ])))))
+                                       ~init:
+                                         (Typ.tuple
+                                            [ Typ.var "acc"
+                                            ; Typ.constr
+                                                (lident "t")
+                                                (List.init arg_count ~f:(fun arg ->
+                                                   Typ.var (string_of_arg "b" arg)))
+                                            ])))))
                     ])))))
   in
   let per_defn_modl_decls =
@@ -316,19 +316,30 @@ let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure 
                              (Mty.with_
                                 (Mty.ident (lident "S"))
                                 ((List.map external_abts
-                                ~f:(fun (name, _) ->
-                                     Pwith_modsubst
-                                       (lident (String.capitalize name),
-                                        lident (String.capitalize name))))))))
+                                    ~f:(fun (name, _) ->
+                                      Pwith_modsubst
+                                        (lident (String.capitalize name),
+                                         lident (String.capitalize name))))))))
                  ]))
      ])
 ;;
+
+let raise_internal_error_expr = [%expr failwith [%e internal_error_message]]
+
+open
+  Walks
+    (struct
+      let use_flat_names_internally = false
+      let qualify_constructors = false
+      let raise_internal_error_expr = raise_internal_error_expr
+    end)
 
 let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.structure =
   let refer_to_via_module = const true in
   let lang = `Ocaml in
   let external_abt_modl_defns =
     List.map external_abts ~f:(fun (name, arg_count) ->
+      (* CR wduff: Some uses of [string_of_arg] should include the number even in the 1 case. *)
       let string_of_arg = string_of_arg ~arg_count in
       let type_defn =
         let args =
@@ -340,6 +351,46 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
               ~manifest:(type_t ~via_module:true ~args name)
               ~attrs:[deriving_sexp_attribute]
           ]
+      in
+      let map_defn =
+        let t1 =
+          Typ.constr
+            (lident "t")
+            (List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "a" arg)))
+        in
+        let t2 =
+          Typ.constr
+            (lident "t")
+            (List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "b" arg)))
+        in
+        (match arg_count with
+         | 0 -> []
+         | _ ->
+           [%str
+             let map (t : [%t t1]) =
+               [%e
+                 List.fold_right (List.init arg_count ~f:Fn.id)
+                   ~f:(fun arg acc ->
+                     let fun_name = string_of_arg "f" arg in
+                     Exp.fun_ (Labelled fun_name) None (pvar fun_name) acc)
+                   ~init:
+                     [%expr
+                       let ((), (t : [%t t2])) =
+                         [%e
+                           Exp.apply
+                             (eident (String.capitalize name ^ ".fold_map"))
+                             ((Nolabel, eident "t")
+                              ::
+                              (Labelled "init", [%expr ()])
+                              ::
+                              List.init arg_count ~f:(fun arg ->
+                                let arg_var = string_of_arg "arg" arg in
+                                (Labelled (string_of_arg "f" arg),
+                                 [%expr
+                                   fun () [%p pvar arg_var] ->
+                                     ((), [%e eident (string_of_arg "f" arg)] [%e eident arg_var])])))]
+                       in
+                       t]]])
       in
       let apply_renaming_defn =
         let apply_renaming_of_arg = string_of_arg "apply_renaming" in
@@ -394,43 +445,26 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                      Exp.fun_ Nolabel None (Pat.var (ident (subst_of_arg arg))) acc)
                    ~init:
                      [%expr
-                       fun sort value var
-                         (t :
-                            [%t
-                              Typ.constr
-                                (lident "t")
-                                (List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "a" arg)))])
-                         ->
-                           let
-                             ((),
-                              (t
-                               : [%t
-                                 Typ.constr
-                                   (lident "t")
-                                   (List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "b" arg)))]))
-                             =
-                             [%e
-                               Exp.apply
-                                 (eident (String.capitalize name ^ ".fold_map"))
-                                 ((Nolabel, eident "t")
-                                  ::
-                                  (Labelled "init", [%expr ()])
-                                  ::
-                                  List.init arg_count ~f:(fun arg ->
-                                    let arg_var = string_of_arg "arg" arg in
-                                    (Labelled (string_of_arg "f" arg),
-                                     [%expr
-                                       fun () [%p pvar arg_var] ->
-                                         ((), [%e eident (subst_of_arg arg)] sort value var [%e eident arg_var])])))]
-                           in
-                           t])]]
+                       fun sort value var t ->
+                         [%e
+                           Exp.apply
+                             (eident "map")
+                             ((Nolabel, eident "t")
+                              ::
+                              List.init arg_count ~f:(fun arg ->
+                                (Labelled (string_of_arg "f" arg),
+                                 [%expr [%e eident (subst_of_arg arg)] sort value var])))]
+                     ])]]
       in
       let module_expr =
         Mod.structure
-          [ type_defn
-          ; apply_renaming_defn
-          ; subst_defn
-          ]
+          ([ type_defn ]
+           @
+           map_defn
+           @
+           [  apply_renaming_defn
+           ; subst_defn
+           ])
       in
       Str.module_ (Mb.mk (ident (String.capitalize name)) module_expr))
   in
@@ -438,12 +472,13 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
     List.map defns ~f:(fun (name, defn) ->
       match defn with
       | `Simple_abt (args, cases) as defn ->
+        (* CR wduff: Implement map for simple abts. *)
         let module_type =
           Mty.signature
             (shared_signature_items_of_defn ~current_name:name defn
              @
              [ Sig.value
-                (Val.mk (ident "apply_renaming")
+                 (Val.mk (ident "apply_renaming")
                     (List.fold_right args
                        ~f:(fun arg acc ->
                          Typ.arrow Nolabel
@@ -490,50 +525,66 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                           ))
                      ~attrs:[deriving_sexp_attribute]
                  ]
-             ; Str.value Nonrecursive
-                 [ Vb.mk
-                     (Pat.var (ident "apply_renaming"))
-                     (List.fold_right args
-                        ~f:(fun arg acc ->
-                          Exp.fun_ Nolabel None (Pat.var (ident ("apply_renaming_" ^ arg))) acc)
-                        ~init:
-                          (Exp.fun_ Nolabel None
-                             (Pat.var (ident "renaming"))
-                             (Exp.fun_ Nolabel None
-                                (Pat.var (ident "acc"))
-                                (Exp.fun_ Nolabel None
-                                   (Pat.constraint_
-                                      (Pat.var (ident "t"))
-                                      (Typ.constr (lident "t")
-                                         (List.map args ~f:(fun arg -> Typ.var (arg ^ "1")))))
-                                   (Exp.constraint_
-                                      (Exp.match_
-                                         [%expr t]
-                                         (apply_renaming_code_for_simple_cases
-                                            ~refer_to_simple_and_open_abts_via_module:true
-                                            cases))
-                                      (Typ.tuple
-                                         [ Typ.var "acc"
-                                         ; Typ.constr (lident "t")
-                                             (List.map args ~f:(fun arg -> Typ.var (arg ^ "2")))
-                                         ]))))))
+             ; [%stri
+               let apply_renaming =
+                 [%e
+                   let (cases, used_renaming) =
+                     apply_renaming_code_for_simple_cases
+                       ~renaming:[%expr renaming]
+                       ~acc:[%expr acc]
+                       cases
+                   in
+                   let renaming_pat =
+                     match used_renaming with
+                     | `Used_renaming -> pvar "renaming"
+                     | `Ignored_renaming -> pvar "_renaming"
+                   in
+                   let t1 =
+                     Typ.constr (lident "t") (List.map args ~f:(fun arg -> Typ.var (arg ^ "1")))
+                   in
+                   let t2 =
+                     Typ.constr (lident "t") (List.map args ~f:(fun arg -> Typ.var (arg ^ "2")))
+                   in
+                   List.fold_right args
+                     ~f:(fun arg acc ->
+                       [%expr fun [%p pvar ("apply_renaming_" ^ arg)] -> [%e acc]])
+                     ~init:
+                       [%expr
+                         fun [%p renaming_pat] acc (t : [%t t1]) : ('acc * [%t t2]) ->
+                           [%e Exp.match_ [%expr t] cases]]
                  ]
+             ]
              ; [%stri
                let subst =
                  [%e
+                   let (cases, used_sub) =
+                     subst_code_for_cases
+                       ~name_of_walked_value:name
+                       ~sub:[ (Nolabel, "sort"); (Nolabel, "value"); (Nolabel, "var") ]
+                       cases
+                   in
+                   let sort_pat =
+                     match used_sub with
+                     | `Used_sub -> pvar "sort"
+                     | `Ignored_sub -> pvar "_sort"
+                   in
+                   let value_pat =
+                     match used_sub with
+                     | `Used_sub -> pvar "value"
+                     | `Ignored_sub -> pvar "_value"
+                   in
+                   let var_pat =
+                     match used_sub with
+                     | `Used_sub -> pvar "var"
+                     | `Ignored_sub -> pvar "_var"
+                   in
                    List.fold_right args
                      ~f:(fun arg acc ->
                        Exp.fun_ Nolabel None (Pat.var (ident ("subst_" ^ arg))) acc)
                      ~init:
-                       [%expr fun sort value var t ->
-                         [%e Exp.match_
-                               (eident "t")
-                               (subst_code_for_cases
-                                  ~make_exposed_constructor_name:(fun ~constructor_name -> constructor_name)
-                                  ~refer_to_others_via_module:true
-                                  [ (Nolabel, "sort"); (Nolabel, "value"); (Nolabel, "var") ]
-                                  cases)
-                         ]]]]
+                       [%expr
+                         fun [%p sort_pat] [%p value_pat] [%p var_pat] t ->
+                           [%e Exp.match_ [%expr t] cases ]]]]
              ])
         in
         Mb.mk (ident (String.capitalize name)) (Mod.constraint_ module_expr module_type)
@@ -590,36 +641,47 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                      Exp.match_
                        [%expr t]
                        (into_code_for_open_cases
-                          ~make_internal_constructor_name:(fun ~constructor_name -> constructor_name)
-                          ~refer_to_simple_and_open_abts_via_module:true
+                          ~name_of_walked_value:name
                           cases)
                    ]
                  in
                  (vars, (Renaming.ident, oper))
              ]
              ; [%stri
-                let out (renaming, oper) : Temp.t list * t =
-                  [%e
-                     Exp.match_
-                       [%expr (oper : oper)]
-                       (out_code_for_open_cases
-                          ~make_internal_constructor_name:(fun ~constructor_name -> constructor_name)
-                          ~refer_to_simple_and_open_abts_via_module:true
-                          ~lang
-                          cases)
-                   ]
-             ]
-             ; [%stri
-               let subst sort value var t =
-                 [%e Exp.match_
-                       (eident "t")
-                       (subst_code_for_cases
-                          ~make_exposed_constructor_name:(fun ~constructor_name -> constructor_name)
-                          ~refer_to_others_via_module:true
-                          [ (Nolabel, "sort"); (Nolabel, "value"); (Nolabel, "var") ]
-                          cases)
+               let out (renaming, oper) : Temp.t list * t =
+                 [%e
+                   Exp.match_
+                     [%expr (oper : oper)]
+                     (out_code_for_open_cases
+                        ~name_of_walked_value:name
+                        cases)
                  ]
              ]
+             ; (let (cases, used_sub) =
+                  subst_code_for_cases
+                    ~name_of_walked_value:name
+                    ~sub:[ (Nolabel, "sort"); (Nolabel, "value"); (Nolabel, "var") ]
+                    cases
+                in
+                let sort_pat =
+                  match used_sub with
+                  | `Used_sub -> pvar "sort"
+                  | `Ignored_sub -> pvar "_sort"
+                in
+                let value_pat =
+                  match used_sub with
+                  | `Used_sub -> pvar "value"
+                  | `Ignored_sub -> pvar "_value"
+                in
+                let var_pat =
+                  match used_sub with
+                  | `Used_sub -> pvar "var"
+                  | `Ignored_sub -> pvar "_var"
+                in
+                [%stri
+                  let subst [%p sort_pat] [%p value_pat] [%p var_pat] t =
+                    [%e Exp.match_ [%expr t] cases]
+                ])
              ])
         in
         Mb.mk (ident (String.capitalize name)) (Mod.constraint_ module_expr module_type)
@@ -664,8 +726,8 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                                     (Option.to_list
                                        (Option.map abt
                                           ~f:(exposed_type_of_abt
-                                                 ~use_temp_directly:false
-                                                 ~refer_to_via_module)))))
+                                                ~use_temp_directly:false
+                                                ~refer_to_via_module)))))
                           ))
                      ~attrs:[deriving_sexp_attribute]
                  ]
@@ -676,8 +738,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                      Exp.match_
                        [%expr view]
                        (into_code_for_closed_cases
-                          ~make_internal_constructor_name:(fun ~constructor_name -> constructor_name)
-                          ~refer_to_simple_and_open_abts_via_module:true
+                          ~name_of_walked_value:name
                           cases)
                    ]
                  in
@@ -689,9 +750,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                    Exp.match_
                      [%expr (oper : oper)]
                      (out_code_for_closed_cases
-                        ~make_internal_constructor_name:(fun ~constructor_name -> constructor_name)
-                        ~refer_to_simple_and_open_abts_via_module:true
-                        ~lang
+                        ~name_of_walked_value:name
                         cases)
                  ]
              ]
@@ -701,19 +760,31 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
              @
              [ [%stri let sexp_of_t t = [%sexp_of: view] (out t)] ]
              @
-             [ [%stri
-               let subst sort value var t =
-                 let view =
-                   [%e Exp.match_
-                         [%expr out t]
-                         (subst_code_for_cases
-                            ~make_exposed_constructor_name:(fun ~constructor_name -> constructor_name)
-                            ~refer_to_others_via_module:true
-                            [ (Nolabel, "sort"); (Nolabel, "value"); (Nolabel, "var") ]
-                            cases)
-                   ]
-                 in
-                 into view]
+             [ (let (cases, used_sub) =
+                  subst_code_for_cases
+                    ~name_of_walked_value:name
+                    ~sub:[ (Nolabel, "sort"); (Nolabel, "value"); (Nolabel, "var") ]
+                    cases
+                in
+                let sort_pat =
+                  match used_sub with
+                  | `Used_sub -> pvar "sort"
+                  | `Ignored_sub -> pvar "_sort"
+                in
+                let value_pat =
+                  match used_sub with
+                  | `Used_sub -> pvar "value"
+                  | `Ignored_sub -> pvar "_value"
+                in
+                let var_pat =
+                  match used_sub with
+                  | `Used_sub -> pvar "var"
+                  | `Ignored_sub -> pvar "_var"
+                in
+                [%stri
+                  let subst [%p sort_pat] [%p value_pat] [%p var_pat] t =
+                    let view = [%e Exp.match_ [%expr out t] cases] in
+                    into view])
              ])
         in
         Mb.mk (ident (String.capitalize name)) (Mod.constraint_ module_expr module_type)
@@ -780,34 +851,31 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
              ; [%stri
                let into (view : view) : t =
                  [%e
-                    Exp.match_
-                      [%expr view]
-                      ({ pc_lhs = [%pat? Var var]
-                       ; pc_guard = None
-                       ; pc_rhs = [%expr Var (Free_var var)]
-                       }
-                       :: List.map
-                            (into_code_for_closed_cases
-                               ~make_internal_constructor_name:(fun ~constructor_name -> constructor_name)
-                               ~refer_to_simple_and_open_abts_via_module:true
-                               cases)
-                            ~f:(fun { pc_lhs; pc_guard; pc_rhs } ->
-                              { pc_lhs; pc_guard; pc_rhs = [%expr Oper (Renaming.ident, [%e pc_rhs])] }))
-                  ]
+                   Exp.match_
+                     [%expr view]
+                     ({ pc_lhs = [%pat? Var var]
+                      ; pc_guard = None
+                      ; pc_rhs = [%expr Var (Free_var var)]
+                      }
+                      :: List.map
+                           (into_code_for_closed_cases
+                              ~name_of_walked_value:name
+                              cases)
+                           ~f:(fun { pc_lhs; pc_guard; pc_rhs } ->
+                             { pc_lhs; pc_guard; pc_rhs = [%expr Oper (Renaming.ident, [%e pc_rhs])] }))
+                 ]
              ]
              ; [%stri
                let out (t : t) : view =
                  match t with
-                 | Var (Bound_var _) -> raise_s [%message "Internal Abbot error."]
+                 | Var (Bound_var _) -> [%e raise_internal_error_expr]
                  | Var (Free_var var) -> Var var
                  | Oper (renaming, oper) ->
                    [%e
                      Exp.match_
                        [%expr oper]
                        (out_code_for_closed_cases
-                          ~make_internal_constructor_name:(fun ~constructor_name -> constructor_name)
-                          ~refer_to_simple_and_open_abts_via_module:true
-                          ~lang
+                          ~name_of_walked_value:name
                           cases)
                    ]
              ]
@@ -817,65 +885,88 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
              @
              [ [%stri let sexp_of_t t = [%sexp_of: view] (out t)] ]
              @
-             [ [%stri
-               let subst (type var) (type sort) (sort : (var, sort) Sort.t) (value : sort) (var : var) (t : t) :t =
-                 [%e Exp.match_
-                       [%expr out t]
-                       ({ pc_lhs =
-                            Pat.construct
-                              (lident "Var")
-                              (Some (Pat.var (ident "var'")))
-                        ; pc_guard = None
-                        ; pc_rhs =
-                            Exp.match_
-                              [%expr sort]
-                              ({ pc_lhs =
-                                   Pat.construct
-                                     (lident ("Sort." ^ String.capitalize name))
-                                     None
-                               ; pc_guard = None
-                               ; pc_rhs =
-                                   Exp.match_
-                                     [%expr Temp.equal var var']
-                                     [ { pc_lhs = Pat.construct (lident "true") None
-                                       ; pc_guard = None
-                                       ; pc_rhs = eident "value"
-                                       }
-                                     ; { pc_lhs = Pat.construct (lident "false") None
+             [ (let (cases, used_sub) =
+                  subst_code_for_cases
+                    ~name_of_walked_value:name
+                    ~sub:[ (Nolabel, "sort"); (Nolabel, "value"); (Nolabel, "var") ]
+                    cases
+                in
+                let sort_pat =
+                  match used_sub with
+                  | `Used_sub -> pvar "sort"
+                  | `Ignored_sub -> pvar "_sort"
+                in
+                let value_pat =
+                  match used_sub with
+                  | `Used_sub -> pvar "value"
+                  | `Ignored_sub -> pvar "_value"
+                in
+                let var_pat =
+                  match used_sub with
+                  | `Used_sub -> pvar "var"
+                  | `Ignored_sub -> pvar "_var"
+                in
+                [%stri
+                  let subst
+                        (type var)
+                        (type sort)
+                        ([%p sort_pat] : (var, sort) Sort.t)
+                        ([%p value_pat] : sort)
+                        ([%p var_pat] : var)
+                        (t : t)
+                    : t =
+                    [%e Exp.match_
+                          [%expr out t]
+                          ({ pc_lhs =
+                               Pat.construct
+                                 (lident "Var")
+                                 (Some (Pat.var (ident "var'")))
+                           ; pc_guard = None
+                           ; pc_rhs =
+                               Exp.match_
+                                 [%expr sort]
+                                 ({ pc_lhs =
+                                      Pat.construct
+                                        (lident ("Sort." ^ String.capitalize name))
+                                        None
+                                  ; pc_guard = None
+                                  ; pc_rhs =
+                                      Exp.match_
+                                        [%expr Temp.equal var var']
+                                        [ { pc_lhs = Pat.construct (lident "true") None
+                                          ; pc_guard = None
+                                          ; pc_rhs = eident "value"
+                                          }
+                                        ; { pc_lhs = Pat.construct (lident "false") None
+                                          ; pc_guard = None
+                                          ; pc_rhs = eident "t"
+                                          }
+                                        ]
+                                  }
+                                  ::
+                                  (match
+                                     List.count defns ~f:(function (_, `Sort _) -> true | _ -> false)
+                                   with
+                                   | 1 ->
+                                     (* If there is exactly one sort, we drop this case to avoid a
+                                        redunant match warning. *)
+                                     []
+                                   | _ ->
+                                     [ { pc_lhs = Pat.any ()
                                        ; pc_guard = None
                                        ; pc_rhs = eident "t"
                                        }
-                                     ]
-                               }
-                               ::
-                               (match
-                                  List.count defns ~f:(function (_, `Sort _) -> true | _ -> false)
-                                with
-                                | 1 ->
-                                  (* If there is exactly one sort, we drop this case to avoid a
-                                     redunant match warning. *)
-                                  []
-                                | _ ->
-                                  [ { pc_lhs = Pat.any ()
-                                    ; pc_guard = None
-                                    ; pc_rhs = eident "t"
-                                    }
-                                  ]))
-                        }
-                        ::
-                        (subst_code_for_cases
-                           ~make_exposed_constructor_name:(fun ~constructor_name -> constructor_name)
-                           ~refer_to_others_via_module:true
-                           [ (Nolabel, "sort"); (Nolabel, "value"); (Nolabel, "var") ]
-                           cases
-                         |> List.map ~f:(fun { pc_lhs; pc_guard; pc_rhs } ->
-                           { pc_lhs
-                           ; pc_guard
-                           ; pc_rhs =
-                               [%expr [%e pc_rhs] |> into]
-                           })))
-                 ]
-             ]
+                                     ]))
+                           }
+                           ::
+                           (List.map cases ~f:(fun { pc_lhs; pc_guard; pc_rhs } ->
+                              { pc_lhs
+                              ; pc_guard
+                              ; pc_rhs =
+                                  [%expr [%e pc_rhs] |> into]
+                              })))
+                    ]
+                ])
              ])
         in
         Mb.mk (ident (String.capitalize name)) (Mod.constraint_ module_expr module_type))
@@ -896,7 +987,6 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
   in
   [ [%stri open! Core]
   ; [%stri open! Abbot_runtime]
-  ; [%stri [@@@warning "-27-32"]]
   ; Str.open_ (Opn.mk ~override:Override (Mod.ident (lident (module_name ^ "_intf"))))
   ]
   @

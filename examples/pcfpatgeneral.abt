@@ -5,7 +5,7 @@ sort tp =
  | Parr of tp * tp
  | Prod of tp labelMap
  | Sum of tp labelMap
- | Rec of tp . tp
+ | Rec of tp binding . tp
 
 abt pat =
  | Var of exp binding

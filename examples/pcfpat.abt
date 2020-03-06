@@ -8,11 +8,11 @@ sort tp =
  | Prod of tp * tp
  | Void
  | Sum of tp * tp
- | Rec of tp . tp
+ | Rec of tp binding . tp
 
 abt pat =
  | Var of exp binding
- | Tuple of exp * exp
+ | Pair of exp * exp
  | In of side * exp
  | Fold of exp
 
@@ -23,7 +23,8 @@ abt cases =
 sort exp =
  | Lam of exp binding * tp . exp
  | Ap of exp * exp
- | Tuple of exp * exp
+ | Unit
+ | Pair of exp * exp
  | In of side * exp
  | Fold of exp
  | Match of exp * cases

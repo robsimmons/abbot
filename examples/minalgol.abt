@@ -22,7 +22,7 @@ sort exp =
  | Triv
  | Pair of exp * exp
  | Pr of side * exp
-(* | MatchPair of exp * (exp binding . exp binding . exp)*)
+ | MatchPair of exp * (exp binding . exp binding . exp)
  | Abort of tp * exp
  | In of tp * tp * side * exp
  | Case of exp * (exp binding . exp) * (exp binding . exp)
