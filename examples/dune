@@ -108,8 +108,8 @@
   (progn
    (run %{abbot} ocaml %{example}))))
 
-(alias
- (name install)
+(rule
+ (alias install)
  (action (bash "echo \"\" | sml ../sml_runtime/abbot_runtime.cm *.{sig,sml}"))
  (deps
   (glob_files "../sml_runtime/*")

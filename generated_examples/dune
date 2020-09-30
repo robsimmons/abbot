@@ -1,0 +1,6 @@
+(library
+ (name abbot_generated_examples)
+ (preprocess (pps ppx_jane))
+ (libraries
+  abbot_runtime
+  core))

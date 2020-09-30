@@ -267,8 +267,19 @@ let internal_error_message = [%expr "Internal Abbot error occurred. Please repor
    maybe write a [fold_map]-like function for open abts and use it for both into and out.
 *)
 
-(* CR wduff: We could produce nicer code if we keep [vars] as a compile time list when possible,
-   allowing compile-time concatenation. *)
+let use_subst = false
+
+let apply_subst_to_var subst_expr var_expr =
+  match use_subst with
+  | true -> [%expr Subst.apply_to_var [%e subst_expr] [%e var_expr]]
+  | false -> [%expr Renaming.apply [%e subst_expr] [%e var_expr]]
+;;
+
+let apply_subst_to_sort subst_expr sort_expr =
+  match use_subst with
+  | true -> [%expr Internal_sort.apply_subst ~apply_to_var:Subst.apply_to_var [%e subst_expr] [%e sort_expr]]
+  | false -> [%expr Internal_sort.apply_renaming [%e subst_expr] [%e sort_expr]]
+;;
 
 module Walks (Config : sig
     val use_flat_names_internally : bool
@@ -333,11 +344,11 @@ struct
        `Used_renaming)
     | Symbol_use name ->
       let name = Uniquifier.uniquify uniquifier name in
-      (pvar name, [%expr Renaming.apply [%e renaming] [%e eident name]], `Used_renaming)
+      (pvar name, apply_subst_to_var renaming (eident name), `Used_renaming)
     | Sort_use name ->
       let name = Uniquifier.uniquify uniquifier name in
       (pvar name,
-       [%expr ([%e acc], Internal_sort.apply_renaming renaming [%e eident name])],
+       [%expr ([%e acc], [%e apply_subst_to_sort renaming (eident name)])],
        `Used_renaming)
     | Prod abts ->
       let rec make_tuple_fold i acc abts =
@@ -396,90 +407,6 @@ struct
      | false -> `Ignored_renaming)
   ;;
 
-  (* CR wduff: This is duplicated from the ocaml code. *)
-  let string_of_arg ~arg_count =
-    match arg_count with
-    | 0 -> (fun _ _ -> assert false)
-    | 1 -> (fun prefix _ -> prefix)
-    | _ -> (fun prefix i -> prefix ^ Int.to_string (i + 1))
-  ;;
-
-  let rec apply_renaming_code_for_closed_abt
-            uniquifier
-            ~renaming
-            (abt : [ `Closed ] Abt.t)
-    =
-    match abt with
-    | Builtin_abt_use (builtin_abt, args) ->
-      let name' = Uniquifier.uniquify uniquifier (Builtin_abt.name builtin_abt) in
-      let (arg_funs, used_renaming) = apply_renaming_code_for_closed_abt_args renaming args in
-      (pvar name',
-       Exp.apply
-         (eident (Builtin_abt.module_name builtin_abt ^ ".map"))
-         ((Nolabel, eident name') :: arg_funs),
-       used_renaming)
-    | Simple_abt_use (name, args) ->
-      let name' = Uniquifier.uniquify uniquifier name in
-      let (arg_funs, used_renaming) = apply_renaming_code_for_closed_abt_args renaming args in
-      (pvar name',
-       Exp.apply
-         (eident
-            (match Config.use_flat_names_internally with
-             | true -> name ^ "_map"
-             | false -> String.capitalize name ^ ".map"))
-         ((Nolabel, eident name') :: arg_funs),
-       used_renaming)
-    | Closed_abt_use name ->
-      let name' = Uniquifier.uniquify uniquifier name in
-      (pvar name',
-       [%expr With_renaming.apply_renaming [%e renaming] [%e eident name']],
-       `Used_renaming)
-    | Symbol_use name ->
-      let name = Uniquifier.uniquify uniquifier name in
-      (pvar name, [%expr Renaming.apply [%e renaming] [%e eident name]], `Used_renaming)
-    | Sort_use name ->
-      let name = Uniquifier.uniquify uniquifier name in
-      (pvar name, [%expr Internal_sort.apply_renaming [%e renaming] [%e eident name]], `Used_renaming)
-    | Prod abts ->
-      let (pats, exprs, used_renaming) =
-        List.map abts ~f:(apply_renaming_code_for_closed_abt uniquifier ~renaming)
-        |> List.unzip3
-      in
-      (Pat.tuple pats, Exp.tuple exprs, used_renaming_of_list used_renaming)
-    | Bind (_, _) ->
-      (* CR wduff: Implement?
-
-         I suspect what has to happen here is we need to shift before we apply it to the rhs, since
-         it will have moved underneath a binding site.
-
-         A nasty way to do this that would mimic what we do when there is an indirection is unbind,
-         apply the renaming, and then rebind. (this is basically a conjugate operation).
-
-         Maybe it suffices to prove that the shift is equivalent to the conjugation.
-
-         It's not the same as shift, because you need to ignore vars bound by this thing, and
-         subtract from the other bound vars. This is clear from the implementation of [unbind]. *)
-      failwith "unimpl"
-
-  and apply_renaming_code_for_closed_abt_args renaming args =
-    let string_of_arg = string_of_arg ~arg_count:(List.length args) in
-    let (args, used_renaming) =
-      List.mapi args ~f:(fun arg_num arg ->
-        let (pat, expr, used_renaming) =
-          apply_renaming_code_for_closed_abt
-            (Uniquifier.create ())
-            ~renaming
-            arg
-        in
-        (* CR wduff: We need to not label arguments in sml... *)
-        ((Labelled (string_of_arg "f" arg_num),
-          Exp.fun_ Nolabel None pat expr),
-         used_renaming))
-      |> List.unzip
-    in
-    (args, used_renaming_of_list used_renaming)
-  ;;
-
   let vars_to_expr = function
     | `Expr expr -> expr
     | `List vars ->
@@ -494,7 +421,7 @@ struct
     | (`Expr _, _) | (_, `Expr _) ->
       `Expr [%expr [%e vars_to_expr vars1] @ [%e vars_to_expr vars2]]
 
-  let rec into_code_for_open_abt uniquifier (abt : [ `Open ] Abt.t) =
+  let rec into_code_for_open_abt uniquifier renaming (abt : [ `Open ] Abt.t) =
     match abt with
     | Builtin_abt_use (builtin_abt, args) ->
       let name' = Uniquifier.uniquify uniquifier (Builtin_abt.name builtin_abt) in
@@ -504,7 +431,7 @@ struct
             (eident (Builtin_abt.module_name builtin_abt ^ ".apply_renaming"))
             (into_code_for_open_abt_args args
              @
-             [ (Nolabel, eident "Renaming.ident")
+             [ (Nolabel, renaming)
              ; (Nolabel, [%expr []])
              ; (Nolabel, eident name')
              ])))
@@ -519,32 +446,38 @@ struct
                 | false -> String.capitalize name ^ ".apply_renaming"))
             (into_code_for_open_abt_args args
              @
-             [ (Nolabel, eident "Renaming.ident")
+             [ (Nolabel, renaming)
              ; (Nolabel, [%expr []])
              ; (Nolabel, eident name')
              ])))
     | Closed_abt_use name ->
       let name' = Uniquifier.uniquify uniquifier name in
-      (pvar name', `Pair (`List [], eident name'))
+      (pvar name',
+       `Pair (`List [], [%expr With_renaming.apply_renaming [%e renaming] [%e eident name']]))
     | Open_abt_use name ->
       let name' = Uniquifier.uniquify uniquifier name in
+      (* CR wduff: Does doing things in this order work? *)
       (pvar name',
        `Expr
          [%expr
-           [%e
-             match Config.use_flat_names_internally with
-             | true -> eident (name ^ "_into")
-             | false -> eident (String.capitalize name ^ ".into")]
-             [%e eident name']])
+           let (vars, [%p pvar name']) =
+             [%e
+               match Config.use_flat_names_internally with
+               | true -> eident (name ^ "_into")
+               | false -> eident (String.capitalize name ^ ".into")]
+               [%e eident name']
+           in
+           (vars, With_renaming.apply_renaming [%e renaming] [%e eident name'])])
     | Symbol_use name ->
       let name = Uniquifier.uniquify uniquifier name in
       (pvar name, `Pair (`List [], [%expr Internal_var.Free_var [%e eident name]]))
     | Sort_use name ->
       let name = Uniquifier.uniquify uniquifier name in
-      (pvar name, `Pair (`List [], eident name))
+      (pvar name,
+       `Pair (`List [], apply_subst_to_sort renaming (eident name)))
     | Prod abts ->
       let (pats, exprs) =
-        List.map abts ~f:(into_code_for_open_abt uniquifier)
+        List.map abts ~f:(into_code_for_open_abt uniquifier renaming)
         |> List.unzip
       in
       (* CR wduff: The names in here need to be uniquified. *)
@@ -591,11 +524,12 @@ struct
       let (pat, expr) =
         into_code_for_open_abt
           (Uniquifier.create ())
+          [%expr renaming]
           arg
       in
       (Nolabel,
        Exp.fun_ Nolabel None
-         [%pat? _]
+         [%pat? renaming]
          (Exp.fun_ Nolabel None
             (pvar "acc")
             (Exp.fun_ Nolabel None pat
@@ -609,7 +543,7 @@ struct
                   ])))))
   ;;
 
-  let rec into_code_for_closed_abt uniquifier (abt : [ `Closed ] Abt.t) =
+  let rec into_code_for_closed_abt uniquifier renaming (abt : [ `Closed ] Abt.t) =
     match abt with
     | Builtin_abt_use (builtin_abt, args) ->
       let name' = Uniquifier.uniquify uniquifier (Builtin_abt.name builtin_abt) in
@@ -621,7 +555,7 @@ struct
                (eident (Builtin_abt.module_name builtin_abt ^ ".apply_renaming"))
                (into_code_for_closed_abt_args args
                 @
-                [ (Nolabel, eident "Renaming.ident")
+                [ (Nolabel, renaming)
                 ; (Nolabel, [%expr ()])
                 ; (Nolabel, eident name')
                 ])
@@ -642,7 +576,7 @@ struct
                    | false -> String.capitalize name ^ ".apply_renaming"))
                (into_code_for_closed_abt_args args
                 @
-                [ (Nolabel, eident "Renaming.ident")
+                [ (Nolabel, renaming)
                 ; (Nolabel, [%expr ()])
                 ; (Nolabel, eident name')
                 ])
@@ -652,46 +586,48 @@ struct
        ])
     | Closed_abt_use name ->
       let name' = Uniquifier.uniquify uniquifier name in
-      (pvar name', eident name')
+      (pvar name', [%expr With_renaming.apply_renaming [%e renaming] [%e eident name']])
     | Symbol_use name ->
       let name = Uniquifier.uniquify uniquifier name in
       (pvar name, [%expr Internal_var.Free_var [%e eident name]])
     | Sort_use name ->
       let name = Uniquifier.uniquify uniquifier name in
-      (pvar name, eident name)
+      (pvar name, apply_subst_to_sort renaming (eident name))
     | Prod abts ->
       let (pats, exprs) =
-        List.map abts ~f:(into_code_for_closed_abt uniquifier)
+        List.map abts ~f:(into_code_for_closed_abt uniquifier renaming)
         |> List.unzip
       in
       (Pat.tuple pats, Exp.tuple exprs)
     | Bind (lhs, rhs) ->
       let (lhs_pat, lhs_expr) =
-        into_code_for_open_abt uniquifier lhs
+        into_code_for_open_abt uniquifier renaming lhs
       in
-      let (rhs_pat, rhs_expr, used_renaming) =
-        apply_renaming_code_for_closed_abt
+      let (rhs_pat, rhs_expr (* CR wduff: , used_renaming *)) =
+        into_code_for_closed_abt
           uniquifier
-          ~renaming:[%expr renaming]
+          [%expr renaming]
           rhs
       in
       let renaming_pat =
-        (* CR wduff: If the renaming is unused, we don't need to compute it. *)
-        match used_renaming with
-        | `Used_renaming -> pvar "renaming"
-        | `Ignored_renaming -> pvar "_renaming"
+        (* CR wduff:
+           (* CR wduff: If the renaming is unused, we don't need to compute it. *)
+           match used_renaming with
+           | `Used_renaming -> pvar "renaming"
+           | `Ignored_renaming -> pvar "_renaming"
+        *)
+        pvar "renaming"
       in
       ([%pat? ([%p lhs_pat], [%p rhs_pat])],
        (match lhs_expr with
         | `Pair (lhs_vars_expr, lhs_abt_expr) ->
           [%expr
-            let [%p renaming_pat] = Renaming.bind' [%e vars_to_expr lhs_vars_expr] in
-            ([%e lhs_abt_expr], [%e rhs_expr])
-          ]
+            let [%p renaming_pat] = Renaming.compose [%e renaming] (Renaming.bind' [%e vars_to_expr lhs_vars_expr]) in
+            ([%e lhs_abt_expr], [%e rhs_expr])]
         | `Expr lhs_expr ->
           [%expr
             let (vars, lhs) = [%e lhs_expr] in
-            let [%p renaming_pat] = Renaming.bind' vars in
+            let [%p renaming_pat] = Renaming.compose [%e renaming] (Renaming.bind' vars) in
             (lhs, [%e rhs_expr])
           ]))
 
@@ -700,11 +636,12 @@ struct
       let (pat, expr) =
         into_code_for_closed_abt
           (Uniquifier.create ())
+          [%expr renaming]
           arg
       in
       (Nolabel,
        Exp.fun_ Nolabel None
-         [%pat? _]
+         [%pat? renaming]
          (Exp.fun_ Nolabel None
             [%pat? ()]
             (Exp.fun_ Nolabel None pat [%expr ((), [%e expr])]))))
@@ -769,7 +706,7 @@ struct
     | Sort_use name ->
       let name = Uniquifier.uniquify uniquifier name in
       (pvar name,
-       `Pair (`List [], [%expr Internal_sort.apply_renaming [%e renaming] [%e eident name]]))
+       `Pair (`List [], apply_subst_to_sort renaming (eident name)))
     | Prod abts ->
       let (pats, exprs) =
         List.map abts ~f:(out_code_for_open_abt uniquifier renaming)
@@ -831,14 +768,14 @@ struct
       let (pat, expr) =
         out_code_for_open_abt
           (Uniquifier.create ())
-          (eident "renaming")
+          [%expr renaming]
           arg
       in
       (Nolabel,
        Exp.fun_ Nolabel None
-         (pvar "renaming")
+         [%pat? renaming]
          (Exp.fun_ Nolabel None
-            (pvar "acc")
+            [%pat? acc]
             (Exp.fun_ Nolabel None pat
                (match expr with
                 | `Pair (vars_expr, abt_expr) ->
@@ -850,10 +787,7 @@ struct
                   ])))))
   ;;
 
-  let rec out_code_for_closed_abt
-            uniquifier
-            renaming
-            (abt : [ `Closed ] Abt.t) =
+  let rec out_code_for_closed_abt uniquifier renaming (abt : [ `Closed ] Abt.t) =
     match abt with
     | Builtin_abt_use (builtin_abt, args) ->
       let name' = Uniquifier.uniquify uniquifier (Builtin_abt.name builtin_abt) in
@@ -912,7 +846,7 @@ struct
        ])
     | Sort_use name ->
       let name = Uniquifier.uniquify uniquifier name in
-      (pvar name, [%expr Internal_sort.apply_renaming [%e renaming] [%e eident name]])
+      (pvar name, apply_subst_to_sort renaming (eident name))
     | Prod abts ->
       let (pats, exprs) =
         List.map abts
@@ -926,31 +860,34 @@ struct
       let (lhs_pat, lhs_expr) =
         out_code_for_open_abt uniquifier renaming lhs
       in
-      let (rhs_pat, rhs_expr, used_renaming) =
-        apply_renaming_code_for_closed_abt
+      let (rhs_pat, rhs_expr(* CR wduff: , used_renaming *)) =
+        out_code_for_closed_abt
           uniquifier
-          ~renaming:[%expr renaming]
+          [%expr renaming]
           rhs
       in
       let renaming_pat =
-        (* CR wduff: If the renaming is unused, we don't need to compute it. *)
-        match used_renaming with
-        | `Used_renaming -> pvar "renaming"
-        | `Ignored_renaming -> pvar "_renaming"
+        (* CR wduff:
+           (* CR wduff: If the renaming is unused, we don't need to compute it. *)
+           match used_renaming with
+           | `Used_renaming -> pvar "renaming"
+           | `Ignored_renaming -> pvar "_renaming"
+        *)
+        pvar "renaming"
       in
       ([%pat? ([%p lhs_pat], [%p rhs_pat])],
        (match lhs_expr with
         | `Pair (lhs_vars_expr, lhs_abt_expr) ->
           [%expr
             let [%p renaming_pat] =
-              Renaming.unbind' [%e renaming] [%e vars_to_expr lhs_vars_expr]
+              Renaming.compose [%e renaming] (Renaming.unbind' [%e vars_to_expr lhs_vars_expr])
             in
             ([%e lhs_abt_expr], [%e rhs_expr])
           ]
         | `Expr lhs_expr ->
           [%expr
             let (vars, lhs) = [%e lhs_expr] in
-            let [%p renaming_pat] = Renaming.unbind' [%e renaming] vars in
+            let [%p renaming_pat] = Renaming.compose [%e renaming] (Renaming.unbind' vars) in
             (lhs, [%e rhs_expr])
           ]))
 
@@ -959,12 +896,12 @@ struct
       let (pat, expr) =
         out_code_for_closed_abt
           (Uniquifier.create ())
-          (eident "renaming")
+          [%expr renaming]
           arg
       in
       (Nolabel,
        Exp.fun_ Nolabel None
-         (pvar "renaming")
+         [%pat? renaming]
          (Exp.fun_ Nolabel None
             [%pat? ()]
             (Exp.fun_ Nolabel None pat [%expr ((), [%e expr])]))))
@@ -1037,6 +974,7 @@ struct
           let (pat, expr) =
             into_code_for_open_abt
               (Uniquifier.create ())
+              [%expr Subst.ident]
               abt
           in
           (Pat.construct (lident constructor_name) (Some pat),
@@ -1063,6 +1001,7 @@ struct
           let (pat, expr) =
             into_code_for_closed_abt
               (Uniquifier.create ())
+              [%expr Subst.ident]
               abt
           in
           (Some pat, Some expr)

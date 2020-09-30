@@ -17,5 +17,7 @@ module T = struct
 end
 
 include T
+module Brother_tree_set = Brother_tree.Set.Make (T)
+module Brother_tree_map = Brother_tree.Map.Make (T)
 include Comparable.Make (T)
 include Hashable.Make (T)

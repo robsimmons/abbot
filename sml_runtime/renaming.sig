@@ -6,8 +6,8 @@ signature RENAMING = sig
     val bind : Temp.t -> t
     val bind' : Temp.t list -> t
 
-    val unbind : t -> Temp.t -> t
-    val unbind' : t -> Temp.t list -> t
+    val unbind : Temp.t -> t
+    val unbind' : Temp.t list -> t
 
     val ident : t
 

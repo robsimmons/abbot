@@ -1,0 +1,7 @@
+(library
+ (name test_abbot_runtime)
+ (inline_tests)
+ (preprocess (pps ppx_jane))
+ (libraries
+  abbot_runtime
+  core))

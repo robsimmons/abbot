@@ -505,13 +505,13 @@ let rec layout_module_type lang ({ pmty_desc; pmty_attributes = _; pmty_loc = _ 
   | Pmty_ident lident -> atom (string_of_lident lident)
   | Pmty_signature signature ->
     list [ (No_indent, atom "sig"); (Indent, layout_signature lang signature); (No_indent, atom "end") ]
-  | Pmty_functor (arg_name, arg_type, result_type) ->
+  | Pmty_functor (arg, result_type) ->
     (* CR wduff: Should we lift "sig" here as well? Is there some generic way to lift it everywhere? *)
     list
       [ (No_indent,
          list
            [ (No_indent, atom "functor")
-           ; (Indent, layout_module_arg lang arg_name arg_type)
+           ; (Indent, layout_functor_parameter lang arg)
            ; (No_indent, atom "->")
            ])
       ; (Indent, layout_module_type lang result_type)
@@ -631,18 +631,26 @@ and layout_module_type_decl lang { pmtd_name; pmtd_type; pmtd_attributes = _; pm
         ; (Indent, layout_module_type lang module_type)
         ]
 
-and layout_module_arg lang arg_name arg_type =
-  match arg_type with
-  | None -> list [ (No_indent, lparen); (Indent, atom arg_name.txt); (No_indent, rparen) ]
-  | Some arg_type ->
-    layout_constraint (atom arg_name.txt) (layout_module_type lang arg_type)
+and layout_functor_parameter lang functor_parameter =
+  match functor_parameter with
+  | Unit -> atom "()"
+  | Named (arg_name, arg_type) ->
+    let arg_name =
+      match arg_name.txt with
+      | None ->
+        (* CR wduff: This case is not handled well for module types. *)
+        "_"
+      | Some arg_name ->
+        arg_name
+    in
+    layout_constraint (atom arg_name) (layout_module_type lang arg_type)
 
 and layout_module_decl lang ~start_keyword { pmd_name; pmd_type; pmd_attributes = _; pmd_loc = _ } =
   let rec strip_functor_args (({ pmty_desc; pmty_attributes = _; pmty_loc = _ } as module_type) : module_type) =
     match pmty_desc with
-    | Pmty_functor (arg_name, arg_type, result_type) ->
+    | Pmty_functor (arg, result_type) ->
       let (args, result_type) = strip_functor_args result_type in
-      ((Indent, layout_module_arg lang arg_name arg_type) :: args, result_type)
+      ((Indent, layout_functor_parameter lang arg) :: args, result_type)
     | _ -> ([], module_type)
   in
   let (args, result_type) = strip_functor_args pmd_type in
@@ -656,27 +664,32 @@ and layout_module_decl lang ~start_keyword { pmd_name; pmd_type; pmd_attributes 
   in
   (* CR wduff: This is an interesting case: If the name gets put on a new line and indented, the
      arguments should probably be indented an extra level. *)
-  let start =
-    (No_indent, list [ (No_indent, atom start_keyword); (Indent, atom pmd_name.txt) ]) :: args
-  in
-  (* CR wduff: Shouldn't the colon by default be on the next line? *)
-  match result_type.pmty_desc with
-  | Pmty_signature signature ->
-    list
-      [ (No_indent, list (start @ [ (No_indent, atom ":"); (No_indent, atom "sig") ]))
-      ; (Indent, layout_signature lang signature)
-      ; (No_indent, atom "end")
-      ]
-  | Pmty_alias lident ->
-    list
-      [ (No_indent, list (start @ [ (No_indent, atom "=") ]))
-      ; (Indent, atom (string_of_lident lident))
-      ]
-  | _ ->
-    list
-      [ (No_indent, list start)
-      ; (Indent, list [ (No_indent, atom ":"); (Indent, layout_module_type lang result_type) ])
-      ]
+  match pmd_name.txt with
+  | None ->
+    (* What does it even mean for a module declaration to have no name? *)
+    raise_s [%message "unsupported signature item"]
+  | Some name ->
+    let start =
+      (No_indent, list [ (No_indent, atom start_keyword); (Indent, atom name) ]) :: args
+    in
+    (* CR wduff: Shouldn't the colon by default be on the next line? *)
+    match result_type.pmty_desc with
+    | Pmty_signature signature ->
+      list
+        [ (No_indent, list (start @ [ (No_indent, atom ":"); (No_indent, atom "sig") ]))
+        ; (Indent, layout_signature lang signature)
+        ; (No_indent, atom "end")
+        ]
+    | Pmty_alias lident ->
+      list
+        [ (No_indent, list (start @ [ (No_indent, atom "=") ]))
+        ; (Indent, atom (string_of_lident lident))
+        ]
+    | _ ->
+      list
+        [ (No_indent, list start)
+        ; (Indent, list [ (No_indent, atom ":"); (Indent, layout_module_type lang result_type) ])
+        ]
 
 and layout_signature_item lang ({ psig_desc; psig_loc = _ } : signature_item) =
   match psig_desc with
@@ -891,11 +904,37 @@ let rec try_to_get_list_elements expr =
   | _ ->
     None
 
+let layout_arg' ~lang arg_label default_opt arg_pat =
+  match default_opt with
+  | Some _ ->
+    raise_s [%message "unsupported expression"]
+  | None ->
+    layout_arg
+      ~layout:(layout_pattern lang ~outer_precedence:`Fun_arg)
+      ~can_pun:can_pun_pattern
+      arg_label
+      arg_pat
+;;
+
+let rec strip_function_args ~lang expr =
+  match expr.pexp_desc with
+  | Pexp_newtype (type_name, body) ->
+    let layout = atom (sprintf "(type %s)" type_name.txt) in
+    let (other_args, body) = strip_function_args ~lang body in
+    (layout :: other_args, body)
+  | Pexp_fun (arg_label, default_opt, arg_pat, body) ->
+    let layout = layout_arg' ~lang arg_label default_opt arg_pat in
+    let (other_args, body) = strip_function_args ~lang body in
+    (layout :: other_args, body)
+  | _ -> ([], expr)
+;;
+
+
 (* CR wduff: Are the precedence rules right for sml? *)
 (* CR wduff: Fix the way parens work here. Remove superfluous ones, add needed ones, and maybe use
    begin ... end for multi line stuff in the ocaml case. *)
-let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = _; pexp_loc = _; pexp_loc_stack = _ } =
-  match pexp_desc with
+let rec layout_expression lang ~outer_precedence expr =
+  match expr.pexp_desc with
   | Pexp_ident lident -> atom (string_of_lident lident)
   | Pexp_constant constant -> layout_constant constant
   | Pexp_let (rec_flag, value_bindings, body) ->
@@ -983,20 +1022,18 @@ let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = 
            :: List.mapi cases ~f:(fun i case ->
              (No_indent, layout_match_case lang ~first_case:(Int.equal i 0) case)))
     end
-  | Pexp_fun (arg_label, default_opt, arg_pat, expr) ->
-    let rec strip_other_args expr =
-      match expr.pexp_desc with
-      | Pexp_fun (arg_label, default_opt, arg_pat, expr) ->
-        let (other_args, body) = strip_other_args expr in
-        ((arg_label, default_opt, arg_pat) :: other_args, body)
-      | _ -> ([], expr)
-    in
-    let (other_args, body) =
+  | Pexp_fun _ | Pexp_newtype _ ->
+    let (args, body) =
       match lang with
-      | `Ocaml -> strip_other_args expr
-      | `Sml -> ([], expr)
+      | `Ocaml -> strip_function_args ~lang expr
+      | `Sml ->
+        match expr.pexp_desc with
+        | Pexp_fun (arg_label, default_opt, arg_pat, body) ->
+          ([ layout_arg' ~lang arg_label default_opt arg_pat ], body)
+        | Pexp_newtype _ ->
+          raise_s [%message "unsupported expression in sml"]
+        | _ -> assert false
     in
-    let args = (arg_label, default_opt, arg_pat) :: other_args in
     begin
       (* CR wduff: Drop parens sometimes? Maybe if it is the entire expression or something? *)
       list
@@ -1009,17 +1046,7 @@ let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = 
                    | `Sml -> "(fn"))
              ; (Indent,
                 list
-                  (List.map args ~f:(fun (arg_label, default_opt, arg_pat) ->
-                     match default_opt with
-                     | Some _ ->
-                       raise_s [%message "unsupported expression"]
-                     | None ->
-                       (No_indent,
-                        layout_arg
-                          ~layout:(layout_pattern lang ~outer_precedence:`Fun_arg)
-                          ~can_pun:can_pun_pattern
-                          arg_label
-                          arg_pat))))
+                  (List.map args ~f:(fun layout -> (No_indent, layout))))
              ; (No_indent,
                 atom
                   (match lang with
@@ -1029,23 +1056,6 @@ let rec layout_expression lang ~outer_precedence { pexp_desc; pexp_attributes = 
         ; (Indent, layout_expression lang ~outer_precedence:`Fun_body body)
         ; (No_indent, rparen)
         ]
-    end
-  | Pexp_newtype (type_name, body) ->
-    begin
-      match lang with
-      | `Sml -> raise_s [%message "unsupported expression in sml"]
-      | `Ocaml ->
-        (* CR wduff: Drop parens sometimes? Maybe if it is the entire expression or something? *)
-        list
-          [ (No_indent,
-             list
-               [ (No_indent, atom "(fun")
-               ; (Indent, atom (sprintf "(type %s)" type_name.txt))
-               ; (No_indent, atom "->")
-               ])
-          ; (Indent, layout_expression lang ~outer_precedence:`Fun_body body)
-          ; (No_indent, rparen)
-          ]
     end
   | Pexp_apply (func, args) ->
     let is_infix =
@@ -1538,9 +1548,9 @@ and layout_module_binding
   (* CR wduff: This code is largely a duplicate of layout_module_decl. *)
   let rec strip_functor_args (({ pmod_desc; pmod_attributes = _; pmod_loc = _ } as module_expr) : module_expr) =
     match pmod_desc with
-    | Pmod_functor (arg_name, arg_type, body) ->
+    | Pmod_functor (arg, body) ->
       let (args, body) = strip_functor_args body in
-      ((Indent, layout_module_arg lang arg_name arg_type) :: args, body)
+      ((Indent, layout_functor_parameter lang arg) :: args, body)
     | _ -> ([], module_expr)
   in
   let (args, body) = strip_functor_args pmb_expr in
@@ -1554,32 +1564,37 @@ and layout_module_binding
   in
   (* CR wduff: This is an interesting case: If the name gets put on a new line and indented, the
      arguments should probably be indented an extra level. *)
-  let start =
-    (No_indent, list [ (No_indent, atom start_keyword); (Indent, atom pmb_name.txt) ]) :: args
-  in
-  let (start, body) =
+  match pmb_name.txt with
+  | None ->
+    (* What does it even mean for a module declaration to have no name? *)
+    raise_s [%message "unsupported signature item"]
+  | Some name ->
+    let start =
+      (No_indent, list [ (No_indent, atom start_keyword); (Indent, atom name) ]) :: args
+    in
+    let (start, body) =
+      match body.pmod_desc with
+      | Pmod_constraint (module_expr, module_type) ->
+        ([ (No_indent, list (start @ [ (No_indent, atom (match lang with `Ocaml -> ":" | `Sml -> ":>")) ]))
+         ; (Indent, layout_module_type lang module_type)
+         ; (No_indent, atom "=")
+         ],
+         module_expr)
+      | _ ->
+        (start @ [ (No_indent, atom "=") ], body)
+    in
     match body.pmod_desc with
-    | Pmod_constraint (module_expr, module_type) ->
-      ([ (No_indent, list (start @ [ (No_indent, atom (match lang with `Ocaml -> ":" | `Sml -> ":>")) ]))
-       ; (Indent, layout_module_type lang module_type)
-       ; (No_indent, atom "=")
-       ],
-       module_expr)
+    | Pmod_structure structure ->
+      list
+        [ (No_indent, list (start @ [ (No_indent, atom "struct") ]))
+        ; (Indent, layout_structure lang structure)
+        ; (No_indent, atom "end")
+        ]
     | _ ->
-      (start @ [ (No_indent, atom "=") ], body)
-  in
-  match body.pmod_desc with
-  | Pmod_structure structure ->
-    list
-      [ (No_indent, list (start @ [ (No_indent, atom "struct") ]))
-      ; (Indent, layout_structure lang structure)
-      ; (No_indent, atom "end")
-      ]
-  | _ ->
-    list
-      [ (No_indent, list start)
-      ; (Indent, layout_module lang body)
-      ]
+      list
+        [ (No_indent, list start)
+        ; (Indent, layout_module lang body)
+        ]
 
 and layout_structure_item lang ({ pstr_desc; pstr_loc = _ } : structure_item) =
   match pstr_desc with

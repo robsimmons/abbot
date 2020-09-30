@@ -4,7 +4,7 @@ val loc : Location.t
 
 val lident : string -> Ppxlib.longident Ppxlib.loc
 
-val ident : string -> string Ppxlib.loc
+val ident : 'a -> 'a Ppxlib.loc
 
 val eident : string -> Ppxlib.expression
 

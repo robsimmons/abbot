@@ -263,12 +263,12 @@ let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure 
              ]
              @ shared_signature_items_of_defn ~current_name:name defn)
       in
-      Md.mk (ident (String.capitalize name)) module_type)
+      Md.mk (ident (Some (String.capitalize name))) module_type)
   in
   let modules =
     per_defn_modl_decls
     @
-    [ Md.mk (ident "Sort")
+    [ Md.mk (ident (Some "Sort"))
         (Mty.signature
            [ Sig.type_ Recursive (sort_type defns) ])
     ]
@@ -293,7 +293,7 @@ let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure 
                     ~f:(fun (name, arg_count) ->
                       Sig.module_
                         (Md.mk
-                           (ident (String.capitalize name))
+                           (ident (Some (String.capitalize name)))
                            (Mty.ident (lident (sprintf "External_abt%d" arg_count)))))
                   @
                   [ Sig.rec_module modules ])))
@@ -304,13 +304,13 @@ let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure 
               (Mty.signature
                  [ Sig.module_
                      (Md.mk
-                        (ident "Make")
+                        (ident (Some "Make"))
                         (List.fold_right external_abts
                            ~f:(fun (name, arg_count) acc ->
                              Mty.functor_
-                               (ident (String.capitalize name))
-                               (Some
-                                  (Mty.ident (lident (sprintf "External_abt%d" arg_count))))
+                               (Named
+                                  (ident (Some (String.capitalize name)),
+                                   (Mty.ident (lident (sprintf "External_abt%d" arg_count)))))
                                acc)
                            ~init:
                              (Mty.with_
@@ -466,7 +466,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
            ; subst_defn
            ])
       in
-      Str.module_ (Mb.mk (ident (String.capitalize name)) module_expr))
+      Str.module_ (Mb.mk (ident (Some (String.capitalize name))) module_expr))
   in
   let per_defn_modl_defns =
     List.map defns ~f:(fun (name, defn) ->
@@ -587,7 +587,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                            [%e Exp.match_ [%expr t] cases ]]]]
              ])
         in
-        Mb.mk (ident (String.capitalize name)) (Mod.constraint_ module_expr module_type)
+        Mb.mk (ident (Some (String.capitalize name))) (Mod.constraint_ module_expr module_type)
       | `Open_abt cases as defn ->
         let module_type =
           Mty.signature
@@ -684,7 +684,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                 ])
              ])
         in
-        Mb.mk (ident (String.capitalize name)) (Mod.constraint_ module_expr module_type)
+        Mb.mk (ident (Some (String.capitalize name))) (Mod.constraint_ module_expr module_type)
       | `Closed_abt cases as defn ->
         let module_type =
           Mty.signature
@@ -787,7 +787,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                     into view])
              ])
         in
-        Mb.mk (ident (String.capitalize name)) (Mod.constraint_ module_expr module_type)
+        Mb.mk (ident (Some (String.capitalize name))) (Mod.constraint_ module_expr module_type)
       | `Symbol ->
         Mod.constraint_
           (Mod.ident (lident "Temp"))
@@ -796,7 +796,7 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
              [ Pwith_type
                  (lident "t", Type.mk (ident "t") ~manifest:(Typ.constr (lident "Temp.t") []))
              ])
-        |> Mb.mk (ident (String.capitalize name))
+        |> Mb.mk (ident (Some (String.capitalize name)))
       | `Sort cases as defn ->
         let module_type =
           Mty.signature
@@ -969,14 +969,14 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                 ])
              ])
         in
-        Mb.mk (ident (String.capitalize name)) (Mod.constraint_ module_expr module_type))
+        Mb.mk (ident (Some (String.capitalize name))) (Mod.constraint_ module_expr module_type))
   in
   let body =
     external_abt_modl_defns
     @
     [ Str.rec_module
         (per_defn_modl_defns
-         @ [ Mb.mk (ident "Sort")
+         @ [ Mb.mk (ident (Some "Sort"))
                (Mod.constraint_
                   (Mod.structure
                      [ Str.type_ Recursive (sort_type defns) ])
@@ -995,13 +995,14 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
    | _::_ ->
      [ Str.module_
          (Mb.mk
-            (ident "Make")
+            (ident (Some "Make"))
             (List.fold_right external_abts
                ~init:(Mod.structure body)
                ~f:(fun (name, arg_count) acc ->
                  Mod.functor_
-                   (ident (String.capitalize name))
-                   (Some (Mty.ident (lident (sprintf "External_abt%d" arg_count))))
+                   (Named
+                      (ident (Some (String.capitalize name)),
+                       Mty.ident (lident (sprintf "External_abt%d" arg_count))))
                    acc)))
      ])
 ;;
@@ -1011,9 +1012,9 @@ let gen_ast ~module_name (defns : Defn.t list) =
     List.partition_map defns ~f:(fun { name; args; body } ->
       match body with
       | External_simple_abt ->
-        `Fst (name, args)
+        First (name, args)
       | Internal_abt (T (Simple, cases)) ->
-        `Snd (name, `Simple_abt (args, (cases : [ `Simple ] Cases.t)))
+        Second (name, `Simple_abt (args, (cases : [ `Simple ] Cases.t)))
       | Internal_abt (T (Open, cases)) ->
         begin
           match args with
@@ -1022,7 +1023,7 @@ let gen_ast ~module_name (defns : Defn.t list) =
             (* CR wduff: Better error. *)
             raise_s [%message ""]
         end;
-        `Snd (name, `Open_abt (cases : [ `Open ] Cases.t))
+        Second (name, `Open_abt (cases : [ `Open ] Cases.t))
       | Internal_abt (T (Closed, cases)) ->
         begin
           match args with
@@ -1031,7 +1032,7 @@ let gen_ast ~module_name (defns : Defn.t list) =
             (* CR wduff: Better error. *)
             raise_s [%message ""]
         end;
-        `Snd (name, `Closed_abt (cases : [ `Closed ] Cases.t))
+        Second (name, `Closed_abt (cases : [ `Closed ] Cases.t))
       | Symbol ->
         begin
           match args with
@@ -1040,7 +1041,7 @@ let gen_ast ~module_name (defns : Defn.t list) =
             (* CR wduff: Better error. *)
             raise_s [%message ""]
         end;
-        `Snd (name, `Symbol)
+        Second (name, `Symbol)
       | Sort cases ->
         begin
           match args with
@@ -1049,7 +1050,7 @@ let gen_ast ~module_name (defns : Defn.t list) =
             (* CR wduff: Better error. *)
             raise_s [%message ""]
         end;
-        `Snd (name, `Sort cases))
+        Second (name, `Sort cases))
   in
   let external_abts =
     List.map external_abts ~f:(fun (name, args) -> (name, List.length args))

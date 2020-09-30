@@ -327,12 +327,12 @@ let gen_interface (context : Context.t) (defns : Defn.t list) : Ppxlib.Parsetree
              @
              [ subst_function_signature_item ~args:[] ])
       in
-      Md.mk (ident (String.capitalize name)) module_type)
+      Md.mk (ident (Some (String.capitalize name))) module_type)
   in
   let modules =
     per_defn_modl_decls
     @
-    [ Md.mk (ident "Subst")
+    [ Md.mk (ident (Some "Subst"))
         (Mty.signature
            [ Sig.type_ Recursive
                (subst_type
@@ -485,7 +485,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
     List.map external_abts ~f:(fun (name, args) ->
       Str.module_
         (Mb.mk
-           (ident (String.capitalize name))
+           (ident (Some (String.capitalize name)))
            (Mod.structure
               [ Str.type_ Recursive
                   [ Type.mk (ident "t")
@@ -645,9 +645,9 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
   let simple_abt_specific_structure_items =
     List.map external_abts ~f:(fun (name, _) ->
       [%stri
-         let [%p pvar (name ^ "_apply_renaming")] =
-           [%e eident (String.capitalize name ^ ".apply_renaming")]
-       ])
+        let [%p pvar (name ^ "_apply_renaming")] =
+          [%e eident (String.capitalize name ^ ".apply_renaming")]
+      ])
     @
     (match simple_abts with
      | [] -> []
@@ -739,7 +739,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
   let modules_without_subst =
     List.map simple_abts ~f:(fun (name, args, _) ->
       Str.module_
-        (Mb.mk (ident (String.capitalize name))
+        (Mb.mk (ident (Some (String.capitalize name)))
            (Mod.structure
               (types_for_sharing context name
                @
@@ -759,7 +759,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
     @
     List.map open_abts ~f:(fun (name, _) ->
       Str.module_
-        (Mb.mk (ident (String.capitalize name))
+        (Mb.mk (ident (Some (String.capitalize name)))
            (Mod.structure
               (types_for_sharing context name
                @ [ Str.type_ Recursive
@@ -774,7 +774,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
     @
     List.map closed_abts ~f:(fun (name, cases) ->
       Str.module_
-        (Mb.mk (ident (String.capitalize name))
+        (Mb.mk (ident (Some (String.capitalize name)))
            (Mod.structure
               (types_for_sharing context name
                @ [ Str.type_ Recursive
@@ -826,12 +826,12 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
     @
     List.map symbols ~f:(fun name ->
       Str.module_
-        (Mb.mk (ident (String.capitalize name))
+        (Mb.mk (ident (Some (String.capitalize name)))
            (Mod.ident (lident "Temp"))))
     @
     List.map sorts ~f:(fun (name, cases) ->
       Str.module_
-        (Mb.mk (ident (String.capitalize name))
+        (Mb.mk (ident (Some (String.capitalize name)))
            (Mod.structure
               (types_for_sharing context name
                @
@@ -841,7 +841,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                    [ Type.mk (ident "t") ~manifest:(Typ.constr (lident name) []) ]
                ; Str.type_ Recursive
                    [ Type.mk (ident name) ~manifest:(Typ.constr (lident "t") []) ]
-               ; Str.module_ (Mb.mk (ident "Var") (Mod.ident (lident "Temp")))
+               ; Str.module_ (Mb.mk (ident (Some "Var")) (Mod.ident (lident "Temp")))
                ; Str.type_ Recursive
                    [ Type.mk (ident (name ^ "Var")) ~manifest:(Typ.constr (lident "Var.t") []) ]
                ; Str.type_ Recursive
@@ -1073,7 +1073,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
       ]
     |> List.map ~f:(fun name ->
       Str.module_
-        (Mb.mk (ident (String.capitalize name))
+        (Mb.mk (ident (Some (String.capitalize name)))
            (Mod.structure
               [ [%stri type subst = Subst.t]
               ; Str.include_
@@ -1086,46 +1086,46 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
               ])))
   in
   [ Str.module_
-      (Mb.mk (ident (String.capitalize context.structure_name))
+      (Mb.mk (ident (Some (String.capitalize context.structure_name)))
          (List.fold (List.rev external_abts)
             ~f:(fun acc (name, args) ->
               Mod.functor_
-                (ident (String.capitalize name))
-                (Some
-                   (Mty.signature
-                      [ Sig.type_ Recursive
-                          [ Type.mk (ident "t")
-                              ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
-                          ]
-                      (* CR wduff: This argument order is unnatural for sml. *)
-                      ; Sig.value
-                          (Val.mk (ident "fold_map")
-                             (Typ.arrow Nolabel
-                                (Typ.constr
-                                   (lident "t")
-                                   (List.map args ~f:(fun arg -> Typ.var (arg ^ "1"))))
-                                (Typ.arrow Nolabel
-                                   (Typ.var "acc")
-                                   (List.fold_right args
-                                      ~f:(fun arg acc ->
-                                        Typ.arrow Nolabel
-                                          (Typ.arrow Nolabel
-                                             (Typ.var "acc")
-                                             (Typ.arrow Nolabel
-                                                (Typ.var (arg ^ "1"))
-                                                (Typ.tuple
-                                                   [ Typ.var "acc"
-                                                   ; Typ.var (arg ^ "2")
-                                                   ])))
-                                          acc)
-                                      ~init:
-                                        (Typ.tuple
-                                           [ Typ.var "acc"
-                                           ; Typ.constr
-                                               (lident "t")
-                                               (List.map args ~f:(fun arg -> Typ.var (arg ^ "2")))
-                                           ])))))
-                      ]))
+                (Named
+                   (ident (Some (String.capitalize name)),
+                    (Mty.signature
+                       [ Sig.type_ Recursive
+                           [ Type.mk (ident "t")
+                               ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+                           ]
+                       (* CR wduff: This argument order is unnatural for sml. *)
+                       ; Sig.value
+                           (Val.mk (ident "fold_map")
+                              (Typ.arrow Nolabel
+                                 (Typ.constr
+                                    (lident "t")
+                                    (List.map args ~f:(fun arg -> Typ.var (arg ^ "1"))))
+                                 (Typ.arrow Nolabel
+                                    (Typ.var "acc")
+                                    (List.fold_right args
+                                       ~f:(fun arg acc ->
+                                         Typ.arrow Nolabel
+                                           (Typ.arrow Nolabel
+                                              (Typ.var "acc")
+                                              (Typ.arrow Nolabel
+                                                 (Typ.var (arg ^ "1"))
+                                                 (Typ.tuple
+                                                    [ Typ.var "acc"
+                                                    ; Typ.var (arg ^ "2")
+                                                    ])))
+                                           acc)
+                                       ~init:
+                                         (Typ.tuple
+                                            [ Typ.var "acc"
+                                            ; Typ.constr
+                                                (lident "t")
+                                                (List.map args ~f:(fun arg -> Typ.var (arg ^ "2")))
+                                            ])))))
+                       ])))
                 acc)
             ~init:
               (Mod.constraint_
@@ -1143,7 +1143,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                      modules_without_subst
                      @
                      [ Str.module_
-                         (Mb.mk (ident "Subst")
+                         (Mb.mk (ident (Some "Subst"))
                             (Mod.structure
                                [ Str.type_ Recursive (subst_type (List.map ~f:fst sorts)) ]))
                      ]
