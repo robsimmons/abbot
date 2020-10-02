@@ -974,7 +974,7 @@ struct
           let (pat, expr) =
             into_code_for_open_abt
               (Uniquifier.create ())
-              [%expr Subst.ident]
+              [%expr Renaming.ident]
               abt
           in
           (Pat.construct (lident constructor_name) (Some pat),
@@ -1001,7 +1001,7 @@ struct
           let (pat, expr) =
             into_code_for_closed_abt
               (Uniquifier.create ())
-              [%expr Subst.ident]
+              [%expr Renaming.ident]
               abt
           in
           (Some pat, Some expr)

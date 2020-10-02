@@ -1,11 +1,7 @@
 open! Core
 
-type ('subst, 'oper) t =
+type 'oper t =
   | Var of Internal_var.t
-  | Oper of 'subst * 'oper
+  | Oper of 'oper With_renaming.t
 
-val apply_subst
-  :  apply_to_var:('subst -> Internal_var.t -> ('subst, 'oper) t)
-  -> 'subst
-  -> ('subst, 'oper) t
-  -> ('subst, 'oper) t
+val apply_renaming : Renaming.t -> 'oper t -> 'oper t

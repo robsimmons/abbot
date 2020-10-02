@@ -270,14 +270,6 @@ module Map_and_array : S = struct
     create ~free_vars:Map.empty ~blacklist:Set.empty ~initial_bound_vars:[||] ~shift:0
   ;;
 
-  (* CR wduff: Better error messages. *)
-  let check_less elt1 elt2 ~compare =
-    match Brother_tree_intf.Compare.do_compare compare elt1 elt2 with
-    | Less -> ()
-    | Equal -> raise_s [%message "duplicate element"]
-    | Greater -> raise_s [%message "elements out of order"]
-  ;;
-
   let rec foo' map1 height1 map2 height2 ~f =
     let map2 =
       Map.Non_empty.to_balanced_tree map2
@@ -357,10 +349,11 @@ module Map_and_array : S = struct
       Map.of_non_empty non_empty
   ;;
 
-  let to_raw map =
-    Map.to_balanced_tree map
-    |> Brother_tree.Balanced_tree2.to_raw_tree
-  ;;
+  (* let to_raw map =
+      Map.to_balanced_tree map
+      |> Brother_tree.Balanced_tree2.to_raw_tree
+    ;;
+  *)
 
   let compose t1 t2 =
     let free_vars =

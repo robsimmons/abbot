@@ -1,11 +1,11 @@
 open! Core
 
-type ('subst, 'oper) t =
+type 'oper t =
   | Var of Internal_var.t
-  | Oper of 'subst * 'oper
+  | Oper of 'oper With_renaming.t
 
-let rec apply_subst ~apply_to_var subst = function
-  | Var var -> apply_to_var subst var
-  | Oper (subst', oper) ->
-    Oper (Substitution.compose ~apply:(apply_subst ~apply_to_var) subst subst', oper)
+let apply_renaming renaming = function
+  | Var var -> Var (Renaming.apply renaming var)
+  | Oper with_renaming ->
+    Oper (With_renaming.apply_renaming renaming with_renaming)
 ;;
