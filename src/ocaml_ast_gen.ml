@@ -161,6 +161,15 @@ let sort_type defns =
         (Ptype_variant
            (List.filter_map defns ~f:(fun (name, defn) ->
               match defn with
+              | `Symbol ->
+                Some
+                  (Type.constructor
+                     (ident (String.capitalize name))
+                     ~res:
+                       (Typ.constr (lident "t")
+                          [ type_t ~via_module:true name
+                          ; type_t ~via_module:true name
+                          ]))
               | `Sort _ ->
                 Some
                   (Type.constructor
@@ -172,6 +181,31 @@ let sort_type defns =
                           ]))
               | _ -> None)))
   ]
+;;
+
+let sort_same_witness_cases defns =
+  List.filter_map defns ~f:(fun (name, defn) ->
+    match defn with
+    | `Symbol | `Sort _ ->
+      let constr = lident (String.capitalize name) in
+      Some
+        { pc_lhs = [%pat? ([%p Pat.construct constr None], [%p Pat.construct constr None])]
+        ; pc_guard = None
+        ; pc_rhs = [%expr Some (T, T)]
+        }
+    | _ -> None)
+;;
+
+let to_sort_or_symbol_eq_cases defns =
+  (List.filter_map defns ~f:(fun (name, defn) ->
+     match defn with
+     | `Symbol | `Sort _ ->
+       Some
+         { pc_lhs = Pat.construct (lident (String.capitalize name)) None
+         ; pc_guard = None
+         ; pc_rhs = [%expr T T]
+         }
+     | _ -> None))
 ;;
 
 let string_of_arg ~arg_count =
@@ -209,6 +243,25 @@ let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure 
                   | 0 -> []
                   | _ ->
                     [ Sig.value
+                        (Val.mk (ident "map")
+                           (Typ.arrow Nolabel
+                              (Typ.constr
+                                 (lident "t")
+                                 (List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "a" arg))))
+                              (List.init arg_count ~f:(fun arg ->
+                                 (Labelled (string_of_arg "f" arg),
+                                  Typ.arrow Nolabel
+                                    (Typ.var (string_of_arg "a" arg))
+                                    (Typ.var (string_of_arg "b" arg))))
+                               |> List.fold_right
+                                    ~f:(fun (arg_label, arg_type) acc ->
+                                      Typ.arrow arg_label arg_type acc)
+                                    ~init:
+                                      (Typ.constr
+                                         (lident "t")
+                                         (List.init arg_count ~f:(fun arg ->
+                                            Typ.var (string_of_arg "b" arg)))))))
+                    ; Sig.value
                         (Val.mk (ident "fold_map")
                            (Typ.arrow Nolabel
                               (Typ.constr
@@ -334,642 +387,566 @@ open
       let raise_internal_error_expr = raise_internal_error_expr
     end)
 
+let refer_to_via_module = const true
+let lang = `Ocaml
+
+let gen_external_abt_modl_defn ~name ~arg_count =
+  (* CR wduff: Some uses of [string_of_arg] should include the number even in the 1 case. *)
+  let string_of_arg = string_of_arg ~arg_count in
+  let type_defn =
+    let args =
+      List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "a" arg))
+    in
+    Str.type_ Recursive
+      [ Type.mk (ident "t")
+          ~params:(List.map args ~f:(fun arg_var -> (arg_var, Invariant)))
+          ~manifest:(type_t ~via_module:true ~args name)
+          ~attrs:[deriving_sexp_attribute]
+      ]
+  in
+  let fold_map_defn =
+    match arg_count with
+    | 0 -> []
+    | _ ->
+      [%str
+        let fold_map =
+          [%e
+            List.fold_right (List.init arg_count ~f:Fn.id)
+              ~f:(fun arg acc ->
+                let fun_name = string_of_arg "f" arg in
+                Exp.fun_ Nolabel None (pvar fun_name) acc)
+              ~init:
+                [%expr
+                  fun init t ->
+                    [%e
+                      Exp.apply
+                        (eident (String.capitalize name ^ ".fold_map"))
+                        ([ (Nolabel, [%expr t])
+                         ; (Labelled "init", [%expr init])
+                         ]
+                         @ List.map
+                             (List.init arg_count ~f:Fn.id)
+                             ~f:(fun arg ->
+                               let fun_name = string_of_arg "f" arg in
+                               (Labelled fun_name, eident fun_name)))
+                    ]
+                ]
+          ]
+      ]
+  in
+  let apply_subst_defn =
+    let apply_subst_of_arg = string_of_arg "apply_subst" in
+    [%stri
+      let apply_subst =
+        [%e
+          match arg_count with
+          | 0 -> [%expr fun _ t -> t]
+          | _ ->
+            List.fold_right (List.init arg_count ~f:Fn.id)
+              ~f:(fun arg acc ->
+                Exp.fun_ Nolabel None (Pat.var (ident (apply_subst_of_arg arg))) acc)
+              ~init:
+                [%expr
+                  fun subst
+                    (t :
+                       [%t
+                         Typ.constr
+                           (lident "t")
+                           (List.init arg_count ~f:(fun arg -> Typ.var (sprintf "a%d" arg)))])
+                    : [%t
+                    Typ.constr
+                      (lident "t")
+                      (List.init arg_count ~f:(fun arg -> Typ.var (sprintf "b%d" arg)))]
+                    ->
+                      [%e
+                        Exp.apply
+                          (eident (String.capitalize name ^ ".map"))
+                          ((Nolabel, eident "t")
+                           ::
+                           List.init arg_count ~f:(fun arg ->
+                             (Labelled (string_of_arg "f" arg),
+                              [%expr
+                                fun x ->
+                                  [%e
+                                    Exp.apply
+                                      (eident (apply_subst_of_arg arg))
+                                      [ (Nolabel, eident "subst"); (Nolabel, eident "x") ]]])))]]]]
+  in
+  let module_expr =
+    Mod.structure
+      (List.concat
+         [ [ type_defn ]
+         ; fold_map_defn
+         ; [ apply_subst_defn ]
+         ])
+  in
+  Str.module_ (Mb.mk (ident (Some (String.capitalize name))) module_expr)
+;;
+
+let gen_simple_abt_modl_defn ~name (`Simple_abt (args, cases) as defn) =
+  let gen_fold_map = not (List.is_empty args) in
+  let module_type =
+    Mty.signature
+      (shared_signature_items_of_defn ~current_name:name defn
+       @
+       (match gen_fold_map with
+        | false -> []
+        | true ->
+          [ Sig.value
+              (Val.mk (ident "fold_map")
+                 (List.fold_right args
+                    ~f:(fun arg acc ->
+                      Typ.arrow Nolabel
+                        (Typ.arrow Nolabel
+                           (Typ.var "acc")
+                           (Typ.arrow Nolabel
+                              (Typ.var (arg ^ "1"))
+                              (Typ.tuple [ Typ.var "acc"; Typ.var (arg ^ "2") ])))
+                        acc)
+                    ~init:
+                      (Typ.arrow Nolabel
+                         (Typ.var "acc")
+                         (Typ.arrow Nolabel
+                            (Typ.constr (lident "t")
+                               (List.map args ~f:(fun arg -> Typ.var (arg ^ "1"))))
+                            (Typ.tuple
+                               [ Typ.var "acc"
+                               ; Typ.constr (lident "t")
+                                   (List.map args ~f:(fun arg -> Typ.var (arg ^ "2")))
+                               ])))))
+          ])
+       @
+       [ Sig.value
+            (Val.mk (ident "apply_subst")
+               (List.fold_right args
+                  ~f:(fun arg acc ->
+                    Typ.arrow Nolabel
+                      (Typ.arrow Nolabel
+                         (Typ.constr (lident "GSS.Subst.t") [])
+                         (Typ.arrow Nolabel
+                            (Typ.var (arg ^ "1"))
+                            (Typ.var (arg ^ "2"))))
+                      acc)
+                  ~init:
+                    (Typ.arrow Nolabel
+                       (Typ.constr (lident "GSS.Subst.t") [])
+                       (Typ.arrow Nolabel
+                          (Typ.constr (lident "t")
+                             (List.map args ~f:(fun arg -> Typ.var (arg ^ "1"))))
+                          (Typ.constr (lident "t")
+                             (List.map args ~f:(fun arg -> Typ.var (arg ^ "2"))))))))
+       ])
+  in
+  let module_expr =
+    Mod.structure
+      ([ [%stri open! GSS]
+       ; Str.type_ Recursive
+           [ Type.mk (ident "t")
+               ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+               ~kind:
+                 (Ptype_variant
+                    (List.map cases ~f:(fun (constructor_name, abt) ->
+                       Type.constructor
+                         (ident constructor_name)
+                         ~args:
+                           (Pcstr_tuple
+                              (Option.to_list
+                                 (Option.map abt
+                                    ~f:(exposed_type_of_abt
+                                          ~use_temp_directly:false
+                                          ~refer_to_via_module)))))))
+               ~attrs:[deriving_sexp_attribute]
+           ]
+       ]
+       @
+       (match gen_fold_map with
+        | false -> []
+        | true ->
+          [%str
+           let fold_map =
+             [%e
+               let cases = fold_map_code_for_simple_cases ~acc:[%expr acc] cases in
+               let t1 =
+                 Typ.constr (lident "t") (List.map args ~f:(fun arg -> Typ.var (arg ^ "1")))
+               in
+               let t2 =
+                 Typ.constr (lident "t") (List.map args ~f:(fun arg -> Typ.var (arg ^ "2")))
+               in
+               List.fold_right args
+                 ~f:(fun arg acc ->
+                   [%expr fun [%p pvar ("f_" ^ arg)] -> [%e acc]])
+                 ~init:
+                   [%expr
+                     fun acc (t : [%t t1]) : ('acc * [%t t2]) ->
+                       [%e Exp.match_ [%expr t] cases]]]])
+      @
+      [ [%stri
+        let apply_subst =
+          [%e
+            let (cases, used_subst) =
+              apply_subst_code_for_simple_cases ~subst:[%expr subst] cases
+            in
+            let subst_pat =
+              match used_subst with
+              | `Used_subst -> pvar "subst"
+              | `Ignored_subst -> pvar "_subst"
+            in
+            let t1 =
+              Typ.constr (lident "t") (List.map args ~f:(fun arg -> Typ.var (arg ^ "1")))
+            in
+            let t2 =
+              Typ.constr (lident "t") (List.map args ~f:(fun arg -> Typ.var (arg ^ "2")))
+            in
+            List.fold_right args
+              ~f:(fun arg acc ->
+                [%expr fun [%p pvar ("apply_subst_" ^ arg)] -> [%e acc]])
+              ~init:
+                [%expr
+                  fun [%p subst_pat] (t : [%t t1]) : [%t t2] ->
+                    [%e Exp.match_ [%expr t] cases]]]]
+      ; [%stri
+        let subst (type var) (type sort) =
+          [%e
+            List.fold_right args
+              ~f:(fun arg acc ->
+                Exp.fun_ Nolabel None (pvar ("subst_" ^ arg)) acc)
+              ~init:
+                [%expr fun (sort : (var, sort) Sort.t) (value : sort) (var : var) t ->
+                  let (T T) = Sort.expose sort in
+                  [%e
+                    Exp.apply
+                      [%expr apply_subst]
+                      (List.map args ~f:(fun arg -> (Nolabel, eident ("subst_" ^ arg)))
+                       @ [ (Nolabel, [%expr Subst.singleton sort value var])
+                         ; (Nolabel, [%expr t])
+                         ])
+                  ]
+                ]
+          ]
+        ;;
+      ]
+      ])
+  in
+  Mb.mk (ident (Some (String.capitalize name))) (Mod.constraint_ module_expr module_type)
+;;
+
+let gen_open_abt_modl_defn ~name (`Open_abt cases as defn) =
+  let module_type =
+    Mty.signature
+      ([ [%sigi: type internal] ]
+       @
+       shared_signature_items_of_defn ~current_name:name defn
+       @
+       [ [%sigi: val into : t -> GSS.Packed_var.t list * internal]
+       ; [%sigi: val out : internal -> GSS.Packed_var.t list * t]
+       ; [%sigi: val apply_subst : GSS.Subst.t -> t -> t]
+       ])
+  in
+  let module_expr =
+    Mod.structure
+      ([ [%stri open! GSS]
+       ; Str.type_ Recursive
+           [ Type.mk (ident "internal")
+               ~kind:
+                 (Ptype_variant
+                    (List.map cases ~f:(fun (constructor_name, abt) ->
+                       Type.constructor
+                         (ident constructor_name)
+                         ~args:
+                           (Pcstr_tuple
+                              (Option.to_list
+                                 (Option.map abt
+                                    ~f:(internal_type_of_abt ~refer_to_via_module ~lang)))))))
+           ]
+       ; Str.type_ Recursive
+           [ Type.mk (ident "t")
+               ~kind:
+                 (Ptype_variant
+                    (List.map cases ~f:(fun (constructor_name, abt) ->
+                       Type.constructor
+                         (ident constructor_name)
+                         ~args:
+                           (Pcstr_tuple
+                              (Option.to_list
+                                 (Option.map abt
+                                    ~f:(exposed_type_of_abt
+                                          ~use_temp_directly:false
+                                          ~refer_to_via_module)))))
+                    ))
+               ~attrs:[deriving_sexp_attribute]
+           ]
+       ; [%stri
+         let into (t : t) : GSS.Packed_var.t list * internal =
+           [%e
+             Exp.match_
+               [%expr t]
+               (into_code_for_open_cases
+                  ~name_of_walked_value:name
+                  cases)
+           ]
+       ]
+       ; [%stri
+         let out (internal : internal) : GSS.Packed_var.t list * t =
+           [%e
+             Exp.match_
+               [%expr internal]
+               (out_code_for_open_cases ~name_of_walked_value:name cases)
+           ]
+       ]
+       ; [%stri
+         let apply_subst =
+           [%e
+             let (cases, used_subst) =
+               apply_subst_code_for_open_cases
+                 ~subst:[%expr subst]
+                 cases
+             in
+             let subst_pat =
+               match used_subst with
+               | `Used_subst -> pvar "subst"
+               | `Ignored_subst -> pvar "_subst"
+             in
+             [%expr
+               fun [%p subst_pat] t ->
+                 [%e Exp.match_ [%expr t] cases]]
+           ]
+       ]
+       ; [%stri
+         let subst (type var) (type sort) (sort : (var, sort) Sort.t) (value : sort) (var : var) (t : t) : t =
+           let (T T) = Sort.expose sort in
+           apply_subst (Subst.singleton sort value var) t
+         ;;
+       ]
+       ])
+  in
+  Mb.mk (ident (Some (String.capitalize name))) (Mod.constraint_ module_expr module_type)
+;;
+
+let gen_closed_abt_modl_defn ~name (`Closed_abt cases as defn) =
+  let module_type =
+    Mty.signature
+      ([ [%sigi: type oper]
+       ; Sig.type_ Recursive
+           [ Type.mk (ident "t")
+               ~manifest:[%type: oper GSS.With_subst.t]
+               ~attrs:[deriving_sexp_attribute]
+           ]
+       ]
+       @
+       shared_signature_items_of_defn ~current_name:name defn)
+  in
+  let module_expr =
+    Mod.structure
+      ([ [%stri open! GSS]
+       ; Str.type_ Recursive
+           [ Type.mk (ident "oper")
+               ~kind:
+                 (Ptype_variant
+                    (List.map cases ~f:(fun (constructor_name, abt) ->
+                       Type.constructor
+                         (ident constructor_name)
+                         ~args:
+                           (Pcstr_tuple
+                              (Option.to_list
+                                 (Option.map abt
+                                    ~f:(internal_type_of_abt ~refer_to_via_module ~lang)))))))
+           ]
+       ; [%stri type t = oper GSS.With_subst.t]
+       ; Str.type_ Recursive
+           [ Type.mk (ident "view")
+               ~kind:
+                 (Ptype_variant
+                    (List.map cases ~f:(fun (constructor_name, abt) ->
+                       Type.constructor
+                         (ident constructor_name)
+                         ~args:
+                           (Pcstr_tuple
+                              (Option.to_list
+                                 (Option.map abt
+                                    ~f:(exposed_type_of_abt
+                                          ~use_temp_directly:false
+                                          ~refer_to_via_module)))))
+                    ))
+               ~attrs:[deriving_sexp_attribute]
+           ]
+       ; [%stri
+         let into (view : view) : t =
+           let (oper : oper) =
+             [%e
+               Exp.match_
+                 [%expr view]
+                 (into_code_for_closed_cases
+                    ~name_of_walked_value:name
+                    cases)
+             ]
+           in
+           (Subst.ident, oper)
+       ]
+       ; (let (oper_cases_expr, used_subst) =
+            out_code_for_closed_cases
+              ~name_of_walked_value:name
+              ~subst:[%expr subst]
+              cases
+          in
+          (* CR wduff: Shouldn't we not store substs that aren't gonna be used at all? *)
+          let subst_pat =
+            match used_subst with
+            | `Used_subst -> [%pat? subst]
+            | `Ignored_subst -> [%pat? _subst]
+          in
+          [%stri
+            let out ([%p subst_pat], oper) : view =
+              [%e Exp.match_ [%expr (oper : oper)] oper_cases_expr]
+          ])
+       ]
+       @
+       convenient_constructors_impl ~keywords ~is_sort:false cases
+       @
+       [ [%stri let sexp_of_t t = [%sexp_of: view] (out t)]
+       ; [%stri
+         let subst (type var) (type sort) (sort : (var, sort) Sort.t) (value : sort) (var : var) (t : t) : t =
+           let (T T) = Sort.expose sort in
+           With_subst.apply_subst (Subst.singleton sort value var) t
+         ;;
+       ]
+       ])
+  in
+  Mb.mk (ident (Some (String.capitalize name))) (Mod.constraint_ module_expr module_type)
+;;
+
+let gen_symbol_modl_defn ~name =
+  Mod.constraint_
+    (Mod.ident (lident "Temp"))
+    (Mty.with_
+       (Mty.ident (lident "Temp_intf.S"))
+       [ Pwith_type
+           (lident "t", Type.mk (ident "t") ~manifest:(Typ.constr (lident "Temp.t") []))
+       ])
+  |> Mb.mk (ident (Some (String.capitalize name)))
+;;
+
+let gen_sort_modl_defn ~name (`Sort cases as defn) =
+  let module_type =
+    Mty.signature
+      ([ [%sigi: module Var = Temp]
+       ; [%sigi: type oper]
+       ; Sig.type_ Recursive
+           [ Type.mk (ident "t")
+               ~manifest:[%type: (Var.t, oper) GSS.Generic_sort.t]
+               ~attrs:[deriving_sexp_attribute]
+           ]
+       ]
+       @
+       shared_signature_items_of_defn ~current_name:name defn)
+  in
+  let module_expr =
+    Mod.structure
+      ([ [%stri open GSS]
+       ; [%stri module Var = Temp]
+       ; Str.type_ Recursive
+           [ Type.mk (ident "view")
+               ~kind:
+                 (Ptype_variant
+                    (Type.constructor
+                       (ident "Var")
+                       ~args:(Pcstr_tuple [type_var ~via_module:true name])
+                     :: List.map cases ~f:(fun (constructor_name, abt) ->
+                       Type.constructor
+                         (ident constructor_name)
+                         ~args:
+                           (Pcstr_tuple
+                              (Option.to_list
+                                 (Option.map abt
+                                    ~f:(exposed_type_of_abt
+                                          ~use_temp_directly:false
+                                          ~refer_to_via_module)))))
+                    ))
+               ~attrs:[deriving_sexp_attribute]
+           ]
+       ; Str.type_ Recursive
+           [ Type.mk (ident "oper")
+               ~kind:
+                 (Ptype_variant
+                    (List.map cases ~f:(fun (constructor_name, abt) ->
+                       Type.constructor
+                         (ident constructor_name)
+                         ~args:
+                           (Pcstr_tuple
+                              (Option.to_list
+                                 (Option.map abt
+                                    ~f:(internal_type_of_abt ~refer_to_via_module ~lang)))))))
+           ]
+       ; [%stri type t = (Var.t, oper) Generic_sort.t]
+       ; [%stri
+         let into (view : view) : t =
+           [%e
+             Exp.match_
+               [%expr view]
+               ({ pc_lhs = [%pat? Var var]
+                ; pc_guard = None
+                ; pc_rhs = [%expr Generic_sort.var var]
+                }
+                :: List.map
+                     (into_code_for_closed_cases
+                        ~name_of_walked_value:name
+                        cases)
+                     ~f:(fun { pc_lhs; pc_guard; pc_rhs } ->
+                       { pc_lhs; pc_guard; pc_rhs = [%expr Generic_sort.oper [%e pc_rhs]] }))
+           ]
+       ]
+       ; (let (oper_cases_expr, used_subst) =
+            out_code_for_closed_cases
+              ~name_of_walked_value:name
+              ~subst:[%expr subst]
+              cases
+          in
+          (* CR wduff: Shouldn't we not store substs that aren't gonna be used at all? *)
+          let subst_pat =
+            match used_subst with
+            | `Used_subst -> [%pat? subst]
+            | `Ignored_subst -> [%pat? _subst]
+          in
+          [%stri
+            let out (t : t) : view =
+              match t with
+              | Var (Bound_var _) -> [%e raise_internal_error_expr]
+              | Var (Free_var var) -> Var var
+              | Oper ([%p subst_pat], oper) ->
+                [%e Exp.match_ [%expr oper] oper_cases_expr]
+          ])
+       ]
+       @
+       convenient_constructors_impl ~keywords ~is_sort:true cases
+       @
+       [ [%stri let sexp_of_t t = [%sexp_of: view] (out t)] ]
+       @
+       [ [%stri
+         let subst (type var) (type sort) (sort : (var, sort) Sort.t) (value : sort) (var : var) (t : t) : t =
+           let (T T) = Sort.expose sort in
+           Generic_sort.apply_subst
+             [%e Exp.construct (lident (String.capitalize name)) None]
+             (Subst.singleton sort value var)
+             t
+         ;;
+       ]
+       ])
+  in
+  Mb.mk (ident (Some (String.capitalize name))) (Mod.constraint_ module_expr module_type)
+;;
+
 let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.structure =
-  let refer_to_via_module = const true in
-  let lang = `Ocaml in
   let external_abt_modl_defns =
     List.map external_abts ~f:(fun (name, arg_count) ->
-      (* CR wduff: Some uses of [string_of_arg] should include the number even in the 1 case. *)
-      let string_of_arg = string_of_arg ~arg_count in
-      let type_defn =
-        let args =
-          List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "a" arg))
-        in
-        Str.type_ Recursive
-          [ Type.mk (ident "t")
-              ~params:(List.map args ~f:(fun arg_var -> (arg_var, Invariant)))
-              ~manifest:(type_t ~via_module:true ~args name)
-              ~attrs:[deriving_sexp_attribute]
-          ]
-      in
-      let map_defn =
-        let t1 =
-          Typ.constr
-            (lident "t")
-            (List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "a" arg)))
-        in
-        let t2 =
-          Typ.constr
-            (lident "t")
-            (List.init arg_count ~f:(fun arg -> Typ.var (string_of_arg "b" arg)))
-        in
-        (match arg_count with
-         | 0 -> []
-         | _ ->
-           [%str
-             let map (t : [%t t1]) =
-               [%e
-                 List.fold_right (List.init arg_count ~f:Fn.id)
-                   ~f:(fun arg acc ->
-                     let fun_name = string_of_arg "f" arg in
-                     Exp.fun_ (Labelled fun_name) None (pvar fun_name) acc)
-                   ~init:
-                     [%expr
-                       let ((), (t : [%t t2])) =
-                         [%e
-                           Exp.apply
-                             (eident (String.capitalize name ^ ".fold_map"))
-                             ((Nolabel, eident "t")
-                              ::
-                              (Labelled "init", [%expr ()])
-                              ::
-                              List.init arg_count ~f:(fun arg ->
-                                let arg_var = string_of_arg "arg" arg in
-                                (Labelled (string_of_arg "f" arg),
-                                 [%expr
-                                   fun () [%p pvar arg_var] ->
-                                     ((), [%e eident (string_of_arg "f" arg)] [%e eident arg_var])])))]
-                       in
-                       t]]])
-      in
-      let apply_renaming_defn =
-        let apply_renaming_of_arg = string_of_arg "apply_renaming" in
-        [%stri
-          let apply_renaming =
-            [%e
-               (* CR wduff: Checking for 0 here is a dumb way to deal with the unused variable
-                  issue, because an phantom type argument could also cause that. *)
-              (match arg_count with
-               | 0 -> [%expr fun _ acc t -> (acc, t)]
-               | _ ->
-                 List.fold_right (List.init arg_count ~f:Fn.id)
-                   ~f:(fun arg acc ->
-                     Exp.fun_ Nolabel None (Pat.var (ident (apply_renaming_of_arg arg))) acc)
-                   ~init:
-                     [%expr
-                       fun renaming acc
-                         (t :
-                            [%t
-                              Typ.constr
-                                (lident "t")
-                                (List.init arg_count ~f:(fun arg -> Typ.var (sprintf "a%d" arg)))])
-                         ->
-                           ([%e
-                             Exp.apply
-                               (eident (String.capitalize name ^ ".fold_map"))
-                               ((Nolabel, eident "t")
-                                ::
-                                (Labelled "init", eident "acc")
-                                ::
-                                List.init arg_count ~f:(fun arg ->
-                                  (Labelled (string_of_arg "f" arg),
-                                   Exp.apply
-                                     (eident (apply_renaming_of_arg arg))
-                                     [ (Nolabel, eident "renaming") ])))]
-                            : 'acc
-                              * [%t
-                                Typ.constr
-                                  (lident "t")
-                                  (List.init arg_count ~f:(fun arg -> Typ.var (sprintf "b%d" arg)))])])]]
-      in
-      let subst_defn =
-        let subst_of_arg = string_of_arg "subst" in
-        [%stri
-          let subst =
-            [%e
-              (match arg_count with
-               | 0 -> [%expr fun _ _ _ t -> t]
-               | _ ->
-                 List.fold_right (List.init arg_count ~f:Fn.id)
-                   ~f:(fun arg acc ->
-                     Exp.fun_ Nolabel None (Pat.var (ident (subst_of_arg arg))) acc)
-                   ~init:
-                     [%expr
-                       fun sort value var t ->
-                         [%e
-                           Exp.apply
-                             (eident "map")
-                             ((Nolabel, eident "t")
-                              ::
-                              List.init arg_count ~f:(fun arg ->
-                                (Labelled (string_of_arg "f" arg),
-                                 [%expr [%e eident (subst_of_arg arg)] sort value var])))]
-                     ])]]
-      in
-      let module_expr =
-        Mod.structure
-          ([ type_defn ]
-           @
-           map_defn
-           @
-           [  apply_renaming_defn
-           ; subst_defn
-           ])
-      in
-      Str.module_ (Mb.mk (ident (Some (String.capitalize name))) module_expr))
+      gen_external_abt_modl_defn ~name ~arg_count)
   in
   let per_defn_modl_defns =
     List.map defns ~f:(fun (name, defn) ->
       match defn with
-      | `Simple_abt (args, cases) as defn ->
-        (* CR wduff: Implement map for simple abts. *)
-        let module_type =
-          Mty.signature
-            (shared_signature_items_of_defn ~current_name:name defn
-             @
-             [ Sig.value
-                 (Val.mk (ident "apply_renaming")
-                    (List.fold_right args
-                       ~f:(fun arg acc ->
-                         Typ.arrow Nolabel
-                           (Typ.arrow Nolabel
-                              (Typ.constr (lident "Renaming.t") [])
-                              (Typ.arrow Nolabel
-                                 (Typ.var "acc")
-                                 (Typ.arrow Nolabel
-                                    (Typ.var (arg ^ "1"))
-                                    (Typ.tuple [ Typ.var "acc"; Typ.var (arg ^ "2") ]))))
-                           acc)
-                       ~init:
-                         (Typ.arrow Nolabel
-                            (Typ.constr (lident "Renaming.t") [])
-                            (Typ.arrow Nolabel
-                               (Typ.var "acc")
-                               (Typ.arrow Nolabel
-                                  (Typ.constr (lident "t")
-                                     (List.map args ~f:(fun arg -> Typ.var (arg ^ "1"))))
-                                  (Typ.tuple
-                                     [ Typ.var "acc"
-                                     ; Typ.constr (lident "t")
-                                         (List.map args ~f:(fun arg -> Typ.var (arg ^ "2")))
-                                     ]))))))
-             ])
-        in
-        let module_expr =
-          Mod.structure
-            ([ Str.type_ Recursive
-                 [ Type.mk (ident "t")
-                     ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
-                     ~kind:
-                       (Ptype_variant
-                          (List.map cases ~f:(fun (constructor_name, abt) ->
-                             Type.constructor
-                               (ident constructor_name)
-                               ~args:
-                                 (Pcstr_tuple
-                                    (Option.to_list
-                                       (Option.map abt
-                                          ~f:(exposed_type_of_abt
-                                                ~use_temp_directly:false
-                                                ~refer_to_via_module)))))
-                          ))
-                     ~attrs:[deriving_sexp_attribute]
-                 ]
-             ; [%stri
-               let apply_renaming =
-                 [%e
-                   let (cases, used_renaming) =
-                     apply_renaming_code_for_simple_cases
-                       ~renaming:[%expr renaming]
-                       ~acc:[%expr acc]
-                       cases
-                   in
-                   let renaming_pat =
-                     match used_renaming with
-                     | `Used_renaming -> pvar "renaming"
-                     | `Ignored_renaming -> pvar "_renaming"
-                   in
-                   let t1 =
-                     Typ.constr (lident "t") (List.map args ~f:(fun arg -> Typ.var (arg ^ "1")))
-                   in
-                   let t2 =
-                     Typ.constr (lident "t") (List.map args ~f:(fun arg -> Typ.var (arg ^ "2")))
-                   in
-                   List.fold_right args
-                     ~f:(fun arg acc ->
-                       [%expr fun [%p pvar ("apply_renaming_" ^ arg)] -> [%e acc]])
-                     ~init:
-                       [%expr
-                         fun [%p renaming_pat] acc (t : [%t t1]) : ('acc * [%t t2]) ->
-                           [%e Exp.match_ [%expr t] cases]]
-                 ]
-             ]
-             ; [%stri
-               let subst =
-                 [%e
-                   let (cases, used_sub) =
-                     subst_code_for_cases
-                       ~name_of_walked_value:name
-                       ~sub:[ (Nolabel, "sort"); (Nolabel, "value"); (Nolabel, "var") ]
-                       cases
-                   in
-                   let sort_pat =
-                     match used_sub with
-                     | `Used_sub -> pvar "sort"
-                     | `Ignored_sub -> pvar "_sort"
-                   in
-                   let value_pat =
-                     match used_sub with
-                     | `Used_sub -> pvar "value"
-                     | `Ignored_sub -> pvar "_value"
-                   in
-                   let var_pat =
-                     match used_sub with
-                     | `Used_sub -> pvar "var"
-                     | `Ignored_sub -> pvar "_var"
-                   in
-                   List.fold_right args
-                     ~f:(fun arg acc ->
-                       Exp.fun_ Nolabel None (Pat.var (ident ("subst_" ^ arg))) acc)
-                     ~init:
-                       [%expr
-                         fun [%p sort_pat] [%p value_pat] [%p var_pat] t ->
-                           [%e Exp.match_ [%expr t] cases ]]]]
-             ])
-        in
-        Mb.mk (ident (Some (String.capitalize name))) (Mod.constraint_ module_expr module_type)
-      | `Open_abt cases as defn ->
-        let module_type =
-          Mty.signature
-            ([ [%sigi: type oper]
-             ; [%sigi: type internal = oper With_renaming.t]
-             ]
-             @
-             shared_signature_items_of_defn ~current_name:name defn
-             @
-             [ [%sigi: val into : t -> Temp.t list * internal]
-             ; [%sigi: val out : internal -> Temp.t list * t]
-             ])
-        in
-        let module_expr =
-          Mod.structure
-            ([ Str.type_ Recursive
-                 [ Type.mk (ident "oper")
-                     ~kind:
-                       (Ptype_variant
-                          (List.map cases ~f:(fun (constructor_name, abt) ->
-                             Type.constructor
-                               (ident constructor_name)
-                               ~args:
-                                 (Pcstr_tuple
-                                    (Option.to_list
-                                       (Option.map abt
-                                          ~f:(internal_type_of_abt ~refer_to_via_module ~lang)))))))
-                 ]
-             ; [%stri type internal = oper With_renaming.t]
-             ; Str.type_ Recursive
-                 [ Type.mk (ident "t")
-                     ~kind:
-                       (Ptype_variant
-                          (List.map cases ~f:(fun (constructor_name, abt) ->
-                             Type.constructor
-                               (ident constructor_name)
-                               ~args:
-                                 (Pcstr_tuple
-                                    (Option.to_list
-                                       (Option.map abt
-                                          ~f:(exposed_type_of_abt
-                                                ~use_temp_directly:false
-                                                ~refer_to_via_module)))))
-                          ))
-                     ~attrs:[deriving_sexp_attribute]
-                 ]
-             ; [%stri
-               let into (t : t) : Temp.t list * internal =
-                 let (vars, (oper : oper)) =
-                   [%e
-                     Exp.match_
-                       [%expr t]
-                       (into_code_for_open_cases
-                          ~name_of_walked_value:name
-                          cases)
-                   ]
-                 in
-                 (vars, (Renaming.ident, oper))
-             ]
-             ; [%stri
-               let out (renaming, oper) : Temp.t list * t =
-                 [%e
-                   Exp.match_
-                     [%expr (oper : oper)]
-                     (out_code_for_open_cases
-                        ~name_of_walked_value:name
-                        cases)
-                 ]
-             ]
-             ; (let (cases, used_sub) =
-                  subst_code_for_cases
-                    ~name_of_walked_value:name
-                    ~sub:[ (Nolabel, "sort"); (Nolabel, "value"); (Nolabel, "var") ]
-                    cases
-                in
-                let sort_pat =
-                  match used_sub with
-                  | `Used_sub -> pvar "sort"
-                  | `Ignored_sub -> pvar "_sort"
-                in
-                let value_pat =
-                  match used_sub with
-                  | `Used_sub -> pvar "value"
-                  | `Ignored_sub -> pvar "_value"
-                in
-                let var_pat =
-                  match used_sub with
-                  | `Used_sub -> pvar "var"
-                  | `Ignored_sub -> pvar "_var"
-                in
-                [%stri
-                  let subst [%p sort_pat] [%p value_pat] [%p var_pat] t =
-                    [%e Exp.match_ [%expr t] cases]
-                ])
-             ])
-        in
-        Mb.mk (ident (Some (String.capitalize name))) (Mod.constraint_ module_expr module_type)
-      | `Closed_abt cases as defn ->
-        let module_type =
-          Mty.signature
-            ([ [%sigi: type oper]
-             ; Sig.type_ Recursive
-                 [ Type.mk (ident "t")
-                     ~manifest:[%type: oper With_renaming.t]
-                     ~attrs:[deriving_sexp_attribute]
-                 ]
-             ]
-             @
-             shared_signature_items_of_defn ~current_name:name defn)
-        in
-        let module_expr =
-          Mod.structure
-            ([ Str.type_ Recursive
-                 [ Type.mk (ident "oper")
-                     ~kind:
-                       (Ptype_variant
-                          (List.map cases ~f:(fun (constructor_name, abt) ->
-                             Type.constructor
-                               (ident constructor_name)
-                               ~args:
-                                 (Pcstr_tuple
-                                    (Option.to_list
-                                       (Option.map abt
-                                          ~f:(internal_type_of_abt ~refer_to_via_module ~lang)))))))
-                 ]
-             ; [%stri type t = oper With_renaming.t]
-             ; Str.type_ Recursive
-                 [ Type.mk (ident "view")
-                     ~kind:
-                       (Ptype_variant
-                          (List.map cases ~f:(fun (constructor_name, abt) ->
-                             Type.constructor
-                               (ident constructor_name)
-                               ~args:
-                                 (Pcstr_tuple
-                                    (Option.to_list
-                                       (Option.map abt
-                                          ~f:(exposed_type_of_abt
-                                                ~use_temp_directly:false
-                                                ~refer_to_via_module)))))
-                          ))
-                     ~attrs:[deriving_sexp_attribute]
-                 ]
-             ; [%stri
-               let into (view : view) : t =
-                 let (oper : oper) =
-                   [%e
-                     Exp.match_
-                       [%expr view]
-                       (into_code_for_closed_cases
-                          ~name_of_walked_value:name
-                          cases)
-                   ]
-                 in
-                 (Renaming.ident, oper)
-             ]
-             ; [%stri
-               let out (renaming, oper) : view =
-                 [%e
-                   Exp.match_
-                     [%expr (oper : oper)]
-                     (out_code_for_closed_cases
-                        ~name_of_walked_value:name
-                        cases)
-                 ]
-             ]
-             ]
-             @
-             convenient_constructors_impl ~keywords ~is_sort:false cases
-             @
-             [ [%stri let sexp_of_t t = [%sexp_of: view] (out t)] ]
-             @
-             [ (let (cases, used_sub) =
-                  subst_code_for_cases
-                    ~name_of_walked_value:name
-                    ~sub:[ (Nolabel, "sort"); (Nolabel, "value"); (Nolabel, "var") ]
-                    cases
-                in
-                let sort_pat =
-                  match used_sub with
-                  | `Used_sub -> pvar "sort"
-                  | `Ignored_sub -> pvar "_sort"
-                in
-                let value_pat =
-                  match used_sub with
-                  | `Used_sub -> pvar "value"
-                  | `Ignored_sub -> pvar "_value"
-                in
-                let var_pat =
-                  match used_sub with
-                  | `Used_sub -> pvar "var"
-                  | `Ignored_sub -> pvar "_var"
-                in
-                [%stri
-                  let subst [%p sort_pat] [%p value_pat] [%p var_pat] t =
-                    let view = [%e Exp.match_ [%expr out t] cases] in
-                    into view])
-             ])
-        in
-        Mb.mk (ident (Some (String.capitalize name))) (Mod.constraint_ module_expr module_type)
-      | `Symbol ->
-        Mod.constraint_
-          (Mod.ident (lident "Temp"))
-          (Mty.with_
-             (Mty.ident (lident "Temp_intf.S"))
-             [ Pwith_type
-                 (lident "t", Type.mk (ident "t") ~manifest:(Typ.constr (lident "Temp.t") []))
-             ])
-        |> Mb.mk (ident (Some (String.capitalize name)))
-      | `Sort cases as defn ->
-        let module_type =
-          Mty.signature
-            ([ [%sigi: type oper]
-             ; Sig.type_ Recursive
-                 [ Type.mk (ident "t")
-                     ~manifest:[%type: oper Internal_sort.t]
-                     ~attrs:[deriving_sexp_attribute]
-                 ]
-             ; [%sigi: module Var = Temp]
-             ]
-             @
-             shared_signature_items_of_defn ~current_name:name defn)
-        in
-        let module_expr =
-          Mod.structure
-            ([ [%stri module Var = Temp]
-             ; Str.type_ Recursive
-                 [ Type.mk (ident "oper")
-                     ~kind:
-                       (Ptype_variant
-                          (List.map cases ~f:(fun (constructor_name, abt) ->
-                             Type.constructor
-                               (ident constructor_name)
-                               ~args:
-                                 (Pcstr_tuple
-                                    (Option.to_list
-                                       (Option.map abt
-                                          ~f:(internal_type_of_abt ~refer_to_via_module ~lang)))))))
-                 ]
-             ; [%stri type t = oper Internal_sort.t]
-             ; Str.type_ Recursive
-                 [ Type.mk (ident "view")
-                     ~kind:
-                       (Ptype_variant
-                          (Type.constructor
-                             (ident "Var")
-                             ~args:(Pcstr_tuple [type_var ~via_module:true name])
-                           :: List.map cases ~f:(fun (constructor_name, abt) ->
-                             Type.constructor
-                               (ident constructor_name)
-                               ~args:
-                                 (Pcstr_tuple
-                                    (Option.to_list
-                                       (Option.map abt
-                                          ~f:(exposed_type_of_abt
-                                                ~use_temp_directly:false
-                                                ~refer_to_via_module)))))
-                          ))
-                     ~attrs:[deriving_sexp_attribute]
-                 ]
-             ; [%stri
-               let into (view : view) : t =
-                 [%e
-                   Exp.match_
-                     [%expr view]
-                     ({ pc_lhs = [%pat? Var var]
-                      ; pc_guard = None
-                      ; pc_rhs = [%expr Var (Free_var var)]
-                      }
-                      :: List.map
-                           (into_code_for_closed_cases
-                              ~name_of_walked_value:name
-                              cases)
-                           ~f:(fun { pc_lhs; pc_guard; pc_rhs } ->
-                             { pc_lhs; pc_guard; pc_rhs = [%expr Oper (Renaming.ident, [%e pc_rhs])] }))
-                 ]
-             ]
-             ; [%stri
-               let out (t : t) : view =
-                 match t with
-                 | Var (Bound_var _) -> [%e raise_internal_error_expr]
-                 | Var (Free_var var) -> Var var
-                 | Oper (renaming, oper) ->
-                   [%e
-                     Exp.match_
-                       [%expr oper]
-                       (out_code_for_closed_cases
-                          ~name_of_walked_value:name
-                          cases)
-                   ]
-             ]
-             ]
-             @
-             convenient_constructors_impl ~keywords ~is_sort:true cases
-             @
-             [ [%stri let sexp_of_t t = [%sexp_of: view] (out t)] ]
-             @
-             [ (let (cases, used_sub) =
-                  subst_code_for_cases
-                    ~name_of_walked_value:name
-                    ~sub:[ (Nolabel, "sort"); (Nolabel, "value"); (Nolabel, "var") ]
-                    cases
-                in
-                let sort_pat =
-                  match used_sub with
-                  | `Used_sub -> pvar "sort"
-                  | `Ignored_sub -> pvar "_sort"
-                in
-                let value_pat =
-                  match used_sub with
-                  | `Used_sub -> pvar "value"
-                  | `Ignored_sub -> pvar "_value"
-                in
-                let var_pat =
-                  match used_sub with
-                  | `Used_sub -> pvar "var"
-                  | `Ignored_sub -> pvar "_var"
-                in
-                [%stri
-                  let subst
-                        (type var)
-                        (type sort)
-                        ([%p sort_pat] : (var, sort) Sort.t)
-                        ([%p value_pat] : sort)
-                        ([%p var_pat] : var)
-                        (t : t)
-                    : t =
-                    [%e Exp.match_
-                          [%expr out t]
-                          ({ pc_lhs =
-                               Pat.construct
-                                 (lident "Var")
-                                 (Some (Pat.var (ident "var'")))
-                           ; pc_guard = None
-                           ; pc_rhs =
-                               Exp.match_
-                                 [%expr sort]
-                                 ({ pc_lhs =
-                                      Pat.construct
-                                        (lident ("Sort." ^ String.capitalize name))
-                                        None
-                                  ; pc_guard = None
-                                  ; pc_rhs =
-                                      Exp.match_
-                                        [%expr Temp.equal var var']
-                                        [ { pc_lhs = Pat.construct (lident "true") None
-                                          ; pc_guard = None
-                                          ; pc_rhs = eident "value"
-                                          }
-                                        ; { pc_lhs = Pat.construct (lident "false") None
-                                          ; pc_guard = None
-                                          ; pc_rhs = eident "t"
-                                          }
-                                        ]
-                                  }
-                                  ::
-                                  (match
-                                     List.count defns ~f:(function (_, `Sort _) -> true | _ -> false)
-                                   with
-                                   | 1 ->
-                                     (* If there is exactly one sort, we drop this case to avoid a
-                                        redunant match warning. *)
-                                     []
-                                   | _ ->
-                                     [ { pc_lhs = Pat.any ()
-                                       ; pc_guard = None
-                                       ; pc_rhs = eident "t"
-                                       }
-                                     ]))
-                           }
-                           ::
-                           (List.map cases ~f:(fun { pc_lhs; pc_guard; pc_rhs } ->
-                              { pc_lhs
-                              ; pc_guard
-                              ; pc_rhs =
-                                  [%expr [%e pc_rhs] |> into]
-                              })))
-                    ]
-                ])
-             ])
-        in
-        Mb.mk (ident (Some (String.capitalize name))) (Mod.constraint_ module_expr module_type))
+      | `Simple_abt _ as defn -> gen_simple_abt_modl_defn ~name defn
+      | `Open_abt _ as defn -> gen_open_abt_modl_defn ~name defn
+      | `Closed_abt _ as defn -> gen_closed_abt_modl_defn ~name defn
+      | `Symbol -> gen_symbol_modl_defn ~name
+      | `Sort _ as defn -> gen_sort_modl_defn ~name defn)
   in
   let body =
     external_abt_modl_defns
@@ -979,9 +956,54 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
          @ [ Mb.mk (ident (Some "Sort"))
                (Mod.constraint_
                   (Mod.structure
-                     [ Str.type_ Recursive (sort_type defns) ])
+                     [ Str.type_ Recursive (sort_type defns)
+                     ; [%stri
+                       let same_witness
+                             (type var1 sort1 var2 sort2)
+                             (t1 : (var1, sort1) t)
+                             (t2 : (var2, sort2) t)
+                         : ((var1, var2) Type_equal.t * (sort1, sort2) Type_equal.t) option =
+                         [%e
+                           Exp.match_
+                             [%expr (t1, t2)]
+                             (sort_same_witness_cases defns
+                              @ [ { pc_lhs = [%pat? _]; pc_guard = None; pc_rhs = [%expr None] } ])]
+                     ]
+                     ; [%stri
+                       module Sort_is_generic = struct
+                         type ('var, 'sort) t = T : ('sort, ('var, _) GSS.Generic_sort.t) Type_equal.t -> ('var, 'sort) t
+                       end
+                     ]
+                     ; [%stri
+                        let expose
+                              (type var sort)
+                              (sort : (var, sort) Sort.t)
+                          : (var, sort) Sort_is_generic.t =
+                          [%e Exp.match_ [%expr sort] (to_sort_or_symbol_eq_cases defns)]]
+                     ])
                   (Mty.signature
-                     [ Sig.type_ Recursive (sort_type defns) ]))
+                     [ Sig.type_ Recursive (sort_type defns)
+                     ; [%sigi: include Sort_intf.S with type ('var, 'sort) t := ('var, 'sort) t]
+                     ; [%sigi:
+                       module Sort_is_generic : sig
+                         type ('var, 'sort) t = T : ('sort, ('var, _) GSS.Generic_sort.t) Type_equal.t -> ('var, 'sort) t
+                       end]
+                     ; [%sigi: val expose : ('var, 'sort) Sort.t -> ('var, 'sort) Sort_is_generic.t]
+                     ]))
+           ; Mb.mk (ident (Some "GSS"))
+               (Mod.constraint_
+                  (Mod.apply
+                     (Mod.ident (lident "Generic_sort_and_subst.Make"))
+                     (Mod.ident (lident "Sort")))
+                  (Mty.with_
+                     (Mty.ident (lident "Generic_sort_and_subst.S"))
+                     [ Pwith_typesubst
+                         (lident "sort",
+                          Type.mk
+                            (ident "sort")
+                            ~params:[ ([%type: 'var], Invariant); ([%type: 'sort], Invariant) ]
+                            ~manifest:[%type: ('var, 'sort) Sort.t])
+                     ]))
            ])
     ]
   in

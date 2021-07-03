@@ -1351,6 +1351,17 @@ let rec layout_expression lang ~outer_precedence expr =
       (layout_core_type ~outer_precedence:`None core_type)
   | Pexp_extension extension ->
     layout_extension lang ~depth:1 extension
+  | Pexp_letmodule (name_opt, modl, expr) ->
+    (* CR wduff: Consider including parens? *)
+    list
+      [ (No_indent,
+         (* CR wduff: The fact that just the in can get split off seems kinda crappy. *)
+         list
+           [ (No_indent, layout_module_binding' lang ~start_keyword:"let module" name_opt modl)
+           ; (No_indent, atom "in")
+           ])
+      ; (No_indent, layout_expression lang ~outer_precedence:`Let_body expr)
+      ]
   | Pexp_try _
   | Pexp_variant _
   | Pexp_field _
@@ -1364,7 +1375,6 @@ let rec layout_expression lang ~outer_precedence expr =
   | Pexp_new _
   | Pexp_setinstvar _
   | Pexp_override _
-  | Pexp_letmodule _
   | Pexp_letexception _
   | Pexp_assert _
   | Pexp_lazy _
@@ -1383,28 +1393,9 @@ and layout_value_binding
       ~is_first_in_group
       { pvb_pat; pvb_expr; pvb_attributes = _; pvb_loc = _ }
   =
-  let rec strip_function_args (({ pexp_desc; pexp_attributes = _; pexp_loc = _; pexp_loc_stack = _ } as expr) : expression) =
-    match pexp_desc with
-    | Pexp_fun (arg_label, default_opt, arg_pat, body) ->
-      begin
-        match default_opt with
-        | Some _ ->
-          raise_s [%message "unsupported expression"]
-        | None ->
-          let (args, body) = strip_function_args body in
-          (layout_arg
-             ~layout:(layout_pattern lang ~outer_precedence:`Fun_arg)
-             ~can_pun:can_pun_pattern
-             arg_label
-             arg_pat
-           :: args,
-           body)
-      end
-    | _ -> ([], expr)
-  in
   let (args, body) =
     match pvb_pat.ppat_desc with
-    | Ppat_var _ -> strip_function_args pvb_expr
+    | Ppat_var _ -> strip_function_args ~lang pvb_expr
     | _ -> ([], pvb_expr)
   in
   let start_keyword =
@@ -1507,9 +1498,8 @@ and layout_match_case
              ])
         ; (Indent, layout_expression lang ~outer_precedence:`Case_rhs pc_rhs)
         ]
-;;
 
-let rec layout_module lang { pmod_desc; pmod_attributes = _; pmod_loc = _ } =
+and layout_module lang { pmod_desc; pmod_attributes = _; pmod_loc = _ } =
   match pmod_desc with
   | Pmod_ident lident ->
     atom (string_of_lident lident)
@@ -1540,10 +1530,11 @@ let rec layout_module lang { pmod_desc; pmod_attributes = _; pmod_loc = _ } =
     ->
     raise_s [%message "unsupported module"]
 
-and layout_module_binding
+and layout_module_binding'
       lang
       ~start_keyword
-      { pmb_name; pmb_expr; pmb_attributes = _; pmb_loc = _ }
+      modl_name
+      modl_expr
   =
   (* CR wduff: This code is largely a duplicate of layout_module_decl. *)
   let rec strip_functor_args (({ pmod_desc; pmod_attributes = _; pmod_loc = _ } as module_expr) : module_expr) =
@@ -1553,7 +1544,7 @@ and layout_module_binding
       ((Indent, layout_functor_parameter lang arg) :: args, body)
     | _ -> ([], module_expr)
   in
-  let (args, body) = strip_functor_args pmb_expr in
+  let (args, body) = strip_functor_args modl_expr in
   let start_keyword =
     match args with
     | [] -> start_keyword
@@ -1564,7 +1555,7 @@ and layout_module_binding
   in
   (* CR wduff: This is an interesting case: If the name gets put on a new line and indented, the
      arguments should probably be indented an extra level. *)
-  match pmb_name.txt with
+  match modl_name.txt with
   | None ->
     (* What does it even mean for a module declaration to have no name? *)
     raise_s [%message "unsupported signature item"]
@@ -1595,6 +1586,13 @@ and layout_module_binding
         [ (No_indent, list start)
         ; (Indent, layout_module lang body)
         ]
+
+and layout_module_binding
+      lang
+      ~start_keyword
+      { pmb_name; pmb_expr; pmb_attributes = _; pmb_loc = _ }
+  =
+  layout_module_binding' lang ~start_keyword pmb_name pmb_expr
 
 and layout_structure_item lang ({ pstr_desc; pstr_loc = _ } : structure_item) =
   match pstr_desc with

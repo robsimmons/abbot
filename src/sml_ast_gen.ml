@@ -481,7 +481,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
   let closed_abts = Queue.to_list closed_abts in
   let sorts = Queue.to_list sorts in
   (* CR wduff: Implement map for simple abts. *)
-  let external_simple_abts_with_apply_renaming =
+  let external_simple_abts_with_apply_subst =
     List.map external_abts ~f:(fun (name, args) ->
       Str.module_
         (Mb.mk
@@ -493,7 +493,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                       ~manifest:(type_t ~via_module:true ~args:(List.map args ~f:Typ.var) name)
                   ]
               ; [%stri
-                let apply_renaming =
+                let apply_subst =
                   [%e
                     match args with
                     | [] -> [%expr fun _ acc t -> (acc, t)]
@@ -506,10 +506,10 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                       in
                       List.fold_right args
                         ~f:(fun arg acc ->
-                          [%expr fun [%p pvar ("apply_renaming_" ^ arg)] -> [%e acc]])
+                          [%expr fun [%p pvar ("apply_subst_" ^ arg)] -> [%e acc]])
                         ~init:
                           [%expr
-                            fun renaming acc (t : [%t t1]) : ('acc * [%t t2]) ->
+                            fun subst acc (t : [%t t1]) : ('acc * [%t t2]) ->
                               [%e
                                 Exp.apply
                                   (eident (String.capitalize name ^ ".fold_map"))
@@ -521,7 +521,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                                    List.map args ~f:(fun arg ->
                                      (* CR wduff: Special case the 1 case. *)
                                      (Nolabel,
-                                      [%expr [%e eident ("apply_renaming_" ^ arg)] renaming])))
+                                      [%expr [%e eident ("apply_subst_" ^ arg)] subst])))
                               ]
                           ]
                   ]
@@ -630,12 +630,12 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
     List.map open_abts ~f:(fun (name, _) ->
       Type.mk (ident (name ^ "_internal"))
         ~manifest:
-          (Typ.constr (lident "With_renaming.t") [Typ.constr (lident (name ^ "_oper")) []]))
+          (Typ.constr (lident "With_subst.t") [Typ.constr (lident (name ^ "_oper")) []]))
     @
     List.map closed_abts ~f:(fun (name, _) ->
       Type.mk (ident name)
         ~manifest:
-          (Typ.constr (lident "With_renaming.t") [Typ.constr (lident (name ^ "_oper")) []]))
+          (Typ.constr (lident "With_subst.t") [Typ.constr (lident (name ^ "_oper")) []]))
     @
     List.map sorts ~f:(fun (name, _) ->
       Type.mk (ident name)
@@ -645,8 +645,8 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
   let simple_abt_specific_structure_items =
     List.map external_abts ~f:(fun (name, _) ->
       [%stri
-        let [%p pvar (name ^ "_apply_renaming")] =
-          [%e eident (String.capitalize name ^ ".apply_renaming")]
+        let [%p pvar (name ^ "_apply_subst")] =
+          [%e eident (String.capitalize name ^ ".apply_subst")]
       ])
     @
     (match simple_abts with
@@ -654,24 +654,23 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
      | _::_ ->
        [ Str.value Recursive
            (List.map simple_abts ~f:(fun (name, args, cases) ->
-              let (cases, used_renaming) =
-                apply_renaming_code_for_simple_cases
-                  ~renaming:[%expr renaming]
-                  ~acc:[%expr acc]
+              let (cases, used_subst) =
+                apply_subst_code_for_simple_cases
+                  ~subst:[%expr subst]
                   cases
               in
-              let renaming_pat =
-                match used_renaming with
-                | `Used_renaming -> pvar "renaming"
-                | `Ignored_renaming -> pvar "_"
+              let subst_pat =
+                match used_subst with
+                | `Used_subst -> pvar "subst"
+                | `Ignored_subst -> pvar "_"
               in
               (Vb.mk
-                 (pvar (name ^ "_apply_renaming"))
+                 (pvar (name ^ "_apply_subst"))
                  (List.fold_right args
                     ~f:(fun arg acc ->
-                      Exp.fun_ Nolabel None (pvar ("apply_renaming_" ^ arg)) acc)
+                      Exp.fun_ Nolabel None (pvar ("apply_subst_" ^ arg)) acc)
                     ~init:
-                      [%expr fun [%p renaming_pat] acc [%p pvar name] ->
+                      [%expr fun [%p subst_pat] [%p pvar name] ->
                         [%e Exp.match_ (eident name) cases]]))))
        ])
   in
@@ -714,7 +713,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                   ]
                   (Exp.tuple
                      [ eident "vars"
-                     ; Exp.tuple [ eident "Renaming.ident"; eident name]
+                     ; Exp.tuple [ eident "Subst.ident"; eident name]
                      ]))))
         |> Str.value Recursive
       in
@@ -723,7 +722,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
           Vb.mk
             (pvar (name ^ "_out"))
             (Exp.fun_ Nolabel None
-               (Pat.tuple [ pvar "renaming"; pvar name ])
+               (Pat.tuple [ pvar "subst"; pvar name ])
                (Exp.match_
                   (eident name)
                   (out_code_for_open_cases
@@ -809,18 +808,24 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                               cases)
                        ]
                      in
-                     (Renaming.ident, oper)
+                     (Subst.ident, oper)
                  ]
-                 ; [%stri
-                   let out (renaming, oper) : view =
-                     [%e
-                       Exp.match_
-                         [%expr (oper : oper)]
-                         (out_code_for_closed_cases
-                            ~name_of_walked_value:name
-                            cases)
-                     ]
-                 ]
+                 ; (let (oper_cases_expr, used_subst) =
+                      out_code_for_closed_cases
+                        ~name_of_walked_value:name
+                        ~subst:[%expr subst]
+                        cases
+                    in
+                    (* CR wduff: Shouldn't we not store substs that aren't gonna be used at all? *)
+                    let subst_pat =
+                      match used_subst with
+                      | `Used_subst -> [%pat? subst]
+                      | `Ignored_subst -> [%pat? _]
+                    in
+                    [%stri
+                      let out ([%p subst_pat], oper) : view =
+                        [%e Exp.match_ [%expr (oper : oper)] oper_cases_expr]
+                    ])
                  ]
                @ convenient_constructors_impl ~keywords ~is_sort:false cases))))
     @
@@ -878,24 +883,30 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                              ~f:(fun { pc_lhs; pc_guard; pc_rhs } ->
                                { pc_lhs
                                ; pc_guard
-                               ; pc_rhs = [%expr Internal_sort.Oper (Renaming.ident, [%e pc_rhs])]
+                               ; pc_rhs = [%expr Internal_sort.Oper (Subst.ident, [%e pc_rhs])]
                                }))
                    ]
                ]
-               ; [%stri
-                 let out (t : t) : view =
-                   match t with
-                   | Internal_sort.Var (Internal_var.Bound_var _) -> [%e raise_internal_error_expr]
-                   | Internal_sort.Var (Internal_var.Free_var var) -> Var var
-                   | Internal_sort.Oper (renaming, oper) ->
-                     [%e
-                       Exp.match_
-                         [%expr oper]
-                         (out_code_for_closed_cases
-                            ~name_of_walked_value:name
-                            cases)
-                     ]
-               ]
+               ; (let (oper_cases_expr, used_subst) =
+                    out_code_for_closed_cases
+                      ~name_of_walked_value:name
+                      ~subst:[%expr subst]
+                      cases
+                  in
+                  (* CR wduff: Shouldn't we not store substs that aren't gonna be used at all? *)
+                  let subst_pat =
+                    match used_subst with
+                    | `Used_subst -> [%pat? subst]
+                    | `Ignored_subst -> [%pat? _]
+                  in
+                  [%stri
+                    let out (t : t) : view =
+                      match t with
+                      | Internal_sort.Var (Internal_var.Bound_var _) -> [%e raise_internal_error_expr]
+                      | Internal_sort.Var (Internal_var.Free_var var) -> Var var
+                      | Internal_sort.Oper ([%p subst_pat], oper) ->
+                        [%e Exp.match_ [%expr oper] oper_cases_expr]
+                  ])
                ]
                @
                convenient_constructors_impl ~keywords ~is_sort:true cases))))
@@ -1132,7 +1143,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                  (Mod.structure
                     ([ [%stri type ('a, 'b) bind = 'a * 'b] ]
                      @
-                     external_simple_abts_with_apply_renaming
+                     external_simple_abts_with_apply_subst
                      @
                      [ Str.type_ Recursive (datatype_defns @ type_alias_defns) ]
                      @

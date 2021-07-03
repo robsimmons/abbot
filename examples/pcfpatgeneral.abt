@@ -9,9 +9,9 @@ sort tp =
 
 abt pat =
  | Var of exp binding
- | Tuple of exp labelMap
- | In of label * exp
- | Fold of exp
+ | Tuple of pat labelMap
+ | In of label * pat
+ | Fold of pat
 
 sort exp =
  | Lam of exp binding * tp . exp

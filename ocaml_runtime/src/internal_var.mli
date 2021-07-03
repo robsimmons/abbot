@@ -1,6 +1,6 @@
 open! Core
 
-type t =
-  | Free_var of Temp.t
+type 'var t =
+  | Free_var of 'var
   | Bound_var of int
 [@@deriving compare, equal, sexp]

@@ -1,53 +1,33 @@
 open! Core
-
-module type S0 = sig
-  type t [@@deriving sexp_of]
-
-  val apply_renaming : Renaming.t -> 'acc -> t -> 'acc * t
-  val subst : 'sort -> 'value -> 'var -> t -> t
-end
-
-module type S1 = sig
-  type 'a t [@@deriving sexp_of]
-
-  val apply_renaming
-    : (Renaming.t -> 'acc -> 'a1 -> 'acc * 'a2) -> Renaming.t -> 'acc -> 'a1 t -> 'acc * 'a2 t
-
-  val subst : ('sort -> 'value -> 'var -> 'a -> 'a) -> 'sort -> 'value -> 'var -> 'a t -> 'a t
-end
+include External_abts_intf
 
 module Make0 (T : sig type t [@@deriving sexp_of] end) = struct
   type t = T.t [@@deriving sexp_of]
 
-  let apply_renaming _ acc t = (acc, t)
-  let subst _ _ _ t = t
+  let fold_map acc t = (acc, t)
+
+  let apply_subst _ t = t
 end
 
 module Make1
     (T : sig
        type 'a t [@@deriving sexp_of]
 
-       val fold_map
-         :  'a t
-         -> init:'acc
-         -> f:('acc -> 'a -> 'acc * 'b)
-         -> 'acc * 'b t
+       val map : 'a t -> f:('a -> 'b) -> 'b t
+       val fold_map : 'a t -> init:'acc -> f:('acc -> 'a -> 'acc * 'b) -> 'acc * 'b t
      end)
 =
 struct
   type 'a t = 'a T.t [@@deriving sexp_of]
 
-  let apply_renaming apply_renaming_a renaming acc t =
-    T.fold_map t ~init:acc ~f:(apply_renaming_a renaming)
+  let fold_map f init t = T.fold_map t ~init ~f
 
-  let subst subst_a sort value var t =
-    let ((), t) =
-      T.fold_map
-        t
-        ~init:()
-        ~f:(fun () -> (fun a -> ((), subst_a sort value var a)))
-    in
-    t
+  (* We need to define this explicitly, instead of just doing this at the call sites because the
+     call sites don't distinguish between internal and external abts, and for internal abts there
+     may be other work to do, because they can directly contain things we need to substitute into.
+  *)
+  let apply_subst apply_subst_a subst t =
+    T.map t ~f:(apply_subst_a subst)
 end
 
 module Unit =
@@ -79,6 +59,8 @@ module Option =
   Make1 (struct
     type 'a t = 'a option [@@deriving sexp_of]
 
+    let map = Option.map
+
     let fold_map t ~init ~f =
       match t with
       | None -> (init, None)
@@ -91,12 +73,16 @@ module List =
   Make1 (struct
     type 'a t = 'a list [@@deriving sexp_of]
 
+    let map = List.map
+
     let fold_map = List.fold_map
   end)
 
 module String_map =
   Make1 (struct
     type 'a t = 'a Core.String.Map.t [@@deriving sexp_of]
+
+    let map = Core.String.Map.map
 
     let fold_map t ~init ~f =
       Core.String.Map.fold t ~init:(init, Core.String.Map.empty) ~f:(fun ~key ~data (acc, new_map) ->

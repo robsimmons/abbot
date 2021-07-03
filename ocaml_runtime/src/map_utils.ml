@@ -159,39 +159,13 @@ let choose_key map =
   | Node (_, k, _, _, _) -> Some k
 ;;
 
-let rec remove_set map set =
-  let key =
-    if Map.length map < Set.length set
-    then choose_key map
-    else Set.choose set
-  in
-  match key with
-  | None -> map
-  | Some key ->
-    let (map_left, _, map_right) = Map.split map key in
-    let (set_left, _, set_right) = Set.split set key in
-    join0 (remove_set map_left set_left) (remove_set map_right set_right)
-;;
+let remove_set = failwith "unimpl"
+let restrict_to_set = failwith "unimpl"
 
-let rec restrict_to_set map set =
-  let key =
-    if Map.length map < Set.length set
-    then choose_key map
-    else Set.choose set
-  in
-  match key with
-  | None -> Map.Using_comparator.empty ~comparator:(Unsafe.expose map).comparator
-  | Some key ->
-    let (map_left, map_elt_opt, map_right) = Map.split map key in
-    let (set_left, _, set_right) = Set.split set key in
-    (* CR wduff: This is wrong. *)
-    match map_elt_opt with
-    | None ->
-      join0 (restrict_to_set map_left set_left) (restrict_to_set map_right set_right)
-    | Some (k, d) ->
-      join (restrict_to_set map_left set_left) k d (restrict_to_set map_right set_right)
-;;
-
+(* CR wduff: I think to get the right asymptotics, we may need to check which is larger on every
+   recursive call, rather than just at the beginning. (This applies to all of union, inter, and
+   symm_diff). Ideally, don't allocate a closure for [merge] every recursive call to deal with that.
+   We get this right in the Brother_tree code. *)
 let rec union' ~small ~large ~merge =
   match small with
   | Empty -> large

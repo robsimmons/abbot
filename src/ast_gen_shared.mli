@@ -60,11 +60,20 @@ module Walks
        val raise_internal_error_expr : Ppxlib.expression
      end)
   : sig
-    val apply_renaming_code_for_simple_cases
-      :  renaming:Ppxlib.expression
-      -> acc:Ppxlib.expression
-      ->  (string * [ `Simple ] Typed.Abt.t option) list
-      -> Ppxlib.case list * [ `Used_renaming | `Ignored_renaming ]
+    val fold_map_code_for_simple_cases
+      :  acc:Ppxlib.expression
+      -> (string * [ `Simple ] Typed.Abt.t option) list
+      -> Ppxlib.case list
+
+    val apply_subst_code_for_simple_cases
+      :  subst:Ppxlib.expression
+      -> (string * [ `Simple ] Typed.Abt.t option) list
+      -> Ppxlib.case list * [ `Used_subst | `Ignored_subst ]
+
+    val apply_subst_code_for_open_cases
+      :  subst:Ppxlib.expression
+      -> (string * [ `Open ] Typed.Abt.t option) list
+      -> Ppxlib.case list * [ `Used_subst | `Ignored_subst ]
 
     val into_code_for_open_cases
       :  name_of_walked_value:string
@@ -83,8 +92,9 @@ module Walks
 
     val out_code_for_closed_cases
       :  name_of_walked_value:string
+      -> subst:Ppxlib.expression
       -> (string * [ `Closed ] Typed.Abt.t option) list
-      -> Ppxlib.case list
+      -> Ppxlib.case list * [ `Used_subst | `Ignored_subst ]
 
     val subst_code_for_cases
       :  name_of_walked_value:string

@@ -12,9 +12,9 @@ sort tp =
 
 abt pat =
  | Var of exp binding
- | Pair of exp * exp
- | In of side * exp
- | Fold of exp
+ | Pair of pat * pat
+ | In of side * pat
+ | Fold of pat
 
 abt cases =
  | Nil

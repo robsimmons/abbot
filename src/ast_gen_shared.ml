@@ -79,7 +79,7 @@ let rec internal_type_of_abt
   | Closed_abt_use name | Sort_use name ->
     type_t ~via_module:(refer_to_via_module name) name
   | Symbol_use (_ : string) ->
-    Typ.constr (lident "Internal_var.t") []
+    Typ.constr (lident "Temp.t Internal_var.t") []
   | Open_abt_use name ->
     type_internal ~via_module:(refer_to_via_module name) name
   | Prod abts ->
@@ -267,7 +267,7 @@ let internal_error_message = [%expr "Internal Abbot error occurred. Please repor
    maybe write a [fold_map]-like function for open abts and use it for both into and out.
 *)
 
-let use_subst = false
+let use_subst = true
 
 let apply_subst_to_var subst_expr var_expr =
   match use_subst with
@@ -275,10 +275,33 @@ let apply_subst_to_var subst_expr var_expr =
   | false -> [%expr Renaming.apply [%e subst_expr] [%e var_expr]]
 ;;
 
-let apply_subst_to_sort subst_expr sort_expr =
+let apply_subst_to_sort sort_tag subst_expr sort_expr =
   match use_subst with
-  | true -> [%expr Internal_sort.apply_subst ~apply_to_var:Subst.apply_to_var [%e subst_expr] [%e sort_expr]]
+  | true ->
+    [%expr
+      Generic_sort.apply_subst
+        [%e Exp.construct (lident sort_tag) None]
+        [%e subst_expr]
+        [%e sort_expr]]
   | false -> [%expr Internal_sort.apply_renaming [%e subst_expr] [%e sort_expr]]
+;;
+
+let compose_subst subst_expr1 subst_expr2 =
+  match use_subst with
+  | true -> [%expr Subst.compose [%e subst_expr1] [%e subst_expr2]]
+  | false -> [%expr Renaming.compose [%e subst_expr1] [%e subst_expr2]]
+;;
+
+let bind_expr vars_expr =
+  match use_subst with
+  | true -> [%expr Subst.unbind' [%e vars_expr]]
+  | false -> [%expr Renaming.bind' [%e vars_expr]]
+;;
+
+let unbind_expr vars_expr =
+  match use_subst with
+  | true -> [%expr Subst.unbind' [%e vars_expr]]
+  | false -> [%expr Renaming.unbind' [%e vars_expr]]
 ;;
 
 module Walks (Config : sig
@@ -288,68 +311,49 @@ module Walks (Config : sig
   end)
 =
 struct
-  let rec apply_renaming_code_for_simple_abt
-            uniquifier
-            ~renaming
-            ~acc
-            (abt : [ `Simple ] Abt.t)
-    =
+  let rec fold_map_code_for_simple_abt uniquifier ~acc (abt : [ `Simple ] Abt.t) =
     match abt with
     | Arg_use name ->
       let name' = Uniquifier.uniquify uniquifier name in
       (pvar name',
        Exp.apply
-         (eident ("apply_renaming_" ^ name))
-         [ (Nolabel, renaming)
-         ; (Nolabel, acc)
+         (eident ("f_" ^ name))
+         [ (Nolabel, acc)
          ; (Nolabel, eident name')
-         ],
-       `Used_renaming)
+         ])
     | Builtin_abt_use (builtin_abt, args) ->
       let name' = Uniquifier.uniquify uniquifier (Builtin_abt.name builtin_abt) in
       (pvar name',
        Exp.apply
-         (eident (Builtin_abt.module_name builtin_abt ^ ".apply_renaming"))
-         (apply_renaming_code_for_simple_abt_args args
+         (eident (Builtin_abt.module_name builtin_abt ^ ".fold_map"))
+         (fold_map_code_for_simple_abt_args args
           @
-          [ (Nolabel, renaming)
-          ; (Nolabel, acc)
+          [ (Nolabel, acc)
           ; (Nolabel, eident name')
-          ]),
-       `Used_renaming)
+          ]))
     | Simple_abt_use (name, args) ->
       let name' = Uniquifier.uniquify uniquifier name in
       (pvar name',
        Exp.apply
          (eident
             (match Config.use_flat_names_internally with
-             | true -> name ^ "_apply_renaming"
-             | false -> String.capitalize name ^ ".apply_renaming"))
-         (apply_renaming_code_for_simple_abt_args args
+             | true -> name ^ "_fold_map"
+             | false -> String.capitalize name ^ ".fold_map"))
+         (fold_map_code_for_simple_abt_args args
           @
-          [ (Nolabel, renaming)
-          ; (Nolabel, acc)
+          [ (Nolabel, acc)
           ; (Nolabel, eident name')
-          ]),
-       `Used_renaming)
+          ]))
     | Closed_abt_use name ->
-      let name' = Uniquifier.uniquify uniquifier name in
-      (pvar name',
-       [%expr
-         ([%e acc],
-          With_renaming.apply_renaming
-            [%e renaming]
-            [%e eident name'])
-       ],
-       `Used_renaming)
+      let name = Uniquifier.uniquify uniquifier name in
+      (pvar name, [%expr ([%e acc], [%e eident name])])
     | Symbol_use name ->
       let name = Uniquifier.uniquify uniquifier name in
-      (pvar name, apply_subst_to_var renaming (eident name), `Used_renaming)
+      (pvar name, [%expr ([%e acc], [%e eident name])])
     | Sort_use name ->
       let name = Uniquifier.uniquify uniquifier name in
       (pvar name,
-       [%expr ([%e acc], [%e apply_subst_to_sort renaming (eident name)])],
-       `Used_renaming)
+       [%expr ([%e acc], [%e eident name])])
     | Prod abts ->
       let rec make_tuple_fold i acc abts =
         match abts with
@@ -358,53 +362,198 @@ struct
            Exp.tuple
              [ eident "acc"
              ; Exp.tuple (List.init i ~f:(fun i -> eident (sprintf "result_%d" i)))
-             ],
-           `Ignored_renaming)
+             ])
         | abt :: abts ->
-          let (pat, expr, used_renaming) =
-            apply_renaming_code_for_simple_abt
-              uniquifier
-              ~renaming
-              ~acc
-              abt
-          in
-          let (pats, expr', used_renaming') = make_tuple_fold (i + 1) (eident "acc") abts in
+          let (pat, expr) = fold_map_code_for_simple_abt uniquifier ~acc abt in
+          let (pats, expr') = make_tuple_fold (i + 1) (eident "acc") abts in
           (pat :: pats,
-           [%expr let (acc, [%p pvar (sprintf "result_%d" i)]) = [%e expr] in [%e expr']],
-           match used_renaming, used_renaming' with
-           | `Used_renaming, _ | _, `Used_renaming -> `Used_renaming
-           | `Ignored_renaming, `Ignored_renaming -> `Ignored_renaming)
+           [%expr let (acc, [%p pvar (sprintf "result_%d" i)]) = [%e expr] in [%e expr']])
       in
-      let (pats, expr, used_renaming) = make_tuple_fold 0 acc abts in
-      (Pat.tuple pats, expr, used_renaming)
+      let (pats, expr) = make_tuple_fold 0 acc abts in
+      (Pat.tuple pats, expr)
 
-  and apply_renaming_code_for_simple_abt_args args =
+  and fold_map_code_for_simple_abt_args args =
     List.map args ~f:(fun arg ->
-      let (pat, expr, used_renaming) =
-        apply_renaming_code_for_simple_abt
+      let (pat, expr) =
+        fold_map_code_for_simple_abt (Uniquifier.create ()) ~acc:(eident "acc") arg
+      in
+      (Nolabel,
+       Exp.fun_ Nolabel None
+         (pvar "acc")
+         (Exp.fun_ Nolabel None pat expr)))
+  ;;
+
+  let used_subst_of_list used_subst_list =
+    (match
+       List.exists used_subst_list ~f:(function
+         | `Used_subst -> true
+         | `Ignored_subst -> false)
+     with
+     | true -> `Used_subst
+     | false -> `Ignored_subst)
+  ;;
+
+  let rec apply_subst_code_for_simple_abt uniquifier ~subst (abt : [ `Simple ] Abt.t) =
+    match abt with
+    | Arg_use name ->
+      let name' = Uniquifier.uniquify uniquifier name in
+      (pvar name',
+       Exp.apply
+         (eident ("apply_subst_" ^ name))
+         [ (Nolabel, subst)
+         ; (Nolabel, eident name')
+         ],
+       `Used_subst)
+    | Builtin_abt_use (builtin_abt, args) ->
+      let name' = Uniquifier.uniquify uniquifier (Builtin_abt.name builtin_abt) in
+      (pvar name',
+       Exp.apply
+         (eident (Builtin_abt.module_name builtin_abt ^ ".apply_subst"))
+         (apply_subst_code_for_simple_abt_args args
+          @
+          [ (Nolabel, subst)
+          ; (Nolabel, eident name')
+          ]),
+       `Used_subst)
+    | Simple_abt_use (name, args) ->
+      let name' = Uniquifier.uniquify uniquifier name in
+      (pvar name',
+       Exp.apply
+         (eident
+            (match Config.use_flat_names_internally with
+             | true -> name ^ "_apply_subst"
+             | false -> String.capitalize name ^ ".apply_subst"))
+         (apply_subst_code_for_simple_abt_args args
+          @
+          [ (Nolabel, subst)
+          ; (Nolabel, eident name')
+          ]),
+       `Used_subst)
+    | Closed_abt_use name ->
+      let name' = Uniquifier.uniquify uniquifier name in
+      (pvar name',
+       [%expr
+         With_subst.apply_subst
+           [%e subst]
+           [%e eident name']
+       ],
+       `Used_subst)
+    | Symbol_use name ->
+      let name = Uniquifier.uniquify uniquifier name in
+      (pvar name, apply_subst_to_var subst (eident name), `Used_subst)
+    | Sort_use name ->
+      let sort_tag = String.capitalize name in
+      let name = Uniquifier.uniquify uniquifier name in
+      (pvar name,
+       apply_subst_to_sort sort_tag subst (eident name),
+       `Used_subst)
+    | Prod abts ->
+      let (pats, exprs, used_subst) =
+        List.map abts ~f:(apply_subst_code_for_simple_abt uniquifier ~subst)
+        |> List.unzip3
+      in
+      (Pat.tuple pats, Exp.tuple exprs, used_subst_of_list used_subst)
+
+  and apply_subst_code_for_simple_abt_args args =
+    List.map args ~f:(fun arg ->
+      let (pat, expr, used_subst) =
+        apply_subst_code_for_simple_abt
           (Uniquifier.create ())
-          ~renaming:(eident "renaming")
-          ~acc:(eident "acc")
+          ~subst:(eident "subst")
           arg
       in
       (Nolabel,
        Exp.fun_ Nolabel None
-         (match used_renaming with
-          | `Used_renaming -> pvar "renaming"
-          | `Ignored_renaming -> pvar "_renaming")
-         (Exp.fun_ Nolabel None
-            (pvar "acc")
-            (Exp.fun_ Nolabel None pat expr))))
+         (match used_subst with
+          | `Used_subst -> pvar "subst"
+          | `Ignored_subst -> pvar "_subst")
+         (Exp.fun_ Nolabel None pat expr)))
   ;;
 
-  let used_renaming_of_list used_renaming_list =
-    (match
-       List.exists used_renaming_list ~f:(function
-         | `Used_renaming -> true
-         | `Ignored_renaming -> false)
-     with
-     | true -> `Used_renaming
-     | false -> `Ignored_renaming)
+  let rec apply_subst_code_for_open_abt uniquifier ~subst (abt : [ `Open ] Abt.t) =
+    match abt with
+    | Builtin_abt_use (builtin_abt, args) ->
+      let name' = Uniquifier.uniquify uniquifier (Builtin_abt.name builtin_abt) in
+      (pvar name',
+       Exp.apply
+         (eident (Builtin_abt.module_name builtin_abt ^ ".apply_subst"))
+         (apply_subst_code_for_open_abt_args args
+          @
+          [ (Nolabel, subst)
+          ; (Nolabel, eident name')
+          ]),
+       `Used_subst)
+    | Simple_abt_use (name, args) ->
+      let name' = Uniquifier.uniquify uniquifier name in
+      (pvar name',
+       Exp.apply
+         (eident
+            (match Config.use_flat_names_internally with
+             | true -> name ^ "_apply_subst"
+             | false -> String.capitalize name ^ ".apply_subst"))
+         (apply_subst_code_for_open_abt_args args
+          @
+          [ (Nolabel, subst)
+          ; (Nolabel, eident name')
+          ]),
+       `Used_subst)
+    | Open_abt_use name ->
+      let name' = Uniquifier.uniquify uniquifier name in
+      (pvar name',
+       Exp.apply
+         (eident
+            (match Config.use_flat_names_internally with
+             | true -> name ^ "_apply_subst"
+             | false -> String.capitalize name ^ ".apply_subst"))
+         ([ (Nolabel, subst)
+          ; (Nolabel, eident name')
+          ]),
+       `Used_subst)
+    | Closed_abt_use name ->
+      let name' = Uniquifier.uniquify uniquifier name in
+      (pvar name',
+       [%expr
+         With_subst.apply_subst
+           [%e subst]
+           [%e eident name']
+       ],
+       `Used_subst)
+    | Symbol_use name ->
+      let name = Uniquifier.uniquify uniquifier name in
+      (pvar name, apply_subst_to_var subst (eident name), `Used_subst)
+    | Sort_use name ->
+      let sort_tag = String.capitalize name in
+      let name = Uniquifier.uniquify uniquifier name in
+      (pvar name,
+       apply_subst_to_sort sort_tag subst (eident name),
+       `Used_subst)
+    | Prod abts ->
+      let (pats, exprs, used_subst) =
+        List.map abts ~f:(apply_subst_code_for_open_abt uniquifier ~subst)
+        |> List.unzip3
+      in
+      (Pat.tuple pats, Exp.tuple exprs, used_subst_of_list used_subst)
+    | Symbol_binding name ->
+      let name = Uniquifier.uniquify uniquifier name in
+      (pvar name, eident name, `Ignored_subst)
+    | Sort_binding name ->
+      let name = Uniquifier.uniquify uniquifier name in
+      (pvar name, eident name, `Ignored_subst)
+
+  and apply_subst_code_for_open_abt_args args =
+    List.map args ~f:(fun arg ->
+      let (pat, expr, used_subst) =
+        apply_subst_code_for_open_abt
+          (Uniquifier.create ())
+          ~subst:(eident "subst")
+          arg
+      in
+      (Nolabel,
+       Exp.fun_ Nolabel None
+         (match used_subst with
+          | `Used_subst -> pvar "subst"
+          | `Ignored_subst -> pvar "_subst")
+         (Exp.fun_ Nolabel None pat expr)))
   ;;
 
   let vars_to_expr = function
@@ -421,63 +570,62 @@ struct
     | (`Expr _, _) | (_, `Expr _) ->
       `Expr [%expr [%e vars_to_expr vars1] @ [%e vars_to_expr vars2]]
 
-  let rec into_code_for_open_abt uniquifier renaming (abt : [ `Open ] Abt.t) =
+  let rec into_code_for_open_abt uniquifier (abt : [ `Open ] Abt.t) =
     match abt with
     | Builtin_abt_use (builtin_abt, args) ->
       let name' = Uniquifier.uniquify uniquifier (Builtin_abt.name builtin_abt) in
-      (pvar name',
-       `Expr
-         (Exp.apply
-            (eident (Builtin_abt.module_name builtin_abt ^ ".apply_renaming"))
-            (into_code_for_open_abt_args args
-             @
-             [ (Nolabel, renaming)
-             ; (Nolabel, [%expr []])
-             ; (Nolabel, eident name')
-             ])))
+      (match args with
+       | [] -> (pvar name', `Pair (`List [], eident name'))
+       | _::_ ->
+         (pvar name',
+          `Expr
+            (Exp.apply
+               (eident (Builtin_abt.module_name builtin_abt ^ ".fold_map"))
+               (into_code_for_open_abt_args args
+                @
+                [ (Nolabel, [%expr []])
+                ; (Nolabel, eident name')
+                ]))))
     | Simple_abt_use (name, args) ->
       let name' = Uniquifier.uniquify uniquifier name in
-      (pvar name',
-       `Expr
-         (Exp.apply
-            (eident
-               (match Config.use_flat_names_internally with
-                | true -> name ^ "_apply_renaming"
-                | false -> String.capitalize name ^ ".apply_renaming"))
-            (into_code_for_open_abt_args args
-             @
-             [ (Nolabel, renaming)
-             ; (Nolabel, [%expr []])
-             ; (Nolabel, eident name')
-             ])))
+      (match args with
+       | [] -> (pvar name', `Pair (`List [], eident name'))
+       | _::_ ->
+         (pvar name',
+          `Expr
+            (Exp.apply
+               (eident
+                  (match Config.use_flat_names_internally with
+                   | true -> name ^ "_fold_map"
+                   | false -> String.capitalize name ^ ".fold_map"))
+               (into_code_for_open_abt_args args
+                @
+                [ (Nolabel, [%expr []])
+                ; (Nolabel, eident name')
+                ]))))
     | Closed_abt_use name ->
       let name' = Uniquifier.uniquify uniquifier name in
-      (pvar name',
-       `Pair (`List [], [%expr With_renaming.apply_renaming [%e renaming] [%e eident name']]))
+      (pvar name', `Pair (`List [], eident name'))
     | Open_abt_use name ->
       let name' = Uniquifier.uniquify uniquifier name in
-      (* CR wduff: Does doing things in this order work? *)
       (pvar name',
        `Expr
          [%expr
-           let (vars, [%p pvar name']) =
-             [%e
-               match Config.use_flat_names_internally with
-               | true -> eident (name ^ "_into")
-               | false -> eident (String.capitalize name ^ ".into")]
-               [%e eident name']
-           in
-           (vars, With_renaming.apply_renaming [%e renaming] [%e eident name'])])
+           [%e
+             match Config.use_flat_names_internally with
+             | true -> eident (name ^ "_into")
+             | false -> eident (String.capitalize name ^ ".into")]
+             [%e eident name']])
     | Symbol_use name ->
       let name = Uniquifier.uniquify uniquifier name in
       (pvar name, `Pair (`List [], [%expr Internal_var.Free_var [%e eident name]]))
     | Sort_use name ->
       let name = Uniquifier.uniquify uniquifier name in
       (pvar name,
-       `Pair (`List [], apply_subst_to_sort renaming (eident name)))
+       `Pair (`List [], eident name))
     | Prod abts ->
       let (pats, exprs) =
-        List.map abts ~f:(into_code_for_open_abt uniquifier renaming)
+        List.map abts ~f:(into_code_for_open_abt uniquifier)
         |> List.unzip
       in
       (* CR wduff: The names in here need to be uniquified. *)
@@ -514,172 +662,176 @@ struct
                  [%expr let [%p let_pat] = [%e let_expr] in [%e acc]]))))
     | Symbol_binding name ->
       let name' = Uniquifier.uniquify uniquifier name in
-      (pvar name', `Pair (`List [eident name'], [%expr Temp.name [%e eident name']]))
+      (pvar name',
+       `Pair
+         (`List [ [%expr Packed_var.T ([%e Exp.construct (lident (String.capitalize name)) None], [%e eident name'])] ],
+          [%expr Temp.name [%e eident name']]))
     | Sort_binding sort ->
       let name = Uniquifier.uniquify uniquifier (sort ^ "_var") in
-      (pvar name, `Pair (`List [eident name], [%expr Temp.name [%e eident name]]))
+      (pvar name,
+       `Pair
+         (`List
+            [ [%expr Packed_var.T ([%e Exp.construct (lident (String.capitalize sort)) None], [%e eident name])] ],
+          [%expr Temp.name [%e eident name]]))
 
   and into_code_for_open_abt_args args =
     List.map args ~f:(fun arg ->
-      let (pat, expr) =
-        into_code_for_open_abt
-          (Uniquifier.create ())
-          [%expr renaming]
-          arg
-      in
+      let (pat, expr) = into_code_for_open_abt (Uniquifier.create ()) arg in
       (Nolabel,
        Exp.fun_ Nolabel None
-         [%pat? renaming]
-         (Exp.fun_ Nolabel None
-            (pvar "acc")
-            (Exp.fun_ Nolabel None pat
-               (match expr with
-                | `Pair (vars_expr, abt_expr) ->
-                  [%expr ([%e vars_to_expr vars_expr] @ acc, [%e abt_expr])]
-                | `Expr expr ->
-                  [%expr
-                    let (vars, inner) = [%e expr] in
-                    (vars @ acc, inner)
-                  ])))))
+         (pvar "acc")
+         (Exp.fun_ Nolabel None pat
+            (match expr with
+             | `Pair (vars_expr, abt_expr) ->
+               [%expr ([%e vars_to_expr vars_expr] @ acc, [%e abt_expr])]
+             | `Expr expr ->
+               [%expr
+                 let (vars, inner) = [%e expr] in
+                 (vars @ acc, inner)
+               ]))))
   ;;
 
-  let rec into_code_for_closed_abt uniquifier renaming (abt : [ `Closed ] Abt.t) =
+  let rec into_code_for_closed_abt uniquifier subst (abt : [ `Closed ] Abt.t) =
     match abt with
     | Builtin_abt_use (builtin_abt, args) ->
       let name' = Uniquifier.uniquify uniquifier (Builtin_abt.name builtin_abt) in
       (pvar name',
-       [%expr
-         let ((), [%p pvar name']) =
-           [%e
-             Exp.apply
-               (eident (Builtin_abt.module_name builtin_abt ^ ".apply_renaming"))
-               (into_code_for_closed_abt_args args
-                @
-                [ (Nolabel, renaming)
-                ; (Nolabel, [%expr ()])
-                ; (Nolabel, eident name')
-                ])
-           ]
-         in
-         [%e eident name']
-       ])
+       Exp.apply
+         (eident (Builtin_abt.module_name builtin_abt ^ ".apply_subst"))
+         (into_code_for_closed_abt_args args
+          @
+          [ (Nolabel, subst)
+          ; (Nolabel, eident name')
+          ]),
+       `Used_subst)
     | Simple_abt_use (name, args) ->
       let name' = Uniquifier.uniquify uniquifier name in
       (pvar name',
-       [%expr
-         let ((), [%p pvar name']) =
-           [%e
-             Exp.apply
-               (eident
-                  (match Config.use_flat_names_internally with
-                   | true -> name ^ "_apply_renaming"
-                   | false -> String.capitalize name ^ ".apply_renaming"))
-               (into_code_for_closed_abt_args args
-                @
-                [ (Nolabel, renaming)
-                ; (Nolabel, [%expr ()])
-                ; (Nolabel, eident name')
-                ])
-           ]
-         in
-         [%e eident name']
-       ])
+       Exp.apply
+         (eident
+            (match Config.use_flat_names_internally with
+             | true -> name ^ "_apply_subst"
+             | false -> String.capitalize name ^ ".apply_subst"))
+         (into_code_for_closed_abt_args args
+          @
+          [ (Nolabel, subst)
+          ; (Nolabel, eident name')
+          ]),
+       `Used_subst)
     | Closed_abt_use name ->
       let name' = Uniquifier.uniquify uniquifier name in
-      (pvar name', [%expr With_renaming.apply_renaming [%e renaming] [%e eident name']])
+      (pvar name', [%expr With_subst.apply_subst [%e subst] [%e eident name']], `Used_subst)
     | Symbol_use name ->
       let name = Uniquifier.uniquify uniquifier name in
-      (pvar name, [%expr Internal_var.Free_var [%e eident name]])
+      (* CR wduff: We need to apply the substitution in this case, but we don't current have a way
+         to apply it to a symbol. *)
+      (pvar name,
+       [%expr Internal_var.Free_var [%e eident name]],
+       `Used_subst)
     | Sort_use name ->
+      let sort_tag = String.capitalize name in
       let name = Uniquifier.uniquify uniquifier name in
-      (pvar name, apply_subst_to_sort renaming (eident name))
+      (pvar name, apply_subst_to_sort sort_tag subst (eident name), `Used_subst)
     | Prod abts ->
-      let (pats, exprs) =
-        List.map abts ~f:(into_code_for_closed_abt uniquifier renaming)
-        |> List.unzip
+      let (pats, exprs, used_subst) =
+        List.map abts ~f:(into_code_for_closed_abt uniquifier subst)
+        |> List.unzip3
       in
-      (Pat.tuple pats, Exp.tuple exprs)
+      (Pat.tuple pats, Exp.tuple exprs, used_subst_of_list used_subst)
     | Bind (lhs, rhs) ->
       let (lhs_pat, lhs_expr) =
-        into_code_for_open_abt uniquifier renaming lhs
+        (* CR wduff: Apply the subst to the expr at some point. *)
+        into_code_for_open_abt uniquifier lhs
       in
-      let (rhs_pat, rhs_expr (* CR wduff: , used_renaming *)) =
+      let (rhs_pat, rhs_expr, used_subst) =
         into_code_for_closed_abt
           uniquifier
-          [%expr renaming]
+          [%expr subst]
           rhs
       in
-      let renaming_pat =
-        (* CR wduff:
-           (* CR wduff: If the renaming is unused, we don't need to compute it. *)
-           match used_renaming with
-           | `Used_renaming -> pvar "renaming"
-           | `Ignored_renaming -> pvar "_renaming"
-        *)
-        pvar "renaming"
+      let expr =
+        match used_subst with
+        | `Used_subst ->
+          (match lhs_expr with
+           | `Pair (lhs_vars_expr, lhs_abt_expr) ->
+             [%expr
+               let subst =
+                 [%e compose_subst subst (bind_expr (vars_to_expr lhs_vars_expr))]
+               in
+               ([%e lhs_abt_expr], [%e rhs_expr])]
+           | `Expr lhs_expr ->
+             [%expr
+               let (vars, lhs) = [%e lhs_expr] in
+               let subst = [%e compose_subst subst (bind_expr [%expr vars])] in
+               (lhs, [%e rhs_expr])
+             ])
+        | `Ignored_subst ->
+          (match lhs_expr with
+           | `Pair (lhs_vars_expr, lhs_abt_expr) ->
+             [%expr
+               ignore [%e vars_to_expr lhs_vars_expr];
+               ([%e lhs_abt_expr], [%e rhs_expr])]
+           | `Expr lhs_expr ->
+             [%expr
+               let (_, lhs) = [%e lhs_expr] in
+               (lhs, [%e rhs_expr])
+             ])
       in
-      ([%pat? ([%p lhs_pat], [%p rhs_pat])],
-       (match lhs_expr with
-        | `Pair (lhs_vars_expr, lhs_abt_expr) ->
-          [%expr
-            let [%p renaming_pat] = Renaming.compose [%e renaming] (Renaming.bind' [%e vars_to_expr lhs_vars_expr]) in
-            ([%e lhs_abt_expr], [%e rhs_expr])]
-        | `Expr lhs_expr ->
-          [%expr
-            let (vars, lhs) = [%e lhs_expr] in
-            let [%p renaming_pat] = Renaming.compose [%e renaming] (Renaming.bind' vars) in
-            (lhs, [%e rhs_expr])
-          ]))
+      ([%pat? ([%p lhs_pat], [%p rhs_pat])], expr, used_subst)
 
   and into_code_for_closed_abt_args args =
     List.map args ~f:(fun arg ->
-      let (pat, expr) =
+      let (pat, expr, used_subst) =
         into_code_for_closed_abt
           (Uniquifier.create ())
-          [%expr renaming]
+          [%expr subst]
           arg
       in
       (Nolabel,
        Exp.fun_ Nolabel None
-         [%pat? renaming]
-         (Exp.fun_ Nolabel None
-            [%pat? ()]
-            (Exp.fun_ Nolabel None pat [%expr ((), [%e expr])]))))
+         (match used_subst with
+          | `Used_subst -> [%pat? subst]
+          | `Ignored_subst -> [%pat? _subst])
+         (Exp.fun_ Nolabel None pat expr)))
   ;;
 
-  let rec out_code_for_open_abt uniquifier renaming (abt : [ `Open ] Abt.t) =
+  let rec out_code_for_open_abt uniquifier (abt : [ `Open ] Abt.t) =
     match abt with
     | Builtin_abt_use (builtin_abt, args) ->
       let name' = Uniquifier.uniquify uniquifier (Builtin_abt.name builtin_abt) in
-      (pvar name',
-       `Expr
-         (Exp.apply
-            (eident (Builtin_abt.module_name builtin_abt ^ ".apply_renaming"))
-            (out_code_for_open_abt_args args
-             @
-             [ (Nolabel, renaming)
-             ; (Nolabel, [%expr []])
-             ; (Nolabel, eident name')
-             ])))
+      (match args with
+       | [] -> (pvar name', `Pair (`List [], eident name'))
+       | _::_ ->
+         (pvar name',
+          `Expr
+            (Exp.apply
+               (eident (Builtin_abt.module_name builtin_abt ^ ".fold_map"))
+               (out_code_for_open_abt_args args
+                @
+                [ (Nolabel, [%expr []])
+                ; (Nolabel, eident name')
+                ]))))
     | Simple_abt_use (name, args) ->
       let name' = Uniquifier.uniquify uniquifier name in
-      (pvar name',
-       `Expr
-         (Exp.apply
-            (eident
-               (match Config.use_flat_names_internally with
-                | true -> name ^ "_apply_renaming"
-                | false -> String.capitalize name ^ ".apply_renaming"))
-            (out_code_for_open_abt_args args
-             @
-             [ (Nolabel, renaming)
-             ; (Nolabel, [%expr []])
-             ; (Nolabel, eident name')
-             ])))
+      (match args with
+       | [] -> (pvar name', `Pair (`List [], eident name'))
+       | _::_ ->
+         (pvar name',
+          `Expr
+            (Exp.apply
+               (eident
+                  (match Config.use_flat_names_internally with
+                   | true -> name ^ "_fold_map"
+                   | false -> String.capitalize name ^ ".fold_map"))
+               (out_code_for_open_abt_args args
+                @
+                [ (Nolabel, [%expr []])
+                ; (Nolabel, eident name')
+                ]))))
     | Closed_abt_use name ->
       let name' = Uniquifier.uniquify uniquifier name in
       (pvar name',
-       `Pair (`List [], [%expr With_renaming.apply_renaming [%e renaming] [%e eident name']]))
+       `Pair (`List [], eident name'))
     | Open_abt_use name ->
       let name' = Uniquifier.uniquify uniquifier name in
       (pvar name',
@@ -690,9 +842,7 @@ struct
              | true -> eident (name ^ "_out")
              | false -> eident (String.capitalize name ^ ".out")
            ]
-             (With_renaming.apply_renaming
-                [%e renaming]
-                [%e eident name'])
+             [%e eident name']
          ])
     | Symbol_use name ->
       let name = Uniquifier.uniquify uniquifier name in
@@ -700,16 +850,15 @@ struct
        `Pair
          (`List [],
           [%expr
-            match Renaming.apply [%e renaming] [%e eident name] with
+            match [%e eident name] with
             | Internal_var.Free_var var -> var
             | Internal_var.Bound_var _ -> [%e Config.raise_internal_error_expr]]))
     | Sort_use name ->
       let name = Uniquifier.uniquify uniquifier name in
-      (pvar name,
-       `Pair (`List [], apply_subst_to_sort renaming (eident name)))
+      (pvar name, `Pair (`List [], eident name))
     | Prod abts ->
       let (pats, exprs) =
-        List.map abts ~f:(out_code_for_open_abt uniquifier renaming)
+        List.map abts ~f:(out_code_for_open_abt uniquifier)
         |> List.unzip
       in
       (* CR wduff: The names in here need to be uniquified. *)
@@ -754,195 +903,263 @@ struct
            ([[%e eident name']], [%e eident name'])
          ])
     | Sort_binding sort ->
+      (* CR wduff: Is there a function for getting the module name for a sort? *)
+      let var_create = Exp.ident (lident (String.capitalize sort ^ ".Var.create")) in
       let bound_name = Uniquifier.uniquify uniquifier ("bound_" ^ sort ^ "_name") in
       let var_name = Uniquifier.uniquify uniquifier (sort ^ "_var") in
       (pvar bound_name,
        `Expr
          [%expr
-           let [%p pvar var_name] = Temp.create [%e eident bound_name] in
-           ([[%e eident var_name]], [%e eident var_name])
+           let [%p pvar var_name] = [%e var_create] [%e eident bound_name] in
+           ([ Packed_var.T ([%e Exp.construct (lident (String.capitalize sort)) None], [%e eident var_name]) ],
+            [%e eident var_name])
          ])
 
   and out_code_for_open_abt_args args =
     List.map args ~f:(fun arg ->
-      let (pat, expr) =
-        out_code_for_open_abt
-          (Uniquifier.create ())
-          [%expr renaming]
-          arg
-      in
+      let (pat, expr) = out_code_for_open_abt (Uniquifier.create ()) arg in
       (Nolabel,
        Exp.fun_ Nolabel None
-         [%pat? renaming]
-         (Exp.fun_ Nolabel None
-            [%pat? acc]
-            (Exp.fun_ Nolabel None pat
-               (match expr with
-                | `Pair (vars_expr, abt_expr) ->
-                  [%expr ([%e vars_to_expr vars_expr] @ acc, [%e abt_expr])]
-                | `Expr expr ->
-                  [%expr
-                    let (vars, outer) = [%e expr] in
-                    (vars @ acc, outer)
-                  ])))))
-  ;;
+         [%pat? acc]
+         (Exp.fun_ Nolabel None pat
+            (match expr with
+             | `Pair (vars_expr, abt_expr) ->
+               [%expr ([%e vars_to_expr vars_expr] @ acc, [%e abt_expr])]
+             | `Expr expr ->
+               [%expr
+                 let (vars, outer) = [%e expr] in
+                 (vars @ acc, outer)
+               ]))))
+;;
 
-  let rec out_code_for_closed_abt uniquifier renaming (abt : [ `Closed ] Abt.t) =
+  let rec out_code_for_closed_abt uniquifier subst (abt : [ `Closed ] Abt.t) =
     match abt with
     | Builtin_abt_use (builtin_abt, args) ->
       let name' = Uniquifier.uniquify uniquifier (Builtin_abt.name builtin_abt) in
       (pvar name',
-       [%expr
-         let ((), [%p pvar name']) =
-           [%e
-             Exp.apply
-               (eident (Builtin_abt.module_name builtin_abt ^ ".apply_renaming"))
-               (out_code_for_closed_abt_args args
-                @
-                [ (Nolabel, renaming)
-                ; (Nolabel, [%expr ()])
-                ; (Nolabel, eident name')
-                ])
-           ]
-         in
-         [%e eident name']
-       ])
+       Exp.apply
+         (eident (Builtin_abt.module_name builtin_abt ^ ".apply_subst"))
+         (out_code_for_closed_abt_args args
+          @
+          [ (Nolabel, subst)
+          ; (Nolabel, eident name')
+          ]),
+       `Used_subst)
     | Simple_abt_use (name, args) ->
       let name' = Uniquifier.uniquify uniquifier name in
       (pvar name',
-       [%expr
-         let ((), [%p pvar name']) =
-           [%e
-             Exp.apply
-               (eident
-                  (match Config.use_flat_names_internally with
-                   | true -> name ^ "_apply_renaming"
-                   | false -> String.capitalize name ^ ".apply_renaming"))
-               (out_code_for_closed_abt_args args
-                @
-                [ (Nolabel, renaming)
-                ; (Nolabel, [%expr ()])
-                ; (Nolabel, eident name')
-                ])
-           ]
-         in
-         [%e eident name']
-       ])
+       Exp.apply
+         (eident
+            (match Config.use_flat_names_internally with
+             | true -> name ^ "_apply_subst"
+             | false -> String.capitalize name ^ ".apply_subst"))
+         (out_code_for_closed_abt_args args
+          @
+          [ (Nolabel, subst)
+          ; (Nolabel, eident name')
+          ]),
+       `Used_subst)
     | Closed_abt_use name ->
       let name' = Uniquifier.uniquify uniquifier name in
       (pvar name',
        [%expr
-         With_renaming.apply_renaming
-           [%e renaming]
+         With_subst.apply_subst
+           [%e subst]
            [%e eident name']
-       ])
+       ],
+       `Used_subst)
     | Symbol_use name ->
       let name = Uniquifier.uniquify uniquifier name in
       (pvar name,
        [%expr
-         match Renaming.apply [%e renaming] [%e eident name] with
+         match [%e apply_subst_to_var subst (eident name)] with
          | Internal_var.Free_var var -> var
          | Internal_var.Bound_var _ -> [%e Config.raise_internal_error_expr]
-       ])
+       ],
+       `Used_subst)
     | Sort_use name ->
+      let sort_tag = String.capitalize name in
       let name = Uniquifier.uniquify uniquifier name in
-      (pvar name, apply_subst_to_sort renaming (eident name))
+      (pvar name, apply_subst_to_sort sort_tag subst (eident name), `Used_subst)
     | Prod abts ->
-      let (pats, exprs) =
+      let (pats, exprs, used_subst) =
         List.map abts
           ~f:(out_code_for_closed_abt
                 uniquifier
-                renaming)
-        |> List.unzip
+                subst)
+        |> List.unzip3
       in
-      (Pat.tuple pats, Exp.tuple exprs)
+      (Pat.tuple pats, Exp.tuple exprs, used_subst_of_list used_subst)
     | Bind (lhs, rhs) ->
-      let (lhs_pat, lhs_expr) =
-        out_code_for_open_abt uniquifier renaming lhs
+      let (lhs_pat, lhs_expr) = out_code_for_open_abt uniquifier lhs in
+      let (lhs_pat', lhs_expr', lhs_used_subst) =
+        apply_subst_code_for_open_abt uniquifier ~subst lhs
       in
-      let (rhs_pat, rhs_expr(* CR wduff: , used_renaming *)) =
+      let (rhs_pat, rhs_expr, rhs_used_subst) =
         out_code_for_closed_abt
           uniquifier
-          [%expr renaming]
+          [%expr subst]
           rhs
       in
-      let renaming_pat =
-        (* CR wduff:
-           (* CR wduff: If the renaming is unused, we don't need to compute it. *)
-           match used_renaming with
-           | `Used_renaming -> pvar "renaming"
-           | `Ignored_renaming -> pvar "_renaming"
-        *)
-        pvar "renaming"
+      (* CR wduff: Simplify this... *)
+      let expr =
+        match lhs_used_subst, rhs_used_subst with
+        | `Used_subst, `Used_subst ->
+          (match lhs_expr with
+           | `Pair (lhs_vars_expr, lhs_abt_expr) ->
+             [%expr
+               let [%p lhs_pat'] = [%e lhs_abt_expr] in
+               let subst =
+                 [%e compose_subst subst (unbind_expr (vars_to_expr lhs_vars_expr))]
+               in
+               ([%e lhs_expr'], [%e rhs_expr])
+             ]
+           | `Expr lhs_expr ->
+             [%expr
+               let (vars, lhs) = [%e lhs_expr] in
+               let [%p lhs_pat'] = lhs in
+               let subst = [%e compose_subst subst (unbind_expr [%expr vars])] in
+               ([%e lhs_expr'], [%e rhs_expr])
+             ])
+        | `Ignored_subst, `Used_subst ->
+          (match lhs_expr with
+           | `Pair (lhs_vars_expr, lhs_abt_expr) ->
+             [%expr
+               let subst =
+                 [%e compose_subst subst (unbind_expr (vars_to_expr lhs_vars_expr))]
+               in
+               ([%e lhs_abt_expr], [%e rhs_expr])
+             ]
+           | `Expr lhs_expr ->
+             [%expr
+               let (vars, lhs) = [%e lhs_expr] in
+               let subst = [%e compose_subst subst (unbind_expr [%expr vars])] in
+               (lhs, [%e rhs_expr])
+             ])
+        | `Used_subst, `Ignored_subst ->
+          (match lhs_expr with
+           | `Pair (lhs_vars_expr, lhs_abt_expr) ->
+             [%expr
+               ignore [%e vars_to_expr lhs_vars_expr];
+               let [%p lhs_pat'] = [%e lhs_abt_expr] in
+               ([%e lhs_expr'], [%e rhs_expr])
+             ]
+           | `Expr lhs_expr ->
+             [%expr
+               let (_, lhs) = [%e lhs_expr] in
+               let [%p lhs_pat'] = lhs in
+               ([%e lhs_expr'], [%e rhs_expr])
+             ])
+        | `Ignored_subst, `Ignored_subst ->
+          (match lhs_expr with
+           | `Pair (lhs_vars_expr, lhs_abt_expr) ->
+             [%expr
+               ignore [%e vars_to_expr lhs_vars_expr];
+               ([%e lhs_abt_expr], [%e rhs_expr])
+             ]
+           | `Expr lhs_expr ->
+             [%expr
+               let (_, lhs) = [%e lhs_expr] in
+               (lhs, [%e rhs_expr])
+             ])
       in
       ([%pat? ([%p lhs_pat], [%p rhs_pat])],
-       (match lhs_expr with
-        | `Pair (lhs_vars_expr, lhs_abt_expr) ->
-          [%expr
-            let [%p renaming_pat] =
-              Renaming.compose [%e renaming] (Renaming.unbind' [%e vars_to_expr lhs_vars_expr])
-            in
-            ([%e lhs_abt_expr], [%e rhs_expr])
-          ]
-        | `Expr lhs_expr ->
-          [%expr
-            let (vars, lhs) = [%e lhs_expr] in
-            let [%p renaming_pat] = Renaming.compose [%e renaming] (Renaming.unbind' vars) in
-            (lhs, [%e rhs_expr])
-          ]))
+       expr,
+       used_subst_of_list [ lhs_used_subst; rhs_used_subst ])
+
 
   and out_code_for_closed_abt_args args =
     List.map args ~f:(fun arg ->
-      let (pat, expr) =
+      let (pat, expr, used_subst) =
         out_code_for_closed_abt
           (Uniquifier.create ())
-          [%expr renaming]
+          [%expr subst]
           arg
       in
       (Nolabel,
        Exp.fun_ Nolabel None
-         [%pat? renaming]
-         (Exp.fun_ Nolabel None
-            [%pat? ()]
-            (Exp.fun_ Nolabel None pat [%expr ((), [%e expr])]))))
+         (match used_subst with
+          | `Used_subst -> [%pat? subst]
+          | `Ignored_subst -> [%pat? _subst])
+         (Exp.fun_ Nolabel None pat expr)))
   ;;
 
-  let apply_renaming_code_for_simple_cases ~renaming ~acc cases =
-    let (cases, used_renaming) =
+  let fold_map_code_for_simple_cases ~acc cases =
+    List.map cases ~f:(fun (constructor_name, abt_opt) ->
+      let (pat, expr) =
+        match abt_opt with
+        | None ->
+          (Pat.construct (lident constructor_name) None,
+           Exp.tuple
+             [ eident "acc"
+             ; Exp.construct (lident constructor_name) None
+             ])
+        | Some abt ->
+          let (pat, expr) = fold_map_code_for_simple_abt (Uniquifier.create ()) ~acc abt in
+          (Pat.construct (lident constructor_name) (Some pat),
+           [%expr
+             let (acc, args) = [%e expr] in
+             (acc,
+              [%e
+                Exp.construct
+                  (lident constructor_name)
+                  (Some (eident "args"))
+              ])
+           ])
+      in
+      Exp.case pat expr)
+  ;;
+
+  let apply_subst_code_for_simple_cases ~subst cases =
+    let (cases, used_subst) =
       List.map cases ~f:(fun (constructor_name, abt_opt) ->
-        let (pat, expr, used_renaming) =
+        let (pat, expr, used_subst) =
           match abt_opt with
           | None ->
             (Pat.construct (lident constructor_name) None,
-             Exp.tuple
-               [ eident "acc"
-               ; Exp.construct (lident constructor_name) None
-               ],
-             `Ignored_renaming)
+             Exp.construct (lident constructor_name) None,
+             `Ignored_subst)
           | Some abt ->
-            let (pat, expr, used_renaming) =
-              apply_renaming_code_for_simple_abt
+            let (pat, expr, used_subst) =
+              apply_subst_code_for_simple_abt
                 (Uniquifier.create ())
-                ~renaming
-                ~acc
+                ~subst
                 abt
             in
             (Pat.construct (lident constructor_name) (Some pat),
-             [%expr
-               let (acc, args) = [%e expr] in
-               (acc,
-                [%e
-                  Exp.construct
-                    (lident constructor_name)
-                    (Some (eident "args"))
-                ])
-             ],
-             used_renaming)
+             Exp.construct (lident constructor_name) (Some expr),
+             used_subst)
         in
-        (Exp.case pat expr, used_renaming))
+        (Exp.case pat expr, used_subst))
       |> List.unzip
     in
-    (cases, used_renaming_of_list used_renaming)
+    (cases, used_subst_of_list used_subst)
+  ;;
+
+  let apply_subst_code_for_open_cases ~subst cases =
+    let (cases, used_subst) =
+      List.map cases ~f:(fun (constructor_name, abt_opt) ->
+        let (pat, expr, used_subst) =
+          match abt_opt with
+          | None ->
+            (Pat.construct (lident constructor_name) None,
+             Exp.construct (lident constructor_name) None,
+             `Ignored_subst)
+          | Some abt ->
+            let (pat, expr, used_subst) =
+              apply_subst_code_for_open_abt
+                (Uniquifier.create ())
+                ~subst
+                abt
+            in
+            (Pat.construct (lident constructor_name) (Some pat),
+             Exp.construct (lident constructor_name) (Some expr),
+             used_subst)
+        in
+        (Exp.case pat expr, used_subst))
+      |> List.unzip
+    in
+    (cases, used_subst_of_list used_subst)
   ;;
 
   let make_internal_constructor_name ~name_of_walked_value ~constructor_name =
@@ -972,10 +1189,7 @@ struct
            [%expr ([], [%e Exp.construct internal_constructor None])])
         | Some abt ->
           let (pat, expr) =
-            into_code_for_open_abt
-              (Uniquifier.create ())
-              [%expr Renaming.ident]
-              abt
+            into_code_for_open_abt (Uniquifier.create ()) abt
           in
           (Pat.construct (lident constructor_name) (Some pat),
            (match expr with
@@ -998,10 +1212,10 @@ struct
         match abt with
         | None -> (None, None)
         | Some abt ->
-          let (pat, expr) =
+          let (pat, expr, _used_subst) =
             into_code_for_closed_abt
               (Uniquifier.create ())
-              [%expr Renaming.ident]
+              [%expr Subst.ident]
               abt
           in
           (Some pat, Some expr)
@@ -1025,10 +1239,7 @@ struct
            [%expr ([], [%e Exp.construct (lident constructor_name) None])])
         | Some abt ->
           let (pat, expr) =
-            out_code_for_open_abt
-              (Uniquifier.create ())
-              [%expr renaming]
-              abt
+            out_code_for_open_abt (Uniquifier.create ()) abt
           in
           (Pat.construct internal_constructor (Some pat),
            (match expr with
@@ -1055,29 +1266,31 @@ struct
       Exp.case pat expr)
   ;;
 
-  let out_code_for_closed_cases ~name_of_walked_value cases =
-    List.map cases ~f:(fun (constructor_name, abt) ->
-      let (pat, expr) =
-        match abt with
-        | None ->
-          (None, None)
-        | Some abt ->
-          let (pat, expr) =
-            out_code_for_closed_abt
-              (Uniquifier.create ())
-              (* CR wduff: This should be an argument. *)
-              [%expr renaming]
-              abt
-          in
-          (Some pat, Some expr)
-      in
-      Exp.case
-        (Pat.construct
-           (lident (make_internal_constructor_name ~name_of_walked_value ~constructor_name))
-           pat)
-        (Exp.construct (lident constructor_name) expr))
+  let out_code_for_closed_cases ~name_of_walked_value ~subst cases =
+    let (cases, used_subst) =
+      List.map cases ~f:(fun (constructor_name, abt) ->
+        let (pat, expr, used_subst) =
+          match abt with
+          | None ->
+            (None, None, `Ignored_subst)
+          | Some abt ->
+            let (pat, expr, used_subst) =
+              out_code_for_closed_abt (Uniquifier.create ()) subst abt
+            in
+            (Some pat, Some expr, used_subst)
+        in
+        (Exp.case
+           (Pat.construct
+              (lident (make_internal_constructor_name ~name_of_walked_value ~constructor_name))
+              pat)
+           (Exp.construct (lident constructor_name) expr),
+         used_subst))
+      |> List.unzip
+    in
+    (cases, used_subst_of_list used_subst)
   ;;
 
+  (* CR wduff Remove the below after converting the SML. *)
   let used_sub_of_list used_sub_list =
     (match
        List.exists used_sub_list ~f:(function
@@ -1134,7 +1347,20 @@ struct
             @
             [ (Nolabel, eident name') ]),
          `Used_sub)
-      | Closed_abt_use name | Open_abt_use name | Sort_use name ->
+      | Open_abt_use name ->
+        let name' = Uniquifier.uniquify uniquifier name in
+        (pvar name',
+         Exp.apply
+           (eident
+              (match Config.use_flat_names_internally with
+               | true -> name ^ "_subst"
+               | false -> String.capitalize name ^ ".subst"))
+           (List.map sub ~f:(fun (arg_label, arg_name) ->
+              (arg_label, eident arg_name))
+            @
+            [ (Nolabel, eident name') ]),
+         `Used_sub)
+      | Closed_abt_use name | Sort_use name ->
         let name' = Uniquifier.uniquify uniquifier name in
         (pvar name',
          Exp.apply
