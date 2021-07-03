@@ -409,7 +409,7 @@ let gen_external_abt_modl_defn ~name ~arg_count =
     | 0 -> []
     | _ ->
       [%str
-        let fold_map =
+        let _fold_map =
           [%e
             List.fold_right (List.init arg_count ~f:Fn.id)
               ~f:(fun arg acc ->
@@ -493,7 +493,8 @@ let gen_simple_abt_modl_defn ~name (`Simple_abt (args, cases) as defn) =
         | false -> []
         | true ->
           [ Sig.value
-              (Val.mk (ident "fold_map")
+              (Val.mk
+                 (ident "_fold_map")
                  (List.fold_right args
                     ~f:(fun arg acc ->
                       Typ.arrow Nolabel
@@ -563,7 +564,7 @@ let gen_simple_abt_modl_defn ~name (`Simple_abt (args, cases) as defn) =
         | false -> []
         | true ->
           [%str
-           let fold_map =
+           let _fold_map =
              [%e
                let cases = fold_map_code_for_simple_cases ~acc:[%expr acc] cases in
                let t1 =

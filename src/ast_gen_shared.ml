@@ -338,7 +338,7 @@ struct
          (eident
             (match Config.use_flat_names_internally with
              | true -> name ^ "_fold_map"
-             | false -> String.capitalize name ^ ".fold_map"))
+             | false -> String.capitalize name ^ "._fold_map"))
          (fold_map_code_for_simple_abt_args args
           @
           [ (Nolabel, acc)
@@ -597,7 +597,7 @@ struct
                (eident
                   (match Config.use_flat_names_internally with
                    | true -> name ^ "_fold_map"
-                   | false -> String.capitalize name ^ ".fold_map"))
+                   | false -> String.capitalize name ^ "._fold_map"))
                (into_code_for_open_abt_args args
                 @
                 [ (Nolabel, [%expr []])
@@ -822,7 +822,7 @@ struct
                (eident
                   (match Config.use_flat_names_internally with
                    | true -> name ^ "_fold_map"
-                   | false -> String.capitalize name ^ ".fold_map"))
+                   | false -> String.capitalize name ^ "._fold_map"))
                (out_code_for_open_abt_args args
                 @
                 [ (Nolabel, [%expr []])

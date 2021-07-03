@@ -6,35 +6,36 @@
   abbot_runtime
   core))
 
-(rule
- (targets
-  minalgol_intf.ml
-  minalgol.mli
-  minalgol.ml
-  minalgol.sig
-  minalgol.sml)
- (deps
-  (:abbot ../bin/main.exe)
-  (:example minalgol.abt))
- (action
-  (progn
-   (run %{abbot} ocaml %{example})
-   (run %{abbot} sml %{example}))))
+;; CR wduff: Uncomment these and fix symbols.
+; (rule
+;  (targets
+;   minalgol_intf.ml
+;   minalgol.mli
+;   minalgol.ml
+;   minalgol.sig
+;   minalgol.sml)
+;  (deps
+;   (:abbot ../bin/main.exe)
+;   (:example minalgol.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
 
-(rule
- (targets
-  minalgol_external_side_intf.ml
-  minalgol_external_side.mli
-  minalgol_external_side.ml
-  minalgol_external_side.sig
-  minalgol_external_side.sml)
- (deps
-  (:abbot ../bin/main.exe)
-  (:example minalgol_external_side.abt))
- (action
-  (progn
-   (run %{abbot} ocaml %{example})
-   (run %{abbot} sml %{example}))))
+; (rule
+;  (targets
+;   minalgol_external_side_intf.ml
+;   minalgol_external_side.mli
+;   minalgol_external_side.ml
+;   minalgol_external_side.sig
+;   minalgol_external_side.sml)
+;  (deps
+;   (:abbot ../bin/main.exe)
+;   (:example minalgol_external_side.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
 
 (rule
  (targets
@@ -66,20 +67,21 @@
    (run %{abbot} ocaml %{example})
    (run %{abbot} sml %{example}))))
 
-(rule
- (targets
-  internal_parameterized_abt_intf.ml
-  internal_parameterized_abt.mli
-  internal_parameterized_abt.ml
-  internal_parameterized_abt.sig
-  internal_parameterized_abt.sml)
- (deps
-  (:abbot ../bin/main.exe)
-  (:example internal_parameterized_abt.abt))
- (action
-  (progn
-   (run %{abbot} ocaml %{example})
-   (run %{abbot} sml %{example}))))
+;; CR wduff: Uncomment this and fix support for internal parameterized abts.
+; (rule
+;  (targets
+;   internal_parameterized_abt_intf.ml
+;   internal_parameterized_abt.mli
+;   internal_parameterized_abt.ml
+;   internal_parameterized_abt.sig
+;   internal_parameterized_abt.sml)
+;  (deps
+;   (:abbot ../bin/main.exe)
+;   (:example internal_parameterized_abt.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
 
 (rule
  (targets
