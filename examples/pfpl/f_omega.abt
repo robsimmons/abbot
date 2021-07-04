@@ -1,0 +1,24 @@
+abt kind =
+ | Ty
+ | Unit
+ | Prod of kind * kind
+ | Arrow of kind * kind
+
+abt side =
+ | L
+ | R
+
+sort con =
+ | Arrow
+ | Forall of kind
+ | Proj of con * side
+ | App of con * con
+ | Triv
+ | Pair of con * con
+ | Lam of con binding . con
+
+sort exp =
+ | Lam of exp binding * con . exp
+ | Ap of exp * exp
+ | Lam_typ of con binding . exp
+ | Ap_typ of exp * con

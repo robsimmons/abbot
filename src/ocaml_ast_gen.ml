@@ -184,16 +184,34 @@ let sort_type defns =
 ;;
 
 let sort_same_witness_cases defns =
-  List.filter_map defns ~f:(fun (name, defn) ->
-    match defn with
-    | `Symbol | `Sort _ ->
-      let constr = lident (String.capitalize name) in
-      Some
-        { pc_lhs = [%pat? ([%p Pat.construct constr None], [%p Pat.construct constr None])]
-        ; pc_guard = None
-        ; pc_rhs = [%expr Some (T, T)]
-        }
-    | _ -> None)
+  let constrs =
+    List.filter_map defns ~f:(fun (name, defn) ->
+      match defn with
+      | `Symbol | `Sort _ ->
+        Some (Pat.construct (lident (String.capitalize name)) None)
+      | _ -> None)
+  in
+  let result = [%expr Some (T, T)] in
+  match constrs with
+  | [] ->
+    (* CR wduff: We probably do all sorts of horrible stuff if we're given no
+       sorts and no symbols. We should test both the no-sort-or-symbol and
+       only-symbol scenarios *)
+    failwith "???"
+  | [ constr ] ->
+    `Single_case (constr, result)
+  | _::_::_ ->
+    `Multi_case
+      (List.map constrs ~f:(fun constr ->
+         { pc_lhs = [%pat? ([%p constr], [%p constr])]
+         ; pc_guard = None
+         ; pc_rhs = result
+         })
+       @ [ { pc_lhs = [%pat? _]
+           ; pc_guard = None
+           ; pc_rhs = [%expr None]
+           }
+         ])
 ;;
 
 let to_sort_or_symbol_eq_cases defns =
@@ -437,7 +455,7 @@ let gen_external_abt_modl_defn ~name ~arg_count =
   let apply_subst_defn =
     let apply_subst_of_arg = string_of_arg "apply_subst" in
     [%stri
-      let apply_subst =
+      let _apply_subst =
         [%e
           match arg_count with
           | 0 -> [%expr fun _ t -> t]
@@ -518,7 +536,7 @@ let gen_simple_abt_modl_defn ~name (`Simple_abt (args, cases) as defn) =
           ])
        @
        [ Sig.value
-            (Val.mk (ident "apply_subst")
+            (Val.mk (ident "_apply_subst")
                (List.fold_right args
                   ~f:(fun arg acc ->
                     Typ.arrow Nolabel
@@ -582,7 +600,7 @@ let gen_simple_abt_modl_defn ~name (`Simple_abt (args, cases) as defn) =
                        [%e Exp.match_ [%expr t] cases]]]])
       @
       [ [%stri
-        let apply_subst =
+        let _apply_subst =
           [%e
             let (cases, used_subst) =
               apply_subst_code_for_simple_cases ~subst:[%expr subst] cases
@@ -616,7 +634,7 @@ let gen_simple_abt_modl_defn ~name (`Simple_abt (args, cases) as defn) =
                   let (T T) = Sort.expose sort in
                   [%e
                     Exp.apply
-                      [%expr apply_subst]
+                      [%expr _apply_subst]
                       (List.map args ~f:(fun arg -> (Nolabel, eident ("subst_" ^ arg)))
                        @ [ (Nolabel, [%expr Subst.singleton sort value var])
                          ; (Nolabel, [%expr t])
@@ -640,7 +658,7 @@ let gen_open_abt_modl_defn ~name (`Open_abt cases as defn) =
        @
        [ [%sigi: val into : t -> GSS.Packed_var.t list * internal]
        ; [%sigi: val out : internal -> GSS.Packed_var.t list * t]
-       ; [%sigi: val apply_subst : GSS.Subst.t -> t -> t]
+       ; [%sigi: val _apply_subst : GSS.Subst.t -> t -> t]
        ])
   in
   let module_expr =
@@ -695,7 +713,7 @@ let gen_open_abt_modl_defn ~name (`Open_abt cases as defn) =
            ]
        ]
        ; [%stri
-         let apply_subst =
+         let _apply_subst =
            [%e
              let (cases, used_subst) =
                apply_subst_code_for_open_cases
@@ -715,7 +733,7 @@ let gen_open_abt_modl_defn ~name (`Open_abt cases as defn) =
        ; [%stri
          let subst (type var) (type sort) (sort : (var, sort) Sort.t) (value : sort) (var : var) (t : t) : t =
            let (T T) = Sort.expose sort in
-           apply_subst (Subst.singleton sort value var) t
+           _apply_subst (Subst.singleton sort value var) t
          ;;
        ]
        ])
@@ -958,18 +976,25 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                (Mod.constraint_
                   (Mod.structure
                      [ Str.type_ Recursive (sort_type defns)
-                     ; [%stri
-                       let same_witness
-                             (type var1 sort1 var2 sort2)
-                             (t1 : (var1, sort1) t)
-                             (t2 : (var2, sort2) t)
-                         : ((var1, var2) Type_equal.t * (sort1, sort2) Type_equal.t) option =
-                         [%e
-                           Exp.match_
-                             [%expr (t1, t2)]
-                             (sort_same_witness_cases defns
-                              @ [ { pc_lhs = [%pat? _]; pc_guard = None; pc_rhs = [%expr None] } ])]
-                     ]
+                     ; (match sort_same_witness_cases defns with
+                        | `Single_case (constr, result) ->
+                          [%stri
+                            let same_witness
+                                  (type var1 sort1 var2 sort2)
+                                  ([%p constr] : (var1, sort1) t)
+                                  ([%p constr] : (var2, sort2) t)
+                              : ((var1, var2) Type_equal.t * (sort1, sort2) Type_equal.t) option =
+                              [%e result]
+                          ]
+                        | `Multi_case cases ->
+                          [%stri
+                            let same_witness
+                                  (type var1 sort1 var2 sort2)
+                                  (t1 : (var1, sort1) t)
+                                  (t2 : (var2, sort2) t)
+                              : ((var1, var2) Type_equal.t * (sort1, sort2) Type_equal.t) option =
+                              [%e Exp.match_ [%expr (t1, t2)] cases]
+                          ])
                      ; [%stri
                        module Sort_is_generic = struct
                          type ('var, 'sort) t = T : ('sort, ('var, _) GSS.Generic_sort.t) Type_equal.t -> ('var, 'sort) t

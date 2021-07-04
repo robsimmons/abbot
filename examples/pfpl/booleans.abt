@@ -1,0 +1,7 @@
+abt typ =
+ | Bool
+
+sort exp =
+ | True
+ | False
+ | If of exp * exp * exp

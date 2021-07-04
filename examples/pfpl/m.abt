@@ -1,0 +1,30 @@
+sort typ =
+ | Arr of typ * typ
+ | Unit
+ | Prod of typ * typ
+ | Void
+ | Sum of typ * typ
+ | Mu of typ binding . typ
+ | Nu of typ binding . typ
+
+abt side =
+ | L
+ | R
+
+sort exp =
+ | Z
+ | S of exp
+ | Rec_nat of exp * exp * (exp binding . exp binding . exp)
+ | Lam of exp binding * typ . exp
+ | Apply of exp * exp
+ | Triv
+ | Pair of exp * exp
+ | Pr of exp * side
+ | Empty_case of typ * exp
+ | In of typ * typ * side * exp
+ | Case of exp * (exp binding . exp) * (exp binding . exp)
+ | Map of (typ binding . typ) * (exp binding . exp) * exp
+ | Fold of (typ binding . typ) * exp
+ | Rec of (typ binding . typ) * (exp binding . exp) * exp
+ | Unfold of (typ binding . typ) * exp
+ | Gen of (typ binding . typ) * (exp binding . exp) * exp

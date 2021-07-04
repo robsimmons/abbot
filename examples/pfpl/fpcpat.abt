@@ -1,0 +1,37 @@
+(* This doesn't actually exists as a language in PFPL, but the concept of
+   patterns was in the first edition, and this summarizes a lot of the core
+   concepts in a powerful but relatively minimal language.
+
+   Starting from FPC, this language has a few changes:
+   - The  nullary and binary products and sums have been replaced with general
+     finite products and sums.
+   - The elimination forms have been removed in favor of a single
+     pattern-match feature.
+   - The overly-verbose type annotations have been removed in favor of
+     allowing type ascriptions anywhere on patterns and expressions.
+   - Some constructors have been renamed. *)
+
+abt label
+
+sort typ =
+ | Arrow of typ * typ
+ | Prod of (label * typ) list
+ | Sum of (label * typ) list
+ | Rec of typ binding . typ
+
+abt pat =
+ | Wild
+ | Var of exp binding
+ | Record of (label * pat) list
+ | In of label * exp
+ | Fold of exp
+ | Ascribe of pat * typ
+
+sort exp =
+ | Fun of pat . exp
+ | Ap of exp * exp
+ | Record of (label * exp) list
+ | In of label * exp
+ | Fold of exp
+ | Match of exp * (pat . exp) list
+ | Ascribe of exp * typ

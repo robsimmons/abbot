@@ -1,0 +1,7 @@
+abt typ =
+ | Opt
+
+sort exp =
+ | Null
+ | Just of exp
+ | Ifnull of exp * exp * (exp binding . exp)

@@ -1,0 +1,30 @@
+abt typ =
+ | Nat
+ | Parr of typ * typ
+ | Cont of typ
+
+sort exp =
+ | Z
+ | S of exp
+ | Ifz of exp * exp * (exp binding . exp)
+ | Lam of exp binding * typ . exp
+ | Ap of exp * exp
+ | Fix of exp binding * typ . exp
+ | Letcc of typ * exp binding . exp
+ | Throw of typ * exp * exp
+ | Cont of stack
+
+abt frame =
+ | Succ
+ | Ifz of exp * (exp binding . exp)
+ | Ap of exp
+ | Throw1 of exp
+ | Throw2 of exp
+
+abt stack =
+ | Empty
+ | Cons of stack * frame
+
+abt state =
+ | Evaluate of stack * exp
+ | Return of stack * exp

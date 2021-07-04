@@ -1,0 +1,22 @@
+(library
+ (name abbot_semio_examples)
+ (public_name abbot.semio_examples)
+ (preprocess (pps ppx_jane))
+ (libraries
+  abbot_runtime
+  core))
+
+(rule
+ (targets
+  typed_intf.ml
+  typed.mli
+  typed.ml
+  typed.sig
+  typed.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example typed.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))

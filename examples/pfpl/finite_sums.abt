@@ -1,0 +1,9 @@
+(* We leave the label type up to the user. It would also work to just use string. *)
+abt label
+
+abt typ =
+ | Sum of (label * typ) list
+
+sort exp =
+ | In of (label * typ) list * label * exp
+ | Case of exp * (label * exp binding . exp) list

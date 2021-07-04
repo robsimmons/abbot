@@ -1,0 +1,10 @@
+abt typ =
+ | Nat
+ | Arr of typ * typ
+
+sort exp =
+ | Z
+ | S of exp
+ | Rec of exp * exp * (exp binding . exp binding . exp)
+ | Lam of exp binding * typ . exp
+ | Apply of exp * exp

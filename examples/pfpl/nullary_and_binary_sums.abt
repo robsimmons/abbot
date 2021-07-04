@@ -1,0 +1,12 @@
+abt typ =
+ | Void
+ | Sum of typ * typ
+
+abt side =
+ | L
+ | R
+
+sort exp =
+ | Empty_case of typ * exp
+ | In of typ * typ * side * exp
+ | Case of exp * (exp binding . exp) * (exp binding . exp)

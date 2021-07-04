@@ -1,0 +1,9 @@
+(* We leave the label type up to the user. It would also work to just use string. *)
+abt label
+
+abt typ =
+ | Prod of (label * typ) list
+
+sort exp =
+ | Tpl of (label * exp) list
+ | Pr of exp * label

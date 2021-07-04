@@ -1,0 +1,33 @@
+(* See classical_logic_as_pl.abt for the same thing, but with less friendly
+   names that emphasize the logic more. *)
+
+abt typ =
+ | Unit
+ | Void
+ | Prod of typ * typ
+ | Sum of typ * typ
+ | Arrow of typ * typ
+ | Not of typ
+
+abt side =
+ | L
+ | R
+
+sort value =
+ | Triv
+ | Pair of value * value
+ | In of side * value
+ | Cont_as_negative_val of cont
+ | Lam of value binding . value
+ | Callcc of cont binding . cont * value
+
+sort cont =
+ | Empty_case
+ | Pr of side * cont
+ | Case of cont * cont
+ | Val_as_negative_cont of value
+ | Ap of value * cont
+ | Callcv of value binding . cont * value
+
+abt exp =
+ | Contradiction of cont * value

@@ -1,0 +1,9 @@
+sort typ =
+ | Arrow of typ * typ
+ | All of typ binding . typ
+
+sort exp =
+ | Lam of exp binding * typ . exp
+ | Ap of exp * exp
+ | Lam_typ of typ binding . exp
+ | Ap_typ of exp * typ

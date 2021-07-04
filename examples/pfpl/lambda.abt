@@ -1,0 +1,3 @@
+sort exp =
+ | Lam of exp binding . exp
+ | Ap of exp * exp

@@ -1,0 +1,11 @@
+abt base_type
+abt constant
+
+abt typ =
+ | Base of base_type
+ | Arrow of typ * typ
+
+sort exp =
+ | Lam of exp binding * typ . exp
+ | Ap of exp * exp
+ | Const of constant

@@ -1,0 +1,29 @@
+symbol lazy
+
+sort typ =
+ | Parr of typ * typ
+ | Unit
+ | Prod of typ * typ
+ | Void
+ | Sum of typ * typ
+ | Rec of typ binding . typ
+ | Susp of typ
+
+abt side =
+ | L
+ | R
+
+sort exp =
+ | Lam of exp binding * typ . exp
+ | Ap of exp * exp
+ | Triv
+ | Pair of exp * exp
+ | Pr of exp * side
+ | Empty_case of typ * exp
+ | In of typ * typ * side * exp
+ | Case of exp * (exp binding . exp) * (exp binding . exp)
+ | Fold of (typ binding . typ) * exp
+ | Unfold of exp
+ | Susp of typ * (exp binding . exp)
+ | Force of exp
+ | Cell of lazy

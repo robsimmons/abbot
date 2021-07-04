@@ -1,0 +1,17 @@
+symbol sym
+
+sort typ =
+ | Nat
+ | Parr of typ * typ
+ | Sym of typ
+
+sort exp =
+ | Z
+ | S of exp
+ | Ifz of exp * exp * (exp binding . exp)
+ | Lam of exp binding * typ . exp
+ | Ap of exp * exp
+ | Fix of exp binding * typ . exp
+ | Newsym of sym binding * typ . exp
+ | Quote of sym
+ | Is of sym * (typ binding . typ) * exp * exp * exp

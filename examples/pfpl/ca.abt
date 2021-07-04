@@ -1,0 +1,43 @@
+symbol channel
+
+abt typ =
+ | Nat
+ | Parr of typ * typ
+ | Clsfd
+ | Cmd of typ
+ | Event of typ
+
+sort exp =
+ | Z
+ | S of exp
+ | Ifz of exp * exp * (exp binding . exp)
+ | Lam of exp binding * typ . exp
+ | Ap of exp * exp
+ | Fix of exp binding * typ . exp
+ | In of channel * exp
+ | Isin of exp * (channel * exp binding . exp) * exp
+ | Cmd of cmd
+ | Rcv of channel
+ | Never of typ
+ | Or of exp * exp
+ | Wrap of exp * (exp binding . exp)
+
+abt cmd =
+ | Ret of exp
+ | Bnd of exp binding * exp . cmd
+ | Spawn of exp
+ | Emit of exp
+ | Acc
+ | Newch of typ
+ | Sync of exp
+
+abt proc =
+ | Stop
+ | Run of cmd
+ | Conc of proc * proc
+ | Newch of channel binding * typ . proc
+
+abt act =
+ | Silent
+ | Snd of exp
+ | Rcv of exp

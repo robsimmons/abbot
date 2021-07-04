@@ -1,0 +1,43 @@
+This is a mapping from chapter to abbot file. It is up to date as of 2021-07-04.
+
+1-3. (no PLs yet, defining basic concepts)
+4-7. e.abt
+8. ed.abt, ef.abt
+9. t.abt
+10. nullary_and_binary_products.abt, finite_products.abt
+11. nullary_and_binary_sums.abt, finite_sums.abt, booleans.abt, enumerations.abt, options.abt
+12. constructive_logic.abt
+13. classical_logic.abt, classical_logic_as_pl.abt
+14. generic_programming.abt
+15. m.abt
+16. f.abt
+17. fe.abt
+18. f_omega.abt, fe_omega.abt
+19. pcf.abt
+20. fpc.abt
+21. lambda.abt
+22. dpcf.abt
+23. hpcf.abt
+24. (no new syntax, uses FPC)
+25. hpcf_with_refinements.abt
+26-27. (no new syntax)
+28. pcf_with_stacks.abt
+29. fpcf.abt, xpcf.abt
+30. kpcf.abt
+31. spcf.abt, spcf_with_references.abt
+32. fspcf.abt, fspcf_with_references.abt
+33. dynamic_classes.abt, dynamic_classes_with_references.abt
+34. ma.abt
+35. rma.abt, rpcf.abt
+36. lpcf.abt, lfpc.abt, sfpc.abt
+37. ppcf.abt, ppcf_with_sequences.abt
+38. pcf_with_futures.abt, pcf_with_speculations.abt
+39. pic.abt
+40. ca.abt
+41. da.abt
+42. (no new syntax)
+43-45. mod.abt
+46-49. (no new syntax)
+
+Extras (see comments in the files for details)
+fpcpat.abt

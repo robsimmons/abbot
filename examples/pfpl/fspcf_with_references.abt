@@ -1,0 +1,20 @@
+symbol sym
+
+abt typ =
+ | Nat
+ | Parr of typ * typ
+ | Fluid of typ
+
+sort exp =
+ | Z
+ | S of exp
+ | Ifz of exp * exp * (exp binding . exp)
+ | Lam of exp binding * typ . exp
+ | Ap of exp * exp
+ | Fix of exp binding * typ . exp
+ | Newsym of sym binding * typ . exp
+ | Put of sym * exp * exp
+ | Get of sym
+ | Fl of sym
+ | Getfl of exp
+ | Putfl of exp * exp * exp

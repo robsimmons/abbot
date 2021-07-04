@@ -1,0 +1,14 @@
+abt numeral
+
+abt typ =
+ | Nat
+ | Parr of typ * typ
+
+sort exp =
+ | Num of numeral
+ | Zero
+ | Succ of exp
+ | Ifz of exp * exp * (exp binding . exp)
+ | Fun of exp binding . exp
+ | Ap of exp * exp
+ | Fix of exp binding . exp

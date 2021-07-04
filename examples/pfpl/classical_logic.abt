@@ -1,0 +1,33 @@
+(* See classical_logic_as_pl.abt for the same thing, but with more friendly
+   names that emphasize the logic less. *)
+
+abt prop =
+ | True
+ | False
+ | And of prop * prop
+ | Or of prop * prop
+ | Implies of prop * prop
+ | Not of prop
+
+abt side =
+ | L
+ | R
+
+sort prf =
+ | True_T
+ | And_T of prf * prf
+ | Or_T of side * prf
+ | Not_T of ref
+ | Imp_T of prf binding . prf
+ | Ccr of ref binding . ref * prf
+
+sort ref =
+ | False_F
+ | And_F of side * ref
+ | Or_F of ref * ref
+ | Not_F of prf
+ | Imp_F of prf * ref
+ | Ccp of prf binding . ref * prf
+
+abt exp =
+ | Contradiction of ref * prf

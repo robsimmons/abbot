@@ -1,0 +1,31 @@
+abt typ =
+ | Nat
+ | Parr of typ * typ
+ | Bool
+ | Dyn
+
+abt cls =
+ | Num
+ | Fun
+
+sort exp =
+ | Z
+ | S of exp
+ | Ifz of exp * exp * (exp binding . exp)
+ | Lam of (exp binding * typ) . exp
+ | Ap of exp * exp
+ | True
+ | False
+ | If of exp * exp * exp
+ | Fix of (exp binding * typ) . exp
+ | New of cls * exp
+ | Cast of exp * cls
+ | Inst of cls * exp
+
+abt ref =
+ | True of typ
+ | And of ref * typ * ref
+ | New of cls * ref
+ | Prod of ref * ref
+ | Sum of ref * ref
+ | Parr of ref * ref

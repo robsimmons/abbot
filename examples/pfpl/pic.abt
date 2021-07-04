@@ -1,0 +1,27 @@
+symbol channel
+
+abt typ =
+ | Chan of typ
+
+sort exp =
+ | Chref of channel
+
+abt proc =
+ | Await of evt
+ | Stop
+ | Conc of proc * proc
+ | Repeat of proc
+ | Newch of channel binding * typ . proc
+
+abt evt =
+ | Null
+ | Or of evt * evt
+ | Snd of channel * exp * proc
+ | Rcv of channel * (exp binding . proc)
+ | Sndref of exp * exp * proc
+ | Rcvref of exp * (exp binding . proc)
+
+abt act =
+ | Silent
+ | Snd of channel * exp
+ | Rcv of channel * exp

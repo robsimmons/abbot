@@ -422,7 +422,7 @@ struct
          (eident
             (match Config.use_flat_names_internally with
              | true -> name ^ "_apply_subst"
-             | false -> String.capitalize name ^ ".apply_subst"))
+             | false -> String.capitalize name ^ "._apply_subst"))
          (apply_subst_code_for_simple_abt_args args
           @
           [ (Nolabel, subst)
@@ -490,7 +490,7 @@ struct
          (eident
             (match Config.use_flat_names_internally with
              | true -> name ^ "_apply_subst"
-             | false -> String.capitalize name ^ ".apply_subst"))
+             | false -> String.capitalize name ^ "._apply_subst"))
          (apply_subst_code_for_open_abt_args args
           @
           [ (Nolabel, subst)
@@ -504,7 +504,7 @@ struct
          (eident
             (match Config.use_flat_names_internally with
              | true -> name ^ "_apply_subst"
-             | false -> String.capitalize name ^ ".apply_subst"))
+             | false -> String.capitalize name ^ "._apply_subst"))
          ([ (Nolabel, subst)
           ; (Nolabel, eident name')
           ]),
@@ -711,7 +711,7 @@ struct
          (eident
             (match Config.use_flat_names_internally with
              | true -> name ^ "_apply_subst"
-             | false -> String.capitalize name ^ ".apply_subst"))
+             | false -> String.capitalize name ^ "._apply_subst"))
          (into_code_for_closed_abt_args args
           @
           [ (Nolabel, subst)
@@ -952,7 +952,7 @@ struct
          (eident
             (match Config.use_flat_names_internally with
              | true -> name ^ "_apply_subst"
-             | false -> String.capitalize name ^ ".apply_subst"))
+             | false -> String.capitalize name ^ "._apply_subst"))
          (out_code_for_closed_abt_args args
           @
           [ (Nolabel, subst)

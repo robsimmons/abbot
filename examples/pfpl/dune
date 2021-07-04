@@ -1,0 +1,772 @@
+(library
+ (name abbot_pfpl_examples)
+ (public_name abbot.pfpl_examples)
+ (preprocess (pps ppx_jane))
+ (libraries
+  abbot_runtime
+  core))
+
+(rule
+ (targets
+  booleans_intf.ml
+  booleans.mli
+  booleans.ml
+  booleans.sig
+  booleans.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example booleans.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   ca_intf.ml
+;   ca.mli
+;   ca.ml
+;   ca.sig
+;   ca.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example ca.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  classical_logic_intf.ml
+  classical_logic.mli
+  classical_logic.ml
+  classical_logic.sig
+  classical_logic.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example classical_logic.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  classical_logic_as_pl_intf.ml
+  classical_logic_as_pl.mli
+  classical_logic_as_pl.ml
+  classical_logic_as_pl.sig
+  classical_logic_as_pl.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example classical_logic_as_pl.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  constructive_logic_intf.ml
+  constructive_logic.mli
+  constructive_logic.ml
+  constructive_logic.sig
+  constructive_logic.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example constructive_logic.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   da_intf.ml
+;   da.mli
+;   da.ml
+;   da.sig
+;   da.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example da.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  dpcf_intf.ml
+  dpcf.mli
+  dpcf.ml
+  dpcf.sig
+  dpcf.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example dpcf.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   dynamic_classes_intf.ml
+;   dynamic_classes.mli
+;   dynamic_classes.ml
+;   dynamic_classes.sig
+;   dynamic_classes.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example dynamic_classes.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   dynamic_classes_with_references_intf.ml
+;   dynamic_classes_with_references.mli
+;   dynamic_classes_with_references.ml
+;   dynamic_classes_with_references.sig
+;   dynamic_classes_with_references.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example dynamic_classes_with_references.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  e_intf.ml
+  e.mli
+  e.ml
+  e.sig
+  e.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example e.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   ed_intf.ml
+;   ed.mli
+;   ed.ml
+;   ed.sig
+;   ed.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example ed.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  ef_intf.ml
+  ef.mli
+  ef.ml
+  ef.sig
+  ef.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example ef.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  enumerations_intf.ml
+  enumerations.mli
+  enumerations.ml
+  enumerations.sig
+  enumerations.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example enumerations.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  f_intf.ml
+  f.mli
+  f.ml
+  f.sig
+  f.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example f.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  fe_intf.ml
+  fe.mli
+  fe.ml
+  fe.sig
+  fe.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example fe.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  fe_omega_intf.ml
+  fe_omega.mli
+  fe_omega.ml
+  fe_omega.sig
+  fe_omega.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example fe_omega.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  finite_products_intf.ml
+  finite_products.mli
+  finite_products.ml
+  finite_products.sig
+  finite_products.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example finite_products.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  finite_sums_intf.ml
+  finite_sums.mli
+  finite_sums.ml
+  finite_sums.sig
+  finite_sums.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example finite_sums.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  f_omega_intf.ml
+  f_omega.mli
+  f_omega.ml
+  f_omega.sig
+  f_omega.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example f_omega.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  fpc_intf.ml
+  fpc.mli
+  fpc.ml
+  fpc.sig
+  fpc.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example fpc.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  fpcf_intf.ml
+  fpcf.mli
+  fpcf.ml
+  fpcf.sig
+  fpcf.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example fpcf.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  fpcpat_intf.ml
+  fpcpat.mli
+  fpcpat.ml
+  fpcpat.sig
+  fpcpat.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example fpcpat.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   fspcf_intf.ml
+;   fspcf.mli
+;   fspcf.ml
+;   fspcf.sig
+;   fspcf.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example fspcf.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   fspcf_with_references_intf.ml
+;   fspcf_with_references.mli
+;   fspcf_with_references.ml
+;   fspcf_with_references.sig
+;   fspcf_with_references.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example fspcf_with_references.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  generic_programming_intf.ml
+  generic_programming.mli
+  generic_programming.ml
+  generic_programming.sig
+  generic_programming.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example generic_programming.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  hpcf_intf.ml
+  hpcf.mli
+  hpcf.ml
+  hpcf.sig
+  hpcf.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example hpcf.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  hpcf_with_refinements_intf.ml
+  hpcf_with_refinements.mli
+  hpcf_with_refinements.ml
+  hpcf_with_refinements.sig
+  hpcf_with_refinements.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example hpcf_with_refinements.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  kpcf_intf.ml
+  kpcf.mli
+  kpcf.ml
+  kpcf.sig
+  kpcf.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example kpcf.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  lambda_intf.ml
+  lambda.mli
+  lambda.ml
+  lambda.sig
+  lambda.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example lambda.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   lfpc_intf.ml
+;   lfpc.mli
+;   lfpc.ml
+;   lfpc.sig
+;   lfpc.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example lfpc.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   lpcf_intf.ml
+;   lpcf.mli
+;   lpcf.ml
+;   lpcf.sig
+;   lpcf.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example lpcf.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   ma_intf.ml
+;   ma.mli
+;   ma.ml
+;   ma.sig
+;   ma.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example ma.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  m_intf.ml
+  m.mli
+  m.ml
+  m.sig
+  m.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example m.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  mod_intf.ml
+  mod.mli
+  mod.ml
+  mod.sig
+  mod.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example mod.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  nullary_and_binary_products_intf.ml
+  nullary_and_binary_products.mli
+  nullary_and_binary_products.ml
+  nullary_and_binary_products.sig
+  nullary_and_binary_products.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example nullary_and_binary_products.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  nullary_and_binary_sums_intf.ml
+  nullary_and_binary_sums.mli
+  nullary_and_binary_sums.ml
+  nullary_and_binary_sums.sig
+  nullary_and_binary_sums.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example nullary_and_binary_sums.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  options_intf.ml
+  options.mli
+  options.ml
+  options.sig
+  options.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example options.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  pcf_intf.ml
+  pcf.mli
+  pcf.ml
+  pcf.sig
+  pcf.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example pcf.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   pcf_with_futures_intf.ml
+;   pcf_with_futures.mli
+;   pcf_with_futures.ml
+;   pcf_with_futures.sig
+;   pcf_with_futures.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example pcf_with_futures.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   pcf_with_speculations_intf.ml
+;   pcf_with_speculations.mli
+;   pcf_with_speculations.ml
+;   pcf_with_speculations.sig
+;   pcf_with_speculations.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example pcf_with_speculations.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  pcf_with_stacks_intf.ml
+  pcf_with_stacks.mli
+  pcf_with_stacks.ml
+  pcf_with_stacks.sig
+  pcf_with_stacks.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example pcf_with_stacks.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   pic_intf.ml
+;   pic.mli
+;   pic.ml
+;   pic.sig
+;   pic.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example pic.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  ppcf_intf.ml
+  ppcf.mli
+  ppcf.ml
+  ppcf.sig
+  ppcf.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example ppcf.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  ppcf_with_sequences_intf.ml
+  ppcf_with_sequences.mli
+  ppcf_with_sequences.ml
+  ppcf_with_sequences.sig
+  ppcf_with_sequences.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example ppcf_with_sequences.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   rma_intf.ml
+;   rma.mli
+;   rma.ml
+;   rma.sig
+;   rma.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example rma.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   rpcf_intf.ml
+;   rpcf.mli
+;   rpcf.ml
+;   rpcf.sig
+;   rpcf.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example rpcf.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   sfpc_intf.ml
+;   sfpc.mli
+;   sfpc.ml
+;   sfpc.sig
+;   sfpc.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example sfpc.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   spcf_intf.ml
+;   spcf.mli
+;   spcf.ml
+;   spcf.sig
+;   spcf.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example spcf.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+; (rule
+;  (targets
+;   spcf_with_references_intf.ml
+;   spcf_with_references.mli
+;   spcf_with_references.ml
+;   spcf_with_references.sig
+;   spcf_with_references.sml)
+;  (deps
+;   (:abbot ../../bin/main.exe)
+;   (:example spcf_with_references.abt))
+;  (action
+;   (progn
+;    (run %{abbot} ocaml %{example})
+;    (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  t_intf.ml
+  t.mli
+  t.ml
+  t.sig
+  t.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example t.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  xpcf_intf.ml
+  xpcf.mli
+  xpcf.ml
+  xpcf.sig
+  xpcf.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example xpcf.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))

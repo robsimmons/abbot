@@ -1,0 +1,12 @@
+abt typ =
+ | Unit
+ | Prod of typ * typ
+
+abt side =
+ | L
+ | R
+
+sort exp =
+ | Triv
+ | Pair of exp * exp
+ | Pr of exp * side

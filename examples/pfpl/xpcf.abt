@@ -1,0 +1,29 @@
+abt typ =
+ | Nat
+ | Parr of typ * typ
+
+sort exp =
+ | Z
+ | S of exp
+ | Ifz of exp * exp * (exp binding . exp)
+ | Lam of exp binding * typ . exp
+ | Ap of exp * exp
+ | Fix of exp binding * typ . exp
+ | Raise of exp
+ | Try of exp * (exp binding . exp)
+
+abt frame =
+ | Succ
+ | Ifz of exp * (exp binding . exp)
+ | Ap of exp
+ | Raise of exp
+ | Try of exp binding . exp
+
+abt stack =
+ | Empty
+ | Cons of stack * frame
+
+abt state =
+ | Evaluate of stack * exp
+ | Return of stack * exp
+ | Exception of stack * exp

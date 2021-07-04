@@ -1,0 +1,12 @@
+sort typ =
+ | Arrow of typ * typ
+ | All of typ binding . typ
+ | Some of typ binding . typ
+
+sort exp =
+ | Lam of exp binding * typ . exp
+ | Ap of exp * exp
+ | Lam_typ of typ binding . exp
+ | Ap_typ of exp * typ
+ | Pack of typ * exp * (typ binding . typ)
+ | Open of exp * typ binding . (exp binding * typ) . exp

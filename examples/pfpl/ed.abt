@@ -1,0 +1,24 @@
+abt typ =
+ | Num
+ | Str
+
+(* CR wduff: The book is deliberately trying to prevent anonymous functions.
+   The most accurate way to represent this is with symbols, but this means
+   users will have to define function substitution themselves. *)
+symbol fun
+
+abt fun_defn =
+  (* CR wduff: It would be nice to support abts without constructors. I think
+     it should just work? *)
+  | Fun_defn of (exp binding * typ) * typ . exp
+
+sort exp =
+ | Num of int
+ | Str of string
+ | Plus of exp * exp
+ | Times of exp * exp
+ | Cat of exp * exp
+ | Len of exp
+ | Let of exp binding * exp . exp
+ | Apply of fun * exp
+ | Fun of fun binding * fun_defn . exp

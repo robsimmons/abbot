@@ -1,0 +1,27 @@
+(* We simply define types as a sort, so that we can represent type variables
+   and arbitrary type operators, and leave it up to the type system to enforce
+   that a particular type operator is polynomial or (strictly) positive. *)
+sort typ =
+ | Arr of typ * typ
+ | Unit
+ | Prod of typ * typ
+ | Void
+ | Sum of typ * typ
+
+abt side =
+ | L
+ | R
+
+sort exp =
+ | Z
+ | S of exp
+ | Rec of exp * exp * (exp binding . exp binding . exp)
+ | Lam of exp binding * typ . exp
+ | Apply of exp * exp
+ | Triv
+ | Pair of exp * exp
+ | Pr of exp * side
+ | Empty_case of typ * exp
+ | In of typ * typ * side * exp
+ | Case of exp * (exp binding . exp) * (exp binding . exp)
+ | Map of (typ binding . typ) * (exp binding . exp) * exp

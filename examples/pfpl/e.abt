@@ -1,0 +1,20 @@
+abt typ =
+ | Num
+ | Str
+
+sort exp =
+ (* In the book, these are technically natural numbers, the idea in E is to just
+    use whatever the primitive notion of "number" is in the meta-language, which
+    in ocaml is [int]. *)
+ | Num of int
+ | Str of string
+ | Plus of exp * exp
+ | Times of exp * exp
+ | Cat of exp * exp
+ | Len of exp
+ (* Abbot is more expressive than the PFPL abstract syntax, so we attempt to
+    match the concrete syntax more closely when given the opportunity. In this
+    case we encode "let x = e1 in e2" as [Let ((x, e1), e2)]. The alternative
+    would be to more closely match the abstract syntax with
+    [Let of exp * (exp binding . exp)]. *)
+ | Let of exp binding * exp . exp

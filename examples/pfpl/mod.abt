@@ -1,0 +1,45 @@
+abt kind =
+ | Ty
+ | Unit
+ | Sigma of con binding * kind . kind
+ | Pi of con binding * kind . kind
+ | Singleton of con
+
+abt side =
+ | L
+ | R
+
+sort con =
+ | Arrow
+ | Forall of kind
+ | Exists of kind
+ | Triv
+ | Pair of con * con
+ | Proj of con * side
+ | Lam of con binding * kind . con
+ | App of con * con
+ | Static_part of mod
+
+sort exp =
+ | Lam of exp binding * con . exp
+ | Ap of exp * exp
+ | Lam_typ of con binding . exp
+ | Ap_typ of exp * con
+ | Pack of con * exp * (con binding . con)
+ | Open of exp * con binding . (exp binding * con) . exp
+ | Dynamic_part of mod
+
+abt sig =
+ | Sig of con binding * kind . con
+ | Sigma of mod binding * sig . sig
+ | Pi of mod binding * sig . sig
+
+sort mod =
+ | Str of con * exp
+ | Seal of mod * sig
+ | Let of (mod binding * mod . mod) * sig
+ | Open of exp
+ | Pair of mod * mod
+ | Proj of mod * side
+ | Lam of mod binding * sig . mod
+ | App of mod * mod

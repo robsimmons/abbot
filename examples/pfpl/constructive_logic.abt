@@ -1,0 +1,23 @@
+abt prop =
+ | True
+ | False
+ | And of prop * prop
+ | Or of prop * prop
+ | Implies of prop * prop
+
+abt side =
+ | L
+ | R
+
+(* We stick to the abstract syntax for proofs, instead of trying to more closely
+   reflect the concrete syntax, because the concrete syntax is the same as for
+   expressions in the corresponding programming language. *)
+sort prf =
+ | True_I
+ | And_I of prf * prf
+ | And_E of side * prf
+ | Imp_I of prf binding . prf
+ | Imp_E of prf * prf
+ | False_E of prf
+ | Or_I of side * prf
+ | Or_E of prf * (prf binding . prf) * (prf binding . prf)

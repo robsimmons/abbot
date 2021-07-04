@@ -1,0 +1,15 @@
+abt typ =
+ | Num
+ | Str
+ | Arr of typ * typ
+
+sort exp =
+ | Num of int
+ | Str of string
+ | Plus of exp * exp
+ | Times of exp * exp
+ | Cat of exp * exp
+ | Len of exp
+ | Let of exp binding * exp . exp
+ | Lam of exp binding * typ . exp
+ | Apply of exp * exp

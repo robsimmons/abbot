@@ -1,0 +1,8 @@
+abt label
+
+abt typ =
+ | Enum of label list
+
+sort exp =
+ | In of label list * label
+ | Case of exp * (label * exp) list
