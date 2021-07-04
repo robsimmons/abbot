@@ -1,14 +1,6 @@
 open! Core
 include External_abts_intf
 
-module Make0 (T : sig type t [@@deriving sexp_of] end) = struct
-  type t = T.t [@@deriving sexp_of]
-
-  let fold_map acc t = (acc, t)
-
-  let apply_subst _ t = t
-end
-
 module Make1
     (T : sig
        type 'a t [@@deriving sexp_of]
@@ -20,40 +12,29 @@ module Make1
 struct
   type 'a t = 'a T.t [@@deriving sexp_of]
 
+  let map f t = T.map t ~f
   let fold_map f init t = T.fold_map t ~init ~f
-
-  (* We need to define this explicitly, instead of just doing this at the call sites because the
-     call sites don't distinguish between internal and external abts, and for internal abts there
-     may be other work to do, because they can directly contain things we need to substitute into.
-  *)
-  let apply_subst apply_subst_a subst t =
-    T.map t ~f:(apply_subst_a subst)
 end
 
-module Unit =
-  Make0 (struct
-    type t = unit [@@deriving sexp_of]
-  end)
+module Unit = struct
+  type t = unit [@@deriving sexp_of]
+end
 
-module Int =
-  Make0 (struct
-    type t = int [@@deriving sexp_of]
-  end)
+module Int = struct
+  type t = int [@@deriving sexp_of]
+end
 
-module Int64 =
-  Make0 (struct
-    type t = Int64.t [@@deriving sexp_of]
-  end)
+module Int64 = struct
+  type t = Int64.t [@@deriving sexp_of]
+end
 
-module Char =
-  Make0 (struct
-    type t = char [@@deriving sexp_of]
-  end)
+module Char = struct
+  type t = char [@@deriving sexp_of]
+end
 
-module String =
-  Make0 (struct
-    type t = string [@@deriving sexp_of]
-  end)
+module String = struct
+  type t = string [@@deriving sexp_of]
+end
 
 module Option =
   Make1 (struct
@@ -72,9 +53,7 @@ module Option =
 module List =
   Make1 (struct
     type 'a t = 'a list [@@deriving sexp_of]
-
     let map = List.map
-
     let fold_map = List.fold_map
   end)
 

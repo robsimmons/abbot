@@ -465,7 +465,7 @@ let gen_external_abt_modl_defn ~name ~arg_count =
                 Exp.fun_ Nolabel None (Pat.var (ident (apply_subst_of_arg arg))) acc)
               ~init:
                 [%expr
-                  fun subst
+                  fun _
                     (t :
                        [%t
                          Typ.constr
@@ -483,12 +483,7 @@ let gen_external_abt_modl_defn ~name ~arg_count =
                            ::
                            List.init arg_count ~f:(fun arg ->
                              (Labelled (string_of_arg "f" arg),
-                              [%expr
-                                fun x ->
-                                  [%e
-                                    Exp.apply
-                                      (eident (apply_subst_of_arg arg))
-                                      [ (Nolabel, eident "subst"); (Nolabel, eident "x") ]]])))]]]]
+                              eident (apply_subst_of_arg arg))))]]]]
   in
   let module_expr =
     Mod.structure
@@ -540,11 +535,7 @@ let gen_simple_abt_modl_defn ~name (`Simple_abt (args, cases) as defn) =
                (List.fold_right args
                   ~f:(fun arg acc ->
                     Typ.arrow Nolabel
-                      (Typ.arrow Nolabel
-                         (Typ.constr (lident "GSS.Subst.t") [])
-                         (Typ.arrow Nolabel
-                            (Typ.var (arg ^ "1"))
-                            (Typ.var (arg ^ "2"))))
+                      (Typ.arrow Nolabel (Typ.var (arg ^ "1")) (Typ.var (arg ^ "2")))
                       acc)
                   ~init:
                     (Typ.arrow Nolabel
@@ -635,7 +626,8 @@ let gen_simple_abt_modl_defn ~name (`Simple_abt (args, cases) as defn) =
                   [%e
                     Exp.apply
                       [%expr _apply_subst]
-                      (List.map args ~f:(fun arg -> (Nolabel, eident ("subst_" ^ arg)))
+                      (List.map args ~f:(fun arg ->
+                         (Nolabel, [%expr [%e eident ("subst_" ^ arg)] sort value var]))
                        @ [ (Nolabel, [%expr Subst.singleton sort value var])
                          ; (Nolabel, [%expr t])
                          ])

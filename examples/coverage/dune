@@ -7,20 +7,20 @@
   core))
 
 ;; CR wduff: Uncomment this and fix support for internal parameterized abts.
-; (rule
-;  (targets
-;   internal_parameterized_abt_intf.ml
-;   internal_parameterized_abt.mli
-;   internal_parameterized_abt.ml
-;   internal_parameterized_abt.sig
-;   internal_parameterized_abt.sml)
-;  (deps
-;   (:abbot ../../bin/main.exe)
-;   (:example internal_parameterized_abt.abt))
-;  (action
-;   (progn
-;    (run %{abbot} ocaml %{example})
-;    (run %{abbot} sml %{example}))))
+(rule
+ (targets
+  internal_parameterized_abt_intf.ml
+  internal_parameterized_abt.mli
+  internal_parameterized_abt.ml
+  internal_parameterized_abt.sig
+  internal_parameterized_abt.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example internal_parameterized_abt.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
 
 ;; CR wduff: Uncomment these and fix symbols.
 ; (rule

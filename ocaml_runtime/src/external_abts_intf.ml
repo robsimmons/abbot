@@ -2,16 +2,13 @@ open! Core
 
 module type S0 = sig
   type t [@@deriving sexp_of]
-
-  val fold_map : 'acc -> t -> 'acc * t
-  val apply_subst : 'subst -> t -> t
 end
 
 module type S1 = sig
   type 'a t [@@deriving sexp_of]
 
+  val map : ('a -> 'b) -> 'a t -> 'b t
   val fold_map : ('acc -> 'a -> 'acc * 'b) -> 'acc -> 'a t -> 'acc * 'b t
-  val apply_subst : ('subst -> 'a -> 'b) -> 'subst -> 'a t -> 'b t
 end
 
 module type External_abts = sig

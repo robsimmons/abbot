@@ -2,8 +2,8 @@ abt label
 abt 'a labelMap
 
 abt 'a mylist =
-  | Nil
-  | Cons of 'a * 'a mylist
+ | Nil
+ | Cons of 'a * 'a mylist
 
 sort tp =
  | Parr of tp * tp
