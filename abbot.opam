@@ -4,6 +4,7 @@ version: "1.0"
 synopsis: "An SML and OCaml code generator for Abstract Binding Trees."
 maintainer: ["Bill Duff <wduff11@gmail.com>"]
 authors: ["Bill Duff <wduff11@gmail.com>" "Rob Simmons"]
+license: "Apache 2.0"
 homepage: "https://github.com/robsimmons/abbot"
 bug-reports: "https://github.com/robsimmons/abbot/issues"
 depends: [
