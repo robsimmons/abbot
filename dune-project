@@ -5,6 +5,7 @@
 (generate_opam_files true)
 
 (authors "Bill Duff <wduff11@gmail.com>" "Rob Simmons")
+(license "Apache 2.0")
 (maintainers "Bill Duff <wduff11@gmail.com>")
 (homepage "https://github.com/robsimmons/abbot")
 (bug_reports "https://github.com/robsimmons/abbot/issues")
