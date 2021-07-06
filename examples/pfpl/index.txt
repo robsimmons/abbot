@@ -38,6 +38,3 @@ This is a mapping from chapter to abbot file. It is up to date as of 2021-07-04.
 42. (no new syntax)
 43-45. mod.abt
 46-49. (no new syntax)
-
-Extras (see comments in the files for details)
-fpcpat.abt

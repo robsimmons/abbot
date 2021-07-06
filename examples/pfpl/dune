@@ -321,21 +321,6 @@
    (run %{abbot} ocaml %{example})
    (run %{abbot} sml %{example}))))
 
-(rule
- (targets
-  fpcpat_intf.ml
-  fpcpat.mli
-  fpcpat.ml
-  fpcpat.sig
-  fpcpat.sml)
- (deps
-  (:abbot ../../bin/main.exe)
-  (:example fpcpat.abt))
- (action
-  (progn
-   (run %{abbot} ocaml %{example})
-   (run %{abbot} sml %{example}))))
-
 ; (rule
 ;  (targets
 ;   fspcf_intf.ml

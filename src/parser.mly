@@ -1,5 +1,5 @@
 %{
-  open Core
+  open! Core
   open Parse_tree
 %}
 

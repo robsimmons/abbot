@@ -1,0 +1,47 @@
+(* The is a relatively simple, but powerful language, that attempts to strike a
+   good balance between "easy to implement and reason about" and "easy to write
+   toy programs in".
+
+   Starting from PFPL's FPC, this language has a few changes:
+   - The  nullary and binary products and sums have been replaced with general
+     finite products and sums.
+   - The elimination forms for positive types have been removed in favor of a
+     single pattern-match feature.
+   - The overly-verbose type annotations have been removed in favor of
+     allowing type ascriptions anywhere on patterns and expressions.
+   - Added [Fix] explicitly, so it need not be implemented with recursive types.
+   - Added [Let] for convenience and to allow for let-polymorphism.
+   - Added [Let_type] for convenience.
+   - Some constructors have been renamed. *)
+
+abt label
+
+sort typ =
+ | Arrow of typ * typ
+ | Prod of (label * typ) list
+ | Sum of (label * typ) list
+ | Rec of typ binding . typ
+
+abt pat =
+ | Wild
+ | Var of exp binding
+ | Record of (label * pat) list
+ | Inj of label * pat
+ | Fold of pat
+ | Ascribe of pat * typ
+
+sort exp =
+ | Fun of pat . exp
+ | Ap of exp * exp
+ | Record of (label * exp) list
+ | Inj of label * exp
+ | Fold of exp
+ | Match of exp * (pat . exp) list
+ | Fix of exp binding . exp
+ | Let of pat * exp . exp
+ | Let_type of typ binding * typ . exp
+ | Ascribe of exp * typ
+
+(* Used only for HM type-checking. *)
+abt poly_typ =
+ | Poly of typ binding list . typ
