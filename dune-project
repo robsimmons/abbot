@@ -1,11 +1,11 @@
 (lang dune 2.7)
 (name abbot)
-(version 0.1)
+(version 0.2)
 (using menhir 1.0)
 (generate_opam_files true)
 
 (authors "Bill Duff <wduff11@gmail.com>" "Rob Simmons")
-(license "Apache 2.0")
+(license "Apache-2.0")
 (maintainers "Bill Duff <wduff11@gmail.com>")
 (homepage "https://github.com/robsimmons/abbot")
 (bug_reports "https://github.com/robsimmons/abbot/issues")
