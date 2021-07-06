@@ -1,6 +1,6 @@
 (lang dune 2.7)
 (name abbot)
-(version 1.0)
+(version 0.1)
 (using menhir 1.0)
 (generate_opam_files true)
 
