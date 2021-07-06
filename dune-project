@@ -12,7 +12,7 @@
 
 (package
  (name abbot)
- (synopsis "An SML and OCaml code generator for Abstract Binding Trees.")
+ (synopsis "An SML and OCaml code generator for Abstract Binding Trees")
  (depends
   (core (>= v0.14.1))
   (menhir (>= 20201201))
@@ -22,6 +22,6 @@
 
 (package
  (name abbot_runtime)
- (synopsis "The runtime OCaml library needed by Abbot generated code (see package abbot).")
+ (synopsis "The runtime OCaml library needed by Abbot generated code (see package abbot)")
  (depends
   (core (>= v0.14.1))))
