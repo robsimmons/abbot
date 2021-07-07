@@ -79,7 +79,7 @@ let shared_signature_items_of_defn ~current_name defn =
     [ Sig.type_ Recursive
         [ Type.mk
             (ident "t")
-            ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+            ~params:(List.map args ~f:(fun arg -> (Typ.var arg, (NoVariance, NoInjectivity))))
             ~kind:
               (Ptype_variant
                  (List.map cases ~f:(fun (constructor_name, abt) ->
@@ -156,7 +156,7 @@ let shared_signature_items_of_defn ~current_name defn =
 let sort_type defns =
   [ Type.mk
       (ident "t")
-      ~params:[ (Typ.any (), Invariant); (Typ.any (), Invariant) ]
+      ~params:[ (Typ.any (), (NoVariance, NoInjectivity)); (Typ.any (), (NoVariance, NoInjectivity)) ]
       ~kind:
         (Ptype_variant
            (List.filter_map defns ~f:(fun (name, defn) ->
@@ -252,7 +252,7 @@ let gen_interface ~module_name external_abts defns : Ppxlib.Parsetree.structure 
                          (ident "t")
                          ~params:
                            (List.init arg_count ~f:(fun arg ->
-                              (Typ.var (string_of_arg "a" arg), Invariant)))
+                              (Typ.var (string_of_arg "a" arg), (NoVariance, NoInjectivity))))
                          ~attrs:[deriving_sexp_attribute]
                      ]
                  ]
@@ -417,7 +417,7 @@ let gen_external_abt_modl_defn ~name ~arg_count =
     in
     Str.type_ Recursive
       [ Type.mk (ident "t")
-          ~params:(List.map args ~f:(fun arg_var -> (arg_var, Invariant)))
+          ~params:(List.map args ~f:(fun arg_var -> (arg_var, (NoVariance, NoInjectivity))))
           ~manifest:(type_t ~via_module:true ~args name)
           ~attrs:[deriving_sexp_attribute]
       ]
@@ -552,7 +552,7 @@ let gen_simple_abt_modl_defn ~name (`Simple_abt (args, cases) as defn) =
       ([ [%stri open! GSS]
        ; Str.type_ Recursive
            [ Type.mk (ident "t")
-               ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+               ~params:(List.map args ~f:(fun arg -> (Typ.var arg, (NoVariance, NoInjectivity))))
                ~kind:
                  (Ptype_variant
                     (List.map cases ~f:(fun (constructor_name, abt) ->
@@ -1019,7 +1019,10 @@ let gen_implementation ~module_name external_abts defns : Ppxlib.Parsetree.struc
                          (lident "sort",
                           Type.mk
                             (ident "sort")
-                            ~params:[ ([%type: 'var], Invariant); ([%type: 'sort], Invariant) ]
+                            ~params:
+                              [ ([%type: 'var], (NoVariance, NoInjectivity))
+                              ; ([%type: 'sort], (NoVariance, NoInjectivity))
+                              ]
                             ~manifest:[%type: ('var, 'sort) Sort.t])
                      ]))
            ])

@@ -18,7 +18,7 @@
   (menhir (>= 20201201))
   (ocamlgraph (>= 2.0.0))
   (ppx_jane (>= v0.14.0))
-  (ppxlib (>= 0.17.0))))
+  (ppxlib (>= 0.22.2))))
 
 (package
  (name abbot_runtime)

@@ -189,7 +189,7 @@ let layout_constant constant =
     end
   | Pconst_char char ->
     atom (sprintf "'%c'" char)
-  | Pconst_string (string, opt) ->
+  | Pconst_string (string, _loc, opt) ->
     begin
       match opt with
       | Some _ ->
@@ -352,10 +352,13 @@ let layout_variant_type_decl lang ~without_definition ~fits_on_line constructors
              end))))
 ;;
 
-let layout_type_parameter ({ ptyp_desc; ptyp_attributes = _; ptyp_loc = _; ptyp_loc_stack = _ }, variance) =
+let layout_type_parameter
+      ({ ptyp_desc; ptyp_attributes = _; ptyp_loc = _; ptyp_loc_stack = _ },
+       (variance, _injectivity))
+  =
   let variance_string =
     match variance with
-    | Invariant -> ""
+    | NoVariance -> ""
     | Covariant -> "+"
     | Contravariant -> "-"
   in

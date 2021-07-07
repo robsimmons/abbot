@@ -129,7 +129,7 @@ let gen_interface (context : Context.t) (defns : Defn.t list) : Ppxlib.Parsetree
              @
              [ Sig.type_ Recursive
                  [ Type.mk (ident "t")
-                     ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+                     ~params:(List.map args ~f:(fun arg -> (Typ.var arg, (NoVariance, NoInjectivity))))
                  ]
              ; subst_function_signature_item ~args
              ])
@@ -165,7 +165,7 @@ let gen_interface (context : Context.t) (defns : Defn.t list) : Ppxlib.Parsetree
              @ [ Sig.type_ Recursive
                    [ Type.mk
                        (ident "t")
-                       ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+                       ~params:(List.map args ~f:(fun arg -> (Typ.var arg, (NoVariance, NoInjectivity))))
                        ~kind:
                          (Ptype_variant
                             (List.map cases ~f:(fun (constructor_name, abt) ->
@@ -179,7 +179,7 @@ let gen_interface (context : Context.t) (defns : Defn.t list) : Ppxlib.Parsetree
                                                   ~use_temp_directly:true
                                                   ~refer_to_via_module)))))))
                    ; Type.mk (ident name)
-                       ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+                       ~params:(List.map args ~f:(fun arg -> (Typ.var arg, (NoVariance, NoInjectivity))))
                        ~manifest:(Typ.constr (lident "t") (List.map args ~f:Typ.var))
                    ]
                ; subst_function_signature_item ~args
@@ -489,7 +489,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
            (Mod.structure
               [ Str.type_ Recursive
                   [ Type.mk (ident "t")
-                      ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+                      ~params:(List.map args ~f:(fun arg -> (Typ.var arg, (NoVariance, NoInjectivity))))
                       ~manifest:(type_t ~via_module:true ~args:(List.map args ~f:Typ.var) name)
                   ]
               ; [%stri
@@ -559,7 +559,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
     List.map simple_abts ~f:(fun (name, args, cases) ->
       Type.mk
         (ident name)
-        ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+        ~params:(List.map args ~f:(fun arg -> (Typ.var arg, (NoVariance, NoInjectivity))))
         ~kind:
           (Ptype_variant
              (List.map cases ~f:(fun (constructor_name, abt) ->
@@ -618,7 +618,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
   let type_alias_defns =
     List.map external_abts ~f:(fun (name, args) ->
       Type.mk (ident name)
-        ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+        ~params:(List.map args ~f:(fun arg -> (Typ.var arg, (NoVariance, NoInjectivity))))
         ~manifest:
           (Typ.constr (lident (String.capitalize name ^ ".t")) (List.map args ~f:Typ.var)))
     @
@@ -751,7 +751,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                ; Str.type_ Recursive
                    [ Type.mk
                        (ident name)
-                       ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+                       ~params:(List.map args ~f:(fun arg -> (Typ.var arg, (NoVariance, NoInjectivity))))
                        ~manifest:(Typ.constr (lident "t") (List.map args ~f:Typ.var))
                    ]
                ]))))
@@ -1106,7 +1106,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                     (Mty.signature
                        [ Sig.type_ Recursive
                            [ Type.mk (ident "t")
-                               ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+                               ~params:(List.map args ~f:(fun arg -> (Typ.var arg, (NoVariance, NoInjectivity))))
                            ]
                        (* CR wduff: This argument order is unnatural for sml. *)
                        ; Sig.value
@@ -1170,7 +1170,7 @@ let gen_implementation (context : Context.t) (defns : Defn.t list) : Ppxlib.Pars
                        Pwith_type
                          (lident (String.capitalize name ^ ".t"),
                           Type.mk (ident (String.capitalize name ^ ".t"))
-                            ~params:(List.map args ~f:(fun arg -> (Typ.var arg, Invariant)))
+                            ~params:(List.map args ~f:(fun arg -> (Typ.var arg, (NoVariance, NoInjectivity))))
                             ~manifest:
                               (Typ.constr
                                  (lident (String.capitalize name ^ ".t"))
