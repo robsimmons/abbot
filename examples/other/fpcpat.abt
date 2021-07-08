@@ -45,3 +45,16 @@ sort exp =
 (* Used only for HM type-checking. *)
 abt poly_typ =
  | Poly of typ binding list . typ
+
+sort extended_typ =
+ | Arrow of extended_typ * extended_typ
+ | Prod of row
+ | Sum of row
+ | Rec of extended_typ binding . extended_typ
+
+sort row =
+ | Empty
+ | Cons of (label * extended_typ) * row
+
+abt extended_poly_typ =
+ | Poly of extended_typ binding list * row binding list . extended_typ
