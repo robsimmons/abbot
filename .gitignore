@@ -1,4 +1,2 @@
 _build/*
-abbot.install
-abbot_runtime.install
 **/.merlin
