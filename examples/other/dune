@@ -23,6 +23,21 @@
 
 (rule
  (targets
+  polarized_intf.ml
+  polarized.mli
+  polarized.ml
+  polarized.sig
+  polarized.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example polarized.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
   stlc_intf.ml
   stlc.mli
   stlc.ml

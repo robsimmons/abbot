@@ -27,7 +27,7 @@ abt pat =
  | Var of exp binding
  | Record of (label * pat) list
  | Inj of label * pat
- | Fold of pat
+ | Roll of pat
  | Ascribe of pat * typ
 
 sort exp =
@@ -35,7 +35,7 @@ sort exp =
  | Ap of exp * exp
  | Record of (label * exp) list
  | Inj of label * exp
- | Fold of exp
+ | Roll of exp
  | Match of exp * (pat . exp) list
  | Fix of exp binding . exp
  | Let of pat * exp . exp

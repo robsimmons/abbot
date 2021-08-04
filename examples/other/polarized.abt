@@ -1,0 +1,52 @@
+abt label
+
+(* CR wduff: Should we have inductive and coinductive type instead of recursive types? *)
+sort pos_typ =
+ | Pos_prod of (label * pos_typ) list
+ | Sum of (label * pos_typ) list
+ | Rec of pos_typ binding . pos_typ
+ | Down of neg_typ
+
+sort pos_value =
+ | Record of (label * pos_value) list
+ | Inj of label * pos_value
+ | Roll of pos_value
+ | Lazy of neg_value
+
+abt value_pat =
+ | Var of pos_value binding
+ | Wild
+ | Record of (label * value_pat) list
+ | Inj of label * value_pat
+ | Roll of value_pat
+ | Lazy of neg_value binding
+
+sort pos_cont =
+ | Match of (value_pat . exp) list
+
+sort neg_typ =
+ | Arrow of pos_typ * neg_typ
+ | Neg_prod of (label * neg_typ) list
+ | Corec of neg_typ binding . neg_typ
+ | Up of pos_typ
+
+sort neg_cont =
+ | Ap of pos_value * neg_cont
+ | Proj of label * neg_cont
+ | Unroll of neg_cont
+ | Force of pos_cont
+
+abt cont_pat =
+ | Var of neg_cont binding
+ | Wild
+ | Ap of value_pat * cont_pat
+ | Proj of label * cont_pat
+ | Unroll of cont_pat
+ | Force of pos_cont binding
+
+sort neg_value =
+ | Match of (cont_pat . exp) list
+
+abt exp =
+ | Pos_contr of pos_cont * pos_value
+ | Neg_contr of neg_cont * neg_value
