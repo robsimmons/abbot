@@ -1,4 +1,4 @@
-open! Core
+open! Base
 
 module type S = sig
   type t [@@deriving compare, equal, hash, sexp]
@@ -10,8 +10,8 @@ module type S = sig
     with type non_empty_set = Brother_tree_set.Non_empty.t
 
   (* CR wduff: Eventually fully get rid of comparable in exchange for Brother_tree stuff. *)
-  include Comparable.S with type t := t
-  include Hashable.S with type t := t
+  include Core.Comparable.S with type t := t
+  include Core.Hashable.S with type t := t
 
   (* Creates a new, globally unique temp. *)
   val create : string -> t

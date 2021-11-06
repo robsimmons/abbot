@@ -1,4 +1,6 @@
-open! Core
+open! Base
+
+module Map = Core.Map
 
 val choose_key : ('k, 'v, 'cmp) Map.t -> 'k option
 

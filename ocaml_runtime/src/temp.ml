@@ -1,4 +1,4 @@
-open! Core
+open! Base
 
 module T = struct
   type t = string * int [@@deriving sexp]
@@ -19,5 +19,5 @@ end
 include T
 module Brother_tree_set = Brother_tree.Set.Make (T)
 module Brother_tree_map = Brother_tree.Map.Make (T)
-include Comparable.Make (T)
-include Hashable.Make (T)
+include Core.Comparable.Make (T)
+include Core.Hashable.Make (T)

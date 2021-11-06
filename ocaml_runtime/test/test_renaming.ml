@@ -1,7 +1,7 @@
 (* CR wduff: Re-enable these tests.
 
    {[
-     open! Core
+     open! Base
      open Abbot_runtime
 
      let show_raise f =

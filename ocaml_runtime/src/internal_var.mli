@@ -1,4 +1,4 @@
-open! Core
+open! Base
 
 type 'var t =
   | Free_var of 'var

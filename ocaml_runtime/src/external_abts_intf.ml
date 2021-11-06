@@ -1,4 +1,4 @@
-open! Core
+open! Base
 
 module type S0 = sig
   type t [@@deriving sexp_of]

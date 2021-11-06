@@ -1,4 +1,4 @@
-open! Core
+open! Base
 include External_abts_intf
 
 module Make1

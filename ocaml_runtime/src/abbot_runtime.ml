@@ -1,4 +1,4 @@
-open! Core
+open! Base
 
 module External_abts = External_abts
 module Internal_var = Internal_var

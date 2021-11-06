@@ -1,4 +1,4 @@
-open! Core
+open! Base
 include Generic_sort_and_subst_intf
 
 let raise_not_fresh var =
@@ -6,6 +6,13 @@ let raise_not_fresh var =
     [%message
       "Internal abbot bug. Variable passed to [unbind] was not fresh."
         (var : _ (* CR wduff: Temp.t *))]
+;;
+
+(* CR wduff: Fix this. *)
+let var_equal (type var) (var1 : var) (var2 : var) =
+  let (_, i1) = (Caml.Obj.magic var1 : string * int) in
+  let (_, i2) = (Caml.Obj.magic var2 : string * int) in
+  i1 = i2
 ;;
 
 module Make_function (Sort : Sort_intf.S)
@@ -97,8 +104,7 @@ struct
         match var with
         | Bound_var bound_var -> Var (Bound_var bound_var)
         | Free_var free_var' ->
-          (* CR wduff: Remove the [Poly.equal]. *)
-          match Poly.equal free_var free_var' with
+          match var_equal free_var free_var' with
           | true -> (value : (var', oper') Generic_sort.t)
           | false -> Var (Free_var free_var')
 
@@ -119,8 +125,7 @@ struct
         match var with
         | Bound_var bound_var -> Bound_var (bound_var + 1)
         | Free_var free_var' ->
-          (* CR wduff: Remove the [Poly.equal]. *)
-          match Poly.equal free_var free_var' with
+          match var_equal free_var free_var' with
           | true -> Bound_var 0
           | false -> Free_var free_var'
     ;;
@@ -146,8 +151,7 @@ struct
       | Some (T, _) ->
         match var with
         | Free_var free_var' ->
-          (* CR wduff: Remove the [Poly.equal]. *)
-          (match Poly.equal free_var free_var' with
+          (match var_equal free_var free_var' with
            | false -> Free_var free_var'
            | true -> raise_not_fresh free_var)
         | Bound_var bound_var ->
@@ -265,8 +269,7 @@ struct
         match var with
         | Bound_var bound_var -> Var (Bound_var bound_var)
         | Free_var free_var' ->
-          (* CR wduff: Remove the [Poly.equal]. *)
-          match Poly.equal free_var free_var' with
+          match var_equal free_var free_var' with
           | true -> (value : (var', oper') Generic_sort.t)
           | false -> Var (Free_var free_var')
 
@@ -287,8 +290,7 @@ struct
         match var with
         | Bound_var bound_var -> Bound_var (bound_var + 1)
         | Free_var free_var' ->
-          (* CR wduff: Remove the [Poly.equal]. *)
-          match Poly.equal free_var free_var' with
+          match var_equal free_var free_var' with
           | true -> Bound_var 0
           | false -> Free_var free_var'
     ;;
@@ -314,8 +316,7 @@ struct
       | Some (T, _) ->
         match var with
         | Free_var free_var' ->
-          (* CR wduff: Remove the [Poly.equal]. *)
-          (match Poly.equal free_var free_var' with
+          (match var_equal free_var free_var' with
            | false -> Free_var free_var'
            | true -> raise_not_fresh free_var)
         | Bound_var bound_var ->

@@ -1,6 +1,14 @@
 abt label
 
-(* CR wduff: Should we have inductive and coinductive type instead of recursive types? *)
+(* CR wduff: Should we have inductive and coinductive type instead of recursive/corecursive types?
+
+   I think it boils down to whether we can implement
+   val unroll : rec[t.tau] -> up [rec[t.tau]/t]tau on recursive types and
+   val roll : down [corec[t.tau]/t]tau -> corec[t.tau],
+   I think we can do both because we allow shallow pattern matching.
+
+   If would be good to write this out explicitly and demonstrate that we can write [fix] in both
+   cases. *)
 sort pos_typ =
  | Pos_prod of (label * pos_typ) list
  | Sum of (label * pos_typ) list
