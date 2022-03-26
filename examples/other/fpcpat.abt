@@ -1,6 +1,6 @@
-(* The is a relatively simple, but powerful language, that attempts to strike a
-   good balance between "easy to implement and reason about" and "easy to write
-   toy programs in".
+(* The is a relatively simple but powerful language that attempts to strike a
+   good balance between being easy to implement and reason about and being easy
+   to write toy programs in.
 
    Starting from PFPL's FPC, this language has a few changes:
    - The  nullary and binary products and sums have been replaced with general

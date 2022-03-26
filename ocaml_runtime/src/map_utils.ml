@@ -161,8 +161,8 @@ let choose_key map =
   | Node (_, k, _, _, _) -> Some k
 ;;
 
-let remove_set = failwith "unimpl"
-let restrict_to_set = failwith "unimpl"
+let remove_set _ _ = failwith "unimpl"
+let restrict_to_set _ _ = failwith "unimpl"
 
 (* CR wduff: I think to get the right asymptotics, we may need to check which is larger on every
    recursive call, rather than just at the beginning. (This applies to all of union, inter, and

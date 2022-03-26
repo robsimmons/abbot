@@ -1,10 +1,20 @@
 %{
   open! Core
-  open Parse_tree
 %}
 
 %type <Parse_tree.Defn.t list> all_defns
 %type <Parse_tree.Defn.t> defn
+%type <Parse_tree.Abt.t> simple_abt
+%type <Parse_tree.Defn.t list> defns
+%type <Parse_tree.Abt.t> abt
+%type <string list> arg_list
+%type <string list> args
+%type <string> arg_name
+%type <Parse_tree.Abt.t list> comma_separated_abts
+%type <string * Parse_tree.Abt.t option> constructor
+%type <(string * Parse_tree.Abt.t option) list> constructors
+%type <(string * Parse_tree.Abt.t option) list> non_empty_constructors
+%type <Parse_tree.Abt.t list> product
 
 %start all_defns
 %token SORT ABT EQUAL BAR LPAREN RPAREN SYMBOL DOT STAR OF BINDING QUOTE COMMA EOF
@@ -53,15 +63,15 @@ constructor:
 
 abt:
   | simple_abt { $1 }
-  | product { Abt.Prod $1 }
-  | abt DOT abt { Abt.Bind ($1, $3) }
+  | product { Prod $1 }
+  | abt DOT abt { Bind ($1, $3) }
 
 simple_abt:
-  | Name { Abt.Use ($1, []) }
-  | arg_name { Abt.Arg_use $1 }
-  | simple_abt Name { Abt.Use ($2, [$1]) }
-  | LPAREN comma_separated_abts RPAREN Name { Abt.Use ($4, $2) }
-  | Name BINDING { Abt.Binding $1 }
+  | Name { Use ($1, []) }
+  | arg_name { Arg_use $1 }
+  | simple_abt Name { Use ($2, [$1]) }
+  | LPAREN comma_separated_abts RPAREN Name { Use ($4, $2) }
+  | Name BINDING { Binding $1 }
   | LPAREN abt RPAREN { $2 }
 
 comma_separated_abts:
