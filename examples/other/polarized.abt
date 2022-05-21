@@ -19,6 +19,7 @@ sort pos_value =
  | Record of (label * pos_value) list
  | Inj of label * pos_value
  | Roll of pos_value
+ (* CR wduff: This, and [Neg_cont.Force] should probably both allow [Wild]. *)
  | Lazy of neg_value
 
 abt value_pat =

@@ -47,7 +47,7 @@ val always_split_list : (Indentation.t * t) list -> t
 val if_fits_on_line : then_:t -> else_:t -> t
 
 (** [to_string config t ~max_line_length] converts a [t] to a string, attempting to limit line
-   lengths to less than [max_line_length].
+    lengths to less than [max_line_length].
 
     Note that it is possible to exceed [max_line_length] if splitting the string maximally and
     respecting indentation still results lines that are too wide. For example, if there is a single

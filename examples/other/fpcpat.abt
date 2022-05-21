@@ -1,4 +1,4 @@
-(* The is a relatively simple but powerful language that attempts to strike a
+(* This is a relatively simple but powerful language that attempts to strike a
    good balance between being easy to implement and reason about and being easy
    to write toy programs in.
 
