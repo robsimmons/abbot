@@ -1,9 +1,5 @@
 abt numeral
 
-abt typ =
- | Nat
- | Parr of typ * typ
-
 sort exp =
  | Num of numeral
  | Zero

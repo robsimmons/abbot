@@ -1,4 +1,4 @@
-(* See classical_logic_as_pl.abt for the same thing, but with less friendly
+(* See classical_logic.abt for the same thing, but with less friendly
    names that emphasize the logic more. *)
 
 abt typ =

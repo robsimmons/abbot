@@ -299,7 +299,7 @@ let layout_variant_type_decl lang ~without_definition ~fits_on_line constructors
     ((No_indent, list (without_definition @ [ (No_indent, atom "=") ]))
      ::
      (List.mapi constructors
-        ~f:(fun i { pcd_name; pcd_args; pcd_res; pcd_attributes = _; pcd_loc = _ } ->
+        ~f:(fun i { pcd_name; pcd_args; pcd_res; pcd_vars = _; pcd_attributes = _; pcd_loc = _ } ->
           let start =
             match (lang, fits_on_line, i) with
             | (`Ocaml, true, 0) | (`Sml, _, 0) ->
@@ -606,7 +606,9 @@ let rec layout_module_type lang ({ pmty_desc; pmty_attributes = _; pmty_loc = _ 
                    ; (No_indent, atom ":=")
                    ])
               ; (Indent, atom (string_of_lident lident2))
-              ])))
+              ]
+          | Pwith_modtype _ | Pwith_modtypesubst _ ->
+            raise_s [%message "unsupported module type"])))
   | Pmty_alias _ | Pmty_typeof _ | Pmty_extension _ ->
     raise_s [%message "unsupported module type"]
 
@@ -758,6 +760,7 @@ and layout_signature_item lang ({ psig_desc; psig_loc = _ } : signature_item) =
   | Psig_attribute _
   | Psig_typesubst _
   | Psig_modsubst _
+  | Psig_modtypesubst _
     ->
     raise_s [%message "unsupported signature item"]
 
@@ -819,7 +822,7 @@ let rec layout_pattern lang ~outer_precedence { ppat_desc; ppat_attributes = _; 
     begin
       match pat_opt with
       | None -> atom (string_of_lident constructor)
-      | Some pat ->
+      | Some (_vars, pat) ->
         let include_parens =
           match outer_precedence with
           | `None | `As | `Or | `Constrained | `Record_elt | `Tuple_elt -> false

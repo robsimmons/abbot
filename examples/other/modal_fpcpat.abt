@@ -1,4 +1,6 @@
-(* FPCPAT extended with modal type operators and mode switching expressions and patterns. *)
+(* FPCPAT extended with modal type operators and mode switching expressions and patterns. The
+   direction of the mode switches is implicit in the relative order of the current mode and the mode
+   being switched to. *)
 
 abt label
 abt mode
@@ -35,3 +37,17 @@ sort exp =
 (* Used only for HM type-checking. *)
 abt poly_typ =
  | Poly of typ binding list . typ
+
+sort extended_typ =
+ | Arrow of extended_typ * extended_typ
+ | Prod of row
+ | Sum of row
+ | Rec of extended_typ binding . extended_typ
+ | At_mode of mode * extended_typ
+
+sort row =
+ | Empty
+ | Cons of (label * extended_typ) * row
+
+abt extended_poly_typ =
+ | Poly of extended_typ binding list * row binding list . extended_typ

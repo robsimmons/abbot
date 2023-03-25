@@ -23,6 +23,36 @@
 
 (rule
  (targets
+  modal_fpcpat_intf.ml
+  modal_fpcpat.mli
+  modal_fpcpat.ml
+  modal_fpcpat.sig
+  modal_fpcpat.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example modal_fpcpat.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
+  modal_fpcpat_explicit_conversion_intf.ml
+  modal_fpcpat_explicit_conversion.mli
+  modal_fpcpat_explicit_conversion.ml
+  modal_fpcpat_explicit_conversion.sig
+  modal_fpcpat_explicit_conversion.sml)
+ (deps
+  (:abbot ../../bin/main.exe)
+  (:example modal_fpcpat_explicit_conversion.abt))
+ (action
+  (progn
+   (run %{abbot} ocaml %{example})
+   (run %{abbot} sml %{example}))))
+
+(rule
+ (targets
   polarized_intf.ml
   polarized.mli
   polarized.ml

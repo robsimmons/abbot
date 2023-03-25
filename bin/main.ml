@@ -130,7 +130,7 @@ let sml_command =
 ;;
 
 let () =
-  Command.run
+  Command_unix.run
     (Command.group
        ~summary:"Generate abstract binding trees a simple specification language."
        [ ("ocaml", ocaml_command)
