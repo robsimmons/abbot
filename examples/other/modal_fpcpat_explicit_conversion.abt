@@ -1,0 +1,56 @@
+(* FPCPAT extended with modal type operators and mode switching expressions and patterns, with the
+   direction and outer mode of conversions made explicit. *)
+
+abt label
+abt mode
+
+sort typ =
+ | Arrow of typ * typ
+ | Prod of (label * typ) list
+ | Sum of (label * typ) list
+ | Rec of typ binding . typ
+ | Down of mode * mode * typ
+ | Up of mode * mode * typ
+
+abt pat =
+ | Wild
+ | Var of exp binding
+ | Record of (label * pat) list
+ | Inj of label * pat
+ | Roll of pat
+ | Pack_down of mode * mode * pat
+ | Ascribe of pat * typ
+
+sort exp =
+ | Fun of pat . exp
+ | Ap of exp * exp
+ | Record of (label * exp) list
+ | Inj of label * exp
+ | Roll of exp
+ | Pack_down of mode * mode * exp
+ | Lazy_up of mode * mode * exp
+ | Force_up of exp
+ | Match of exp * (pat . exp) list
+ | Fix of exp binding . exp
+ | Let of pat * exp . exp
+ | Let_type of typ binding * typ . exp
+ | Ascribe of exp * typ
+
+(* Used only for HM type-checking. *)
+abt poly_typ =
+ | Poly of typ binding list . typ
+
+sort extended_typ =
+ | Arrow of extended_typ * extended_typ
+ | Prod of row
+ | Sum of row
+ | Rec of extended_typ binding . extended_typ
+ | Down of mode * mode * typ
+ | Up of mode * mode * typ
+
+sort row =
+ | Empty
+ | Cons of (label * extended_typ) * row
+
+abt extended_poly_typ =
+ | Poly of extended_typ binding list * row binding list . extended_typ
