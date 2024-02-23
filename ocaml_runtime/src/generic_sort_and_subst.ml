@@ -10,8 +10,8 @@ let raise_not_fresh var =
 
 (* CR wduff: Fix this. *)
 let var_equal (type var) (var1 : var) (var2 : var) =
-  let (_, i1) = (Caml.Obj.magic var1 : string * int) in
-  let (_, i2) = (Caml.Obj.magic var2 : string * int) in
+  let (_, i1) = (Stdlib.Obj.magic var1 : string * int) in
+  let (_, i2) = (Stdlib.Obj.magic var2 : string * int) in
   i1 = i2
 ;;
 

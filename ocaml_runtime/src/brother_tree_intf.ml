@@ -90,7 +90,7 @@ end = struct
     | Height_unchanged
     | Height_increased
 
-  let to_int (t : t) = (Caml.Obj.magic t : int)
+  let to_int (t : t) = (Stdlib.Obj.magic t : int)
 end
 
 module Height_decrease : sig
@@ -106,7 +106,7 @@ end = struct
     | Height_unchanged
     | Height_decreased
 
-  let to_int (t : t) = (Caml.Obj.magic t : int)
+  let to_int (t : t) = (Stdlib.Obj.magic t : int)
 end
 
 module type Non_empty_balanced_tree = sig

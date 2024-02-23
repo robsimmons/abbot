@@ -16,16 +16,16 @@ type ('k, 'v, 'comparator) t =
 (* CR wduff: This is a horrible hack. *)
 module Unsafe = struct
   let expose : ('k, 'v, 'comparator) Map.t -> ('k, 'v, 'comparator) t =
-    Caml.Obj.magic
+    Stdlib.Obj.magic
 
   let unexpose : ('k, 'v, 'comparator) t -> ('k, 'v, 'comparator) Map.t =
-    Caml.Obj.magic
+    Stdlib.Obj.magic
 
   let expose_tree : ('k, 'v, 'comparator) Map.Tree.t -> ('k, 'v) tree0 =
-    Caml.Obj.magic
+    Stdlib.Obj.magic
 
   let unexpose_tree : ('k, 'v) tree0 -> ('k, 'v, 'comparator) Map.Tree.t =
-    Caml.Obj.magic
+    Stdlib.Obj.magic
 
   let _ = expose
   let _ = unexpose

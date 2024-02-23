@@ -59,12 +59,12 @@ module List =
 
 module String_map =
   Make1 (struct
-    type 'a t = 'a Core.String.Map.t [@@deriving sexp_of]
+    type 'a t = 'a Map.M(Base.String).t [@@deriving sexp_of]
 
-    let map = Core.String.Map.map
+    let map = Map.map
 
     let fold_map t ~init ~f =
-      Core.String.Map.fold t ~init:(init, Core.String.Map.empty) ~f:(fun ~key ~data (acc, new_map) ->
+      Map.fold t ~init:(init, Map.empty (module Base.String)) ~f:(fun ~key ~data (acc, new_map) ->
         let (acc, data) = f acc data in
-        (acc, Core.String.Map.add_exn new_map ~key ~data))
+        (acc, Map.add_exn new_map ~key ~data))
   end)

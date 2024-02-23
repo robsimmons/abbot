@@ -10,6 +10,7 @@ bug-reports: "https://github.com/robsimmons/abbot/issues"
 depends: [
   "dune" {>= "2.7"}
   "core" {>= "v0.14.1"}
+  "core_unix" {>= "v0.16.0"}
   "menhir" {>= "20201201"}
   "ocamlgraph" {>= "2.0.0"}
   "ppx_jane" {>= "v0.14.0"}

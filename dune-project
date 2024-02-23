@@ -15,6 +15,7 @@
  (synopsis "An SML and OCaml code generator for Abstract Binding Trees")
  (depends
   (core (>= v0.14.1))
+  (core_unix (>= v0.16.0))
   (menhir (>= 20201201))
   (ocamlgraph (>= 2.0.0))
   (ppx_jane (>= v0.14.0))
