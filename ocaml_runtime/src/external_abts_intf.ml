@@ -13,6 +13,7 @@ end
 
 module type External_abts = sig
   module Unit : S0 with type t = unit
+  module Bool : S0 with type t = bool
   module Int : S0 with type t = int
   module Int64 : S0 with type t = Int64.t
   module Char : S0 with type t = char

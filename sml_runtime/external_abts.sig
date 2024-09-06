@@ -16,6 +16,7 @@ end
 
 signature EXTERNAL_ABTS = sig
     structure Unit : EXTERNAL_ABT_0 where type t = unit
+    structure Bool : EXTERNAL_ABT_0 where type t = bool
     structure Int : EXTERNAL_ABT_0 where type t = int
     structure Char : EXTERNAL_ABT_0 where type t = char
     structure String : EXTERNAL_ABT_0 where type t = string

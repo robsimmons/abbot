@@ -2,6 +2,7 @@ open! Core
 
 type t =
   | Unit
+  | Bool
   | Int
   | Int64
   | Char
@@ -13,6 +14,7 @@ type t =
 
 let of_name = function
   | "unit" -> Some Unit
+  | "bool" -> Some Bool
   | "int" -> Some Int
   | "int64" -> Some Int64
   | "char" -> Some Char
@@ -25,6 +27,7 @@ let of_name = function
 
 let name = function
   | Unit -> "unit"
+  | Bool -> "bool"
   | Int -> "int"
   | Int64 -> "int64"
   | Char -> "char"
@@ -41,12 +44,13 @@ let%expect_test _ =
 ;;
 
 let arity = function
-  | Unit | Int | Int64 | Char | String -> 0
+  | Unit | Bool | Int | Int64 | Char | String -> 0
   | Option | List | String_map -> 1
 ;;
 
 let core_type = function
   | Unit -> "unit"
+  | Bool -> "bool"
   | Int -> "int"
   | Int64 -> "Int64.t"
   | Char -> "char"

@@ -36,8 +36,9 @@ end
 
 structure Unit = Make0 (struct type t = unit end)
 
-structure Int = Make0 (struct type t = int end)
+structure Bool = Make0 (struct type t = bool end)
 
+structure Int = Make0 (struct type t = int end)
 
 structure Char = Make0 (struct type t = char end)
 

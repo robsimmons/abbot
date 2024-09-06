@@ -20,6 +20,10 @@ module Unit = struct
   type t = unit [@@deriving sexp_of]
 end
 
+module Bool = struct
+  type t = bool [@@deriving sexp_of]
+end
+
 module Int = struct
   type t = int [@@deriving sexp_of]
 end
