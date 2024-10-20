@@ -6,6 +6,10 @@ struct
     | ProdType of TYPE list
     | AppType of TYPE list * TYPE
     | ModProjType of STRUCT * string
+    | Str
+    | Int 
+    | Char
+    | Bool
 
   and SIG
     = SigVar of string

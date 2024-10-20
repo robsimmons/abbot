@@ -149,7 +149,15 @@ fun create_ext_signature args =
            aliases=
            [("t",
              List.map (fn arg => "'" ^ arg) args, NONE)]})
-       :: (case args of
+        :: 
+          let 
+            val typeVar_with_args = (String.concatWith " " (List.map (fn arg => "'" ^ arg) args)) ^ " t"
+            val toString_decl = ValDecl("toString", ArrowType(TypeVar typeVar_with_args, Str))
+            val equal_decl = ValDecl("equal", ArrowType(ProdType[TypeVar typeVar_with_args, TypeVar typeVar_with_args], Bool))
+          in 
+            [toString_decl, equal_decl]
+          end
+       @ (case args of
                [] => []
              | _ =>
                [BlankDecl,
