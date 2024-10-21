@@ -50,7 +50,7 @@ end = struct
           | Int => "int"
           | Bool => "bool"
           | Char => "char"
-        ) :: acc
+          ) :: acc
         | ArrowType (TYPE1, TYPE2) =>
           if precedence TYPE1 > 2
           then
