@@ -1,15 +1,19 @@
 structure SmlSyntax =
 struct
+
+  datatype BASETYPE 
+    = Str 
+    | Bool
+    | Int 
+    | Char
+    
   datatype TYPE
     = TypeVar of string
     | ArrowType of TYPE * TYPE
     | ProdType of TYPE list
     | AppType of TYPE list * TYPE
     | ModProjType of STRUCT * string
-    | Str
-    | Int 
-    | Char
-    | Bool
+    | BaseType of BASETYPE
 
   and SIG
     = SigVar of string
