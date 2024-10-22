@@ -36,7 +36,7 @@ end = struct
 
   fun precedence TYPE =
       case TYPE of
-          (TypeVar _ | ModProjType _ | ProdType [] | ProdType [_]) => 0
+          (TypeVar _ | ModProjType _ | ProdType [] | ProdType [_] | BaseType _) => 0
         | AppType _ => 1
         | ProdType _ => 2
         | ArrowType _ => 3
@@ -44,6 +44,13 @@ end = struct
   fun emit_type TYPE acc =
       case TYPE of
           TypeVar name => String name :: acc
+        | BaseType b => String (
+          case b of 
+            Str => "string"
+          | Int => "int"
+          | Bool => "bool"
+          | Char => "char"
+          ) :: acc
         | ArrowType (TYPE1, TYPE2) =>
           if precedence TYPE1 > 2
           then

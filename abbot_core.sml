@@ -143,43 +143,82 @@ fun sort_arity_to_type (ana : ana) internal sort =
     #2 (arity_to_type ana internal (Sort sort))
 
 fun create_ext_signature args =
-    SigBody
-      ((TypeDecls
+  let 
+    val t_typedecl = (TypeDecls
           {datatypes=[],
            aliases=
            [("t",
              List.map (fn arg => "'" ^ arg) args, NONE)]})
-       :: (case args of
-               [] => []
-             | _ =>
-               [BlankDecl,
-                ValDecl
-                  ("iter",
-                   List.foldr
-                     (fn (arg, acc) =>
-                         ArrowType
-                           (ArrowType
-                              (ProdType [TypeVar ("'" ^ arg ^ "1"),
-                                         TypeVar "'state"],
-                               ProdType [TypeVar ("'" ^ arg ^ "2"),
-                                         TypeVar "'state"]),
-                            acc))
-                     (ArrowType
-                        (ProdType
-                           [AppType
-                              (List.map
-                                 (fn arg => TypeVar ("'" ^ arg ^ "1"))
-                                 args,
-                               TypeVar "t"),
-                            TypeVar "'state"],
-                         ProdType
-                           [AppType
-                              (List.map
-                                 (fn arg => TypeVar ("'" ^ arg ^ "2"))
-                                 args,
-                               TypeVar "t"),
-                            TypeVar "'state"]))
-                     args)]))
+
+    val t_with_args = AppType (List.map (fn arg => TypeVar ("'" ^ arg)) args, TypeVar "t")
+
+    val eq_decl_type = List.foldr
+      (fn (arg, acc) =>
+          ArrowType
+            (ArrowType
+                (ProdType [TypeVar ("'" ^ arg), TypeVar ("'" ^ arg)],
+                  BaseType Bool
+                ),
+            acc))
+      (ArrowType (ProdType[t_with_args, t_with_args], BaseType Bool))
+      args
+
+    val eq_decl = ValDecl ("equal", eq_decl_type)
+
+    val toString_decl_type = List.foldr
+      (fn (arg, acc) =>
+          ArrowType
+            (ArrowType
+                (TypeVar ("'" ^ arg),
+                  BaseType Str
+                ),
+            acc))
+      (ArrowType (t_with_args, BaseType Str))
+      args
+
+    val toString_decl = ValDecl ("toString", toString_decl_type)
+    
+    val arg_decls = case args of
+        [] => []
+      | _ =>
+          let
+            val t_with_args1 = AppType (List.map (fn arg => TypeVar ("'" ^ arg ^ "1")) args, TypeVar "t")
+            val t_with_args2= AppType (List.map (fn arg => TypeVar ("'" ^ arg ^ "2")) args, TypeVar "t")
+            
+            val iter_decl = ValDecl
+              ("iter",
+              List.foldr
+                (fn (arg, acc) =>
+                    ArrowType
+                      (ArrowType
+                          (ProdType [TypeVar ("'" ^ arg ^ "1"),
+                                    TypeVar "'state"],
+                          ProdType [TypeVar ("'" ^ arg ^ "2"),
+                                    TypeVar "'state"]),
+                        acc))
+                (ArrowType
+                    (ProdType [t_with_args1, TypeVar "'state"],
+                     ProdType [t_with_args2, TypeVar "'state"]))
+                args)
+
+              val map_decl_type = List.foldr
+                (fn (arg, acc) =>
+                    ArrowType
+                      (ArrowType
+                          (TypeVar ("'" ^ arg ^ "1"),
+                           TypeVar ("'" ^ arg ^ "2")
+                          ),
+                      acc))
+                (ArrowType (t_with_args1, t_with_args2))
+                args
+
+              val map_decl = ValDecl ("map", map_decl_type)
+          in
+            [iter_decl, map_decl]
+          end
+  in 
+    SigBody(t_typedecl :: BlankDecl :: eq_decl :: toString_decl :: arg_decls)
+  end
 
 fun abt_datatype ana (abt, (args, opers)) =
     (abt_to_string abt,
