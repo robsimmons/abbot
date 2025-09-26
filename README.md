@@ -1,7 +1,7 @@
 Abbot
 =====
 
-Abbot is a tool for the automatic generation of implementations for abstract binding trees with the locally nameless representation. Abstract syntax trees are quite natural to express as Standard ML datatypes, but the abstract binding trees described in Harper's _Practical Foundations of Programming Languages_ are tricker due to the necessity of alpha-equivalence and avoiding variable capture.
+Abbot is a tool for the automatic generation of implementations for abstract binding trees with the locally nameless representation. Abstract syntax trees are quite natural to express as Standard ML datatypes, but the abstract binding trees described in Harper's _Practical Foundations of Programming Languages_ are trickier due to the necessity of alpha-equivalence and avoiding variable capture.
 
 A reasonable implementation strategy for abstract binding trees keeps ABTs as an abstract type; whenever a bound variable is exposed, it is given a globally fresh name that ensures its uniqueness. Such an implementation avoids many potential errors that can happen because of shadowing. However, implementing this interface for each language that we might be interested in would be tedious and error-prone in the extreme.
 
@@ -50,7 +50,7 @@ fun trystep exp =
 ABTs with Abbot
 ---------------
 
-Abbot takes a code generation approach to ABT specification. Instead of the operators and the corresponding information about their airities being passed to a functor, we can specify 
+Abbot takes a code generation approach to ABT specification. Instead of the operators and the corresponding information about their arities being passed to a functor, we can specify 
 
 ```
 abt exp = Lam (exp.exp) | Ap (exp, exp)
